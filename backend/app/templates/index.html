@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>生成教学设计</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            width: 400px;
+            text-align: center;
+        }
+        h1 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        textarea {
+            resize: vertical;
+            height: 100px;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .message {
+            margin-top: 15px;
+            color: #ff0000;
+            font-size: 14px;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>生成教学设计</h1>
+        <form id="lessonPlanForm">
+            <input type="text" id="title" placeholder="标题" required>
+            <textarea id="description" placeholder="描述"></textarea>
+            <select id="generated_by">
+                <option value="manual">手动生成</option>
+                <option value="AI">AI 生成</option>
+            </select>
+            <button type="submit">生成</button>
+        </form>
+        <div id="message" class="message"></div>
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        document.getElementById('lessonPlanForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const title = document.getElementById('title').value;
+            const description = document.getElementById('description').value;
+            const generated_by = document.getElementById('generated_by').value;
+
+            try {
+                const response = await fetch('/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',  // 确保发送 Cookie
+                    body: JSON.stringify({
+                        title,
+                        description,
+                        generated_by
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // 显示生成的教学设计内容
+                    document.getElementById('result').innerHTML = `
+                        <h3>生成结果：</h3>
+                        <pre>${JSON.stringify(data.plan, null, 2)}</pre>
+                    `;
+                    document.getElementById('message').textContent = '';
+                } else {
+                    // 显示错误信息
+                    document.getElementById('message').textContent = data.message || '生成失败';
+                    document.getElementById('result').innerHTML = '';
+                }
+            } catch (error) {
+                console.error('生成失败:', error);
+                document.getElementById('message').textContent = '网络错误，请稍后重试';
+                document.getElementById('result').innerHTML = '';
+            }
+        });
+    </script>
+</body>
+</html>
