@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Course Management</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; }
+        .form-group input, .form-group button { width: 100%; padding: 8px; box-sizing: border-box; }
+        .list-group { margin-top: 20px; }
+        .list-group-item { margin-bottom: 10px; padding: 10px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Course Management</h1>
+
+        <!-- Form to create a new course -->
+        <div class="form-group">
+            <label for="courseName">Course Name:</label>
+            <input type="text" id="courseName" placeholder="Enter course name">
+        </div>
+        <div class="form-group">
+            <label for="courseDescription">Course Description:</label>
+            <textarea id="courseDescription" placeholder="Enter course description"></textarea>
+        </div>
+        <div class="form-group">
+            <label for="courseClassIds">Course Class IDs (comma-separated):</label>
+            <input type="text" id="courseClassIds" placeholder="Enter course class IDs">
+        </div>
+        <button onclick="createCourse()">Create Course</button>
+
+        <!-- List of courses -->
+        <div class="list-group" id="coursesList"></div>
+    </div>
+
+    <script>
+        // Function to fetch and display all courses
+        function fetchCourses() {
+            fetch('/courses', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                const list = document.getElementById('coursesList');
+                list.innerHTML = '';
+                data.forEach(course => {
+                    const item = document.createElement('div');
+                    item.className = 'list-group-item';
+                    item.innerHTML = `
+                        <strong>${course.name}</strong><br>
+                        <small>${course.description}</small><br>
+                        <button onclick="deleteCourse(${course.id})">Delete</button>
+                    `;
+                    list.appendChild(item);
+                });
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        // Function to create a new course
+        function createCourse() {
+            const name = document.getElementById('courseName').value;
+            const description = document.getElementById('courseDescription').value;
+            const courseClassIds = document.getElementById('courseClassIds').value.split(',').map(id => parseInt(id.trim()));
+
+            fetch('/courses', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name, description, courseclass_ids: courseClassIds })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert('Course created successfully!');
+                fetchCourses();
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        // Function to delete a course
+        function deleteCourse(courseId) {
+            if (confirm('Are you sure you want to delete this course?')) {
+                fetch(`/courses/${courseId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    alert('Course deleted successfully!');
+                    fetchCourses();
+                })
+                .catch(error => console.error('Error:', error));
+            }
+        }
+
+        // Fetch courses on page load
+        window.onload = fetchCourses;
+    </script>
+</body>
+</html>
