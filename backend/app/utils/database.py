@@ -1,9 +1,4 @@
 
-<<<<<<< HEAD
-=======
-
-
->>>>>>> b8802e20571c49c94397670dc77df7fd59e65186
 from flask_sqlalchemy import SQLAlchemy
 
 
