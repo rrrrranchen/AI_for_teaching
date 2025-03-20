@@ -21,3 +21,10 @@ course_courseclass = db.Table(
     db.Column('course_id', db.Integer, db.ForeignKey('course.id'), primary_key=True),
     db.Column('courseclass_id', db.Integer, db.ForeignKey('courseclass.id'), primary_key=True)
 )
+
+# 帖子-标签关联表
+post_tag = db.Table(
+    'post_tag',
+    db.Column('post_id', db.Integer, db.ForeignKey('forum_post.id'), primary_key=True),
+    db.Column('tag_id', db.Integer, db.ForeignKey('forum_tag.id'), primary_key=True)
+)

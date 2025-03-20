@@ -1,4 +1,3 @@
-# app/models/courseclass.py
 from app.utils.database import db
 from datetime import datetime
 from app.models.relationship import teacher_class, student_class, course_courseclass
