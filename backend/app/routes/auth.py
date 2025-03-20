@@ -22,18 +22,24 @@ def register():
     if User.query.filter_by(email=data['email']).first():
         return jsonify({'message': 'Email already exists'}), 400
 
+    # 检查角色字段是否合法（可选字段）
+    role = data.get('role', 'student')  # 默认为学生
+    if role not in ['student', 'teacher']:
+        return jsonify({'message': 'Invalid role. Allowed roles are "student" or "teacher".'}), 400
+
     # 创建新用户
     new_user = User(
         username=data['username'],
         email=data['email'],
-        signature=data.get('signature')  
+        role=role,  # 设置用户角色
+        signature=data.get('signature')  # 个性签名（可选字段）
     )
     new_user.set_password(data['password'])  # 设置密码哈希
 
     db.session.add(new_user)
     db.session.commit()
 
-    return jsonify({'message': 'User registered successfully'}), 201
+    return jsonify({'message': 'User registered successfully', 'role': role}), 201
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
@@ -65,6 +71,7 @@ def logout():
     session.pop('user_id', None)
     return jsonify({'message': 'User logged out successfully'}), 200
 
+# 获取当前用户信息接口
 @auth_bp.route('/profile', methods=['GET'])
 def profile():
     """
@@ -85,6 +92,7 @@ def profile():
         'id': user.id,
         'username': user.username,
         'email': user.email,
+        'role': user.role,  # 返回用户角色
         'signature': user.signature,
         'created_at': user.created_at.isoformat()
     }), 200
