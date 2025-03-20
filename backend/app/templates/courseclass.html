@@ -3,44 +3,132 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Course Management</title>
+    <title>Course Class Management</title>
     <style>
-        body { font-family: Arial, sans-serif; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; margin-bottom: 5px; }
-        .form-group input, .form-group button { width: 100%; padding: 8px; box-sizing: border-box; }
-        .list-group { margin-top: 20px; }
-        .list-group-item { margin-bottom: 10px; padding: 10px; border: 1px solid #ccc; }
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+        .button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        .list-group {
+            margin-top: 20px;
+        }
+        .list-group-item {
+            padding: 10px;
+            border: 1px solid #ccc;
+            margin-bottom: 5px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Course Management</h1>
-
-        <!-- Form to create a new course -->
+        <h1>Course Class Management</h1>
+        
+        <!-- 查询所有课程班 -->
+        <button class="button" onclick="fetchCourseClasses()">Fetch All Course Classes</button>
+        <div id="courseClassesList" class="list-group"></div>
+        
+        <!-- 查询单个课程班 -->
         <div class="form-group">
-            <label for="courseName">Course Name:</label>
-            <input type="text" id="courseName" placeholder="Enter course name">
+            <label for="courseClassId">Course Class ID:</label>
+            <input type="number" id="courseClassId" class="form-control">
+        </div>
+        <button class="button" onclick="fetchCourseClass()">Fetch Course Class</button>
+        <div id="singleCourseClass" class="list-group"></div>
+        
+        <!-- 添加课程班 -->
+        <h2>Add New Course Class</h2>
+        <div class="form-group">
+            <label for="newCourseClassName">Name:</label>
+            <input type="text" id="newCourseClassName" class="form-control">
         </div>
         <div class="form-group">
-            <label for="courseDescription">Course Description:</label>
-            <textarea id="courseDescription" placeholder="Enter course description"></textarea>
+            <label for="newCourseClassDescription">Description:</label>
+            <textarea id="newCourseClassDescription" class="form-control"></textarea>
+        </div>
+        <button class="button" onclick="addCourseClass()">Add Course Class</button>
+        
+        <!-- 更新课程班 -->
+        <h2>Update Course Class</h2>
+        <div class="form-group">
+            <label for="updateCourseClassId">Course Class ID:</label>
+            <input type="number" id="updateCourseClassId" class="form-control">
         </div>
         <div class="form-group">
-            <label for="courseClassIds">Course Class IDs (comma-separated):</label>
-            <input type="text" id="courseClassIds" placeholder="Enter course class IDs">
+            <label for="updateCourseClassName">Name:</label>
+            <input type="text" id="updateCourseClassName" class="form-control">
         </div>
-        <button onclick="createCourse()">Create Course</button>
-
-        <!-- List of courses -->
-        <div class="list-group" id="coursesList"></div>
+        <div class="form-group">
+            <label for="updateCourseClassDescription">Description:</label>
+            <textarea id="updateCourseClassDescription" class="form-control"></textarea>
+        </div>
+        <button class="button" onclick="updateCourseClass()">Update Course Class</button>
+        
+        <!-- 删除课程班 -->
+        <div class="form-group">
+            <label for="deleteCourseClassId">Course Class ID:</label>
+            <input type="number" id="deleteCourseClassId" class="form-control">
+        </div>
+        <button class="button" onclick="deleteCourseClass()">Delete Course Class</button>
+        
+        <!-- 添加课程到课程班 -->
+        <h2>Add Course to Course Class</h2>
+        <div class="form-group">
+            <label for="addCourseClassId">Course Class ID:</label>
+            <input type="number" id="addCourseClassId" class="form-control">
+        </div>
+        <div class="form-group">
+            <label for="addCourseId">Course ID:</label>
+            <input type="number" id="addCourseId" class="form-control">
+        </div>
+        <button class="button" onclick="addCourseToCourseClass()">Add Course</button>
+        
+        <!-- 从课程班中删除课程 -->
+        <h2>Remove Course from Course Class</h2>
+        <div class="form-group">
+            <label for="removeCourseClassId">Course Class ID:</label>
+            <input type="number" id="removeCourseClassId" class="form-control">
+        </div>
+        <div class="form-group">
+            <label for="removeCourseId">Course ID:</label>
+            <input type="number" id="removeCourseId" class="form-control">
+        </div>
+        <button class="button" onclick="removeCourseFromCourseClass()">Remove Course</button>
+        
+        <!-- 查询课程班的所有课程 -->
+        <h2>Fetch Courses by Course Class</h2>
+        <div class="form-group">
+            <label for="fetchCoursesCourseClassId">Course Class ID:</label>
+            <input type="number" id="fetchCoursesCourseClassId" class="form-control">
+        </div>
+        <button class="button" onclick="fetchCoursesByCourseClass()">Fetch Courses</button>
+        <div id="courseClassCoursesList" class="list-group"></div>
     </div>
 
     <script>
-        // Function to fetch and display all courses
-        function fetchCourses() {
-            fetch('/courses', {
+        // 查询所有课程班
+        function fetchCourseClasses() {
+            fetch('/courseclasses', {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json'
@@ -48,63 +136,150 @@
             })
             .then(response => response.json())
             .then(data => {
-                const list = document.getElementById('coursesList');
+                const list = document.getElementById('courseClassesList');
                 list.innerHTML = '';
-                data.forEach(course => {
+                data.forEach(courseClass => {
                     const item = document.createElement('div');
                     item.className = 'list-group-item';
-                    item.innerHTML = `
-                        <strong>${course.name}</strong><br>
-                        <small>${course.description}</small><br>
-                        <button onclick="deleteCourse(${course.id})">Delete</button>
-                    `;
+                    item.textContent = `ID: ${courseClass.id}, Name: ${courseClass.name}, Description: ${courseClass.description}`;
                     list.appendChild(item);
                 });
             })
             .catch(error => console.error('Error:', error));
         }
 
-        // Function to create a new course
-        function createCourse() {
-            const name = document.getElementById('courseName').value;
-            const description = document.getElementById('courseDescription').value;
-            const courseClassIds = document.getElementById('courseClassIds').value.split(',').map(id => parseInt(id.trim()));
-
-            fetch('/courses', {
-                method: 'POST',
+        // 查询单个课程班
+        function fetchCourseClass() {
+            const id = document.getElementById('courseClassId').value;
+            fetch(`/courseclasses/${id}`, {
+                method: 'GET',
                 headers: {
                     'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ name, description, courseclass_ids: courseClassIds })
+                }
             })
             .then(response => response.json())
             .then(data => {
-                alert('Course created successfully!');
-                fetchCourses();
+                const list = document.getElementById('singleCourseClass');
+                list.innerHTML = '';
+                const item = document.createElement('div');
+                item.className = 'list-group-item';
+                item.textContent = `ID: ${data.id}, Name: ${data.name}, Description: ${data.description}`;
+                list.appendChild(item);
             })
             .catch(error => console.error('Error:', error));
         }
 
-        // Function to delete a course
-        function deleteCourse(courseId) {
-            if (confirm('Are you sure you want to delete this course?')) {
-                fetch(`/courses/${courseId}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    alert('Course deleted successfully!');
-                    fetchCourses();
-                })
-                .catch(error => console.error('Error:', error));
-            }
+        // 添加课程班
+        function addCourseClass() {
+            const name = document.getElementById('newCourseClassName').value;
+            const description = document.getElementById('newCourseClassDescription').value;
+            fetch('/courseclasses', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name, description })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert('Course Class added successfully');
+            })
+            .catch(error => console.error('Error:', error));
         }
 
-        // Fetch courses on page load
-        window.onload = fetchCourses;
+        // 更新课程班
+        function updateCourseClass() {
+            const id = document.getElementById('updateCourseClassId').value;
+            const name = document.getElementById('updateCourseClassName').value;
+            const description = document.getElementById('updateCourseClassDescription').value;
+            fetch(`/courseclasses/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name, description })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert('Course Class updated successfully');
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        // 删除课程班
+        function deleteCourseClass() {
+            const id = document.getElementById('deleteCourseClassId').value;
+            fetch(`/courseclasses/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert('Course Class deleted successfully');
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        // 添加课程到课程班
+        function addCourseToCourseClass() {
+            const courseClassId = document.getElementById('addCourseClassId').value;
+            const courseId = document.getElementById('addCourseId').value;
+            fetch(`/courseclasses/${courseClassId}/add_course`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ course_id: courseId })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert('Course added to Course Class successfully');
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        // 从课程班中删除课程
+        function removeCourseFromCourseClass() {
+            const courseClassId = document.getElementById('removeCourseClassId').value;
+            const courseId = document.getElementById('removeCourseId').value;
+            fetch(`/courseclasses/${courseClassId}/remove_course`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ course_id: courseId })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert('Course removed from Course Class successfully');
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        // 查询课程班的所有课程
+        function fetchCoursesByCourseClass() {
+            const id = document.getElementById('fetchCoursesCourseClassId').value;
+            fetch(`/courseclasses/${id}/courses`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                const list = document.getElementById('courseClassCoursesList');
+                list.innerHTML = '';
+                data.forEach(course => {
+                    const item = document.createElement('div');
+                    item.className = 'list-group-item';
+                    item.textContent = `ID: ${course.id}, Name: ${course.name}, Description: ${course.description}`;
+                    list.appendChild(item);
+                });
+            })
+            .catch(error => console.error('Error:', error));
+        }
     </script>
 </body>
 </html>
