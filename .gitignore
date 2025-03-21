@@ -171,4 +171,4 @@ cython_debug/
 .pypirc
 
 .vscode/
-backend/app/utils/database.py
+database.py
