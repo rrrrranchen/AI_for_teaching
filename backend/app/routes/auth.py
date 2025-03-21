@@ -145,6 +145,9 @@ def update_profile():
 
     return jsonify({'message': 'User profile updated successfully'}), 200
 
+
+
+
 @auth_bp.route('/register-page')
 def register_page():
     return render_template('register.html')
