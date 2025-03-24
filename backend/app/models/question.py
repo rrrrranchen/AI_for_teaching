@@ -11,7 +11,6 @@ class Question(db.Model):
     content = db.Column(db.Text, nullable=False)
     correct_answer = db.Column(db.Text, nullable=False)
     difficulty = db.Column(db.Integer)
-    rate = db.Column(db.Integer)
     timing = db.Column(db.Enum('pre_class', 'post_class'), nullable=False)  
 
     def __repr__(self):

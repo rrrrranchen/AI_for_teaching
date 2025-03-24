@@ -4,7 +4,7 @@ from werkzeug.security import check_password_hash
 from app.utils.database import db
 from app.models.question import Question
 from app.models.course import Course
-from app.services.ai_service import mock_ai_interface
+from app.services.demo import mock_ai_interface
 from app.models.user import User
 from app.models.courseclass import Courseclass
 question_bp=Blueprint('question',__name__)
@@ -17,6 +17,8 @@ def get_current_user():
     if user_id:
         return User.query.get(user_id)
     return None
+
+#生成课前预习题目
 @question_bp.route('/createprequestion/<int:course_id>', methods=['POST'])
 def teachingdesign_create(course_id):
     # 检查用户是否登录
@@ -97,7 +99,8 @@ def teachingdesign_create(course_id):
         db.session.rollback()
         logger.error(f"Error creating questions: {str(e)}")
         return jsonify({'error': str(e)}), 500
-    
+
+#删除单个题目
 @question_bp.route('/deletequestion/<int:question_id>', methods=['DELETE'])
 def delete_question(question_id):
     if not is_logged_in():
@@ -141,9 +144,9 @@ def delete_question(question_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
     
-# 查询所有题目
-@question_bp.route('/questions', methods=['GET'])
-def get_all_questions():
+# 查询单个课程的所有预习题目
+@question_bp.route('/prequestions/<int:course_id>', methods=['GET'])
+def get_questions_by_course(course_id):
     if not is_logged_in():
         return jsonify({'error': 'Unauthorized'}), 401
 
@@ -153,14 +156,22 @@ def get_all_questions():
         if not current_user:
             return jsonify({'error': 'User not found'}), 404
 
-        # 获取当前用户所属的所有课程班
-        user_course_classes = current_user.courseclasses.all()
+        # 验证课程是否存在
+        course = Course.query.get(course_id)
+        if not course:
+            return jsonify({'error': 'Course not found'}), 404
 
-        # 获取这些课程班关联的所有课程
-        user_courses = [course for course_class in user_course_classes for course in course_class.courses]
+        # 获取课程所属的课程班
+        course_class = Courseclass.query.filter(Courseclass.courses.contains(course)).first()
+        if not course_class:
+            return jsonify({'error': 'Course class not found'}), 404
 
-        # 获取这些课程关联的所有题目
-        questions = Question.query.filter(Question.course_id.in_([course.id for course in user_courses])).all()
+        # 检查当前用户是否是课程班的老师或学生
+        if current_user not in course_class.teachers and current_user not in course_class.students:
+            return jsonify({'error': 'You do not have permission to access questions for this course'}), 403
+
+        # 获取该课程的所有预习题目
+        questions = Question.query.filter_by(course_id=course_id, timing='pre_class').all()
 
         # 返回题目列表
         return jsonify([{
@@ -275,3 +286,7 @@ def update_question(question_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+@question_bp.route('/question-page')
+def questiontest():
+    return render_template('question.html')
