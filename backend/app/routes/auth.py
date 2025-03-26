@@ -1,5 +1,5 @@
 import os
-from flask import Blueprint, app, render_template, request, jsonify, session
+from flask import Blueprint,  render_template, request, jsonify, session
 from app.utils.file_upload import upload_file
 from werkzeug.security import check_password_hash
 from app.utils.database import db
@@ -181,30 +181,7 @@ def update_avatar():
     except ValueError as e:
         return jsonify({'message': str(e)}), 400
 
-@auth_bp.route('/profile/delete_avatar', methods=['POST'])
-def delete_avatar():
-    """
-    删除用户头像接口。
-    """
-    user_id = session.get('user_id')
-    if not user_id:
-        return jsonify({'message': 'Unauthorized'}), 401
 
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({'message': 'User not found'}), 404
-
-    if user.avatar:
-        # 删除文件系统中的头像文件
-        avatar_path = os.path.join(app.config['UPLOAD_FOLDER'], os.path.basename(user.avatar))
-        if os.path.exists(avatar_path):
-            os.remove(avatar_path)
-        # 清空数据库中的头像路径
-        user.avatar = None
-        db.session.commit()
-        return jsonify({'message': 'Avatar deleted successfully'}), 200
-    else:
-        return jsonify({'message': 'No avatar to delete'}), 400
 
 
 @auth_bp.route('/register-page')
