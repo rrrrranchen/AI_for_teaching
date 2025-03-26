@@ -18,9 +18,20 @@
 
 from openai import OpenAI
 import time
+import json
+# import pptx
+from pptx import Presentation
+from langchain.llms.base import LLM
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
+from langchain_core.callbacks.manager import CallbackManagerForLLMRun
+from typing import Optional, List, Any
+from datetime import datetime
+
 
 # 定义自己的 API Key
 key = 'sk-b7550aa67ed840ffacb5ca051733802c'
+api_url = "https://api.deepseek.com"  # DeepSeek 的 API 地址
 # OpenAI 参数设置：API Key + API Interface (这里访问接口为 DeepSeek 的 API 地址)
 
 
@@ -36,7 +47,7 @@ def printChar(text, delay=0.1):
 def sendToDeepSeek(say):
     print('正在验证身份，请稍等....')
     # 请求接口并验证身份，创建客户端对象
-    client = OpenAI(api_key=key, base_url="https://api.deepseek.com")
+    client = OpenAI(api_key=key, base_url=api_url)
     print('正在思考，请耐心等待...')
     # 发送请求数据并等待获取响应数据
     response = client.chat.completions.create(
@@ -53,7 +64,7 @@ def sendToDeepSeek(say):
 
 
 # DeepSeek 问答环节
-def askDeepSeek():
+def callDeepSeek():
     # 主循环
     while True:
         myin = input('您请说：')  # 获取用户输入
@@ -67,5 +78,131 @@ def askDeepSeek():
 
 
 # 测试接口
-# askDeepSeek()
-    
+# callDeepSeek()
+
+
+class DeepSeekLLM(LLM):
+    def _call(self, prompt: str,
+              stop: Optional[List[str]] = None,
+              run_manager: Optional[CallbackManagerForLLMRun] = None,
+              **kwargs: Any) -> str:
+        # 调用 sendToDeepSeek 函数
+        response = sendToDeepSeek(prompt)
+        return response
+
+    @property
+    def _llm_type(self) -> str:
+        return "deepseek"
+
+
+# 获取 DeepSeek 生成的教学内容
+def fetch_teaching_content(subject, chapter):
+    # 使用自定义的 DeepSeek LLM
+    llm = DeepSeekLLM()
+
+    # 提取知识点
+    template1 = """
+    你是一位资深数学教师，请根据以下文本提取知识点：
+    文本：{text}
+    按JSON格式输出，包含字段：["subject", "chapter", "core_concept", "related_formulas", "difficult_points", "typical_examples"]
+    """
+    prompt1 = PromptTemplate(template=template1, input_variables=["text"])
+    chain1 = LLMChain(llm=llm, prompt=prompt1)
+
+    # 运行链并获取结果
+    # knowledge = chain1.run("勾股定理：直角三角形斜边平方等于两直角边平方和，公式为a²+b²=c²")
+    text1 = f"{subject}{chapter}"
+    knowledge = chain1.invoke(text1)  # knowledge是包含json字符串的字典
+
+    print(knowledge['text'])
+    # if 'json' in knowledge['text']:
+    #     knowledge['text'].replace('json', '')
+    # if '`' in knowledge['text']:
+    #     knowledge['text'].replace('`', '')
+    if 'json' in knowledge['text']:
+        knowledge['text'] = knowledge['text'].replace('json', '')
+    while '`' in knowledge['text']:
+        knowledge['text'] = knowledge['text'].replace('`', '')
+    return knowledge['text']
+
+
+# 创建PPT
+def create_ppt(content, ppt_filename="教学示例PPt.pptx"):
+    # 创建一个PPT演示文稿
+    prs = Presentation()
+
+    # 添加封面页
+    slide_layout = prs.slide_layouts[0]  # 选择标题页布局
+    slide = prs.slides.add_slide(slide_layout)
+    title = slide.shapes.title
+    subtitle = slide.placeholders[1]
+    title.text = f"{content['subject']} - {content['chapter']}"
+    subtitle.text = "教学内容概览"
+
+    # 添加核心概念
+    slide_layout = prs.slide_layouts[1]  # 选择标题和内容布局
+    slide = prs.slides.add_slide(slide_layout)
+    title = slide.shapes.title
+    title.text = "核心概念"
+    body = slide.shapes.placeholders[1].text_frame
+    body.text = content['core_concept']
+
+    # 添加相关公式
+    slide = prs.slides.add_slide(slide_layout)
+    title = slide.shapes.title
+    title.text = "相关公式"
+    body = slide.shapes.placeholders[1].text_frame
+    # 逐个添加每个公式
+    for formula in content['related_formulas']:
+        p = body.add_paragraph()  # 添加一个新的段落
+        p.text = formula  # 设置段落内容
+
+    # 添加重难点
+    slide = prs.slides.add_slide(slide_layout)
+    title = slide.shapes.title
+    title.text = "重难点"
+    body = slide.shapes.placeholders[1].text_frame
+    # 逐个添加每个重难点
+    for point in content['difficult_points']:
+        p = body.add_paragraph()  # 添加一个新的段落
+        p.text = point  # 设置段落内容
+
+    # 添加典型例题
+    slide = prs.slides.add_slide(slide_layout)
+    title = slide.shapes.title
+    title.text = "典型例题"
+    body = slide.shapes.placeholders[1].text_frame
+    # 逐个添加每个例题
+    for example in content['typical_examples']:
+        p = body.add_paragraph()  # 添加一个新的段落
+        p.text = example  # 设置段落内容
+
+    # 保存PPT文件到本地
+    prs.save(ppt_filename)
+    print(f"PPT已保存为: {ppt_filename}")
+
+
+# 生成PPT
+def generate_ppt(subject, chapter, ppt_filename=None):
+    try:
+        # 获取教学内容
+        content = fetch_teaching_content(subject, chapter)
+        print(content)
+        content = json.loads(content)
+        print(content)
+
+        # 创建PPT
+        if ppt_filename is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            ppt_filename = f"ppts/{subject}-{chapter}教学PPT{timestamp}.pptx"
+        create_ppt(content, ppt_filename)
+    except Exception as e:
+        print(f"发生错误: {e}")
+
+
+# 测试调用生成PPT（科目：数学，章节：勾股定理）
+# subject = "数学"
+# chapter = "勾股定理"
+
+# generate_ppt(subject, chapter)
+
