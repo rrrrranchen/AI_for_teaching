@@ -1,11 +1,13 @@
 <template>
-  <div class="home"></div>
+  <div class="my-class"></div>
 </template>
 
-<script lang="ts">
+<script>
 import { defineComponent } from "vue";
 
 export default defineComponent({
-  name: "HomeView",
+  name: "MyClassView",
 });
 </script>
+
+<style></style>
