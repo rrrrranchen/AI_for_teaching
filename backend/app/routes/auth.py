@@ -1,4 +1,6 @@
-from flask import Blueprint, render_template, request, jsonify, session
+import os
+from flask import Blueprint, app, render_template, request, jsonify, session
+from app.utils.file_upload import upload_file
 from werkzeug.security import check_password_hash
 from app.utils.database import db
 from app.models.user import User
@@ -94,6 +96,7 @@ def profile():
         'email': user.email,
         'role': user.role,  # 返回用户角色
         'signature': user.signature,
+        'avatar': user.avatar,  # 返回用户头像
         'created_at': user.created_at.isoformat()
     }), 200
 
@@ -145,7 +148,63 @@ def update_profile():
 
     return jsonify({'message': 'User profile updated successfully'}), 200
 
+@auth_bp.route('/profile/update_avatar', methods=['POST'])
+def update_avatar():
+    """
+    更新或添加用户头像接口。
+    """
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'message': 'Unauthorized'}), 401
 
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+
+    if 'avatar' not in request.files:
+        return jsonify({'message': 'No file part'}), 400
+
+    file = request.files['avatar']
+    if file.filename == '':
+        return jsonify({'message': 'No selected file'}), 400
+
+    try:
+        # 调用 file_upload.py 中的 upload_file 函数
+        relative_path = upload_file(file)
+        
+        # 更新用户头像路径
+        user.avatar = relative_path
+        db.session.commit()
+        
+        
+        return jsonify({'message': 'Avatar updated successfully', 'avatar': relative_path}), 200
+    except ValueError as e:
+        return jsonify({'message': str(e)}), 400
+
+@auth_bp.route('/profile/delete_avatar', methods=['POST'])
+def delete_avatar():
+    """
+    删除用户头像接口。
+    """
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'message': 'Unauthorized'}), 401
+
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+
+    if user.avatar:
+        # 删除文件系统中的头像文件
+        avatar_path = os.path.join(app.config['UPLOAD_FOLDER'], os.path.basename(user.avatar))
+        if os.path.exists(avatar_path):
+            os.remove(avatar_path)
+        # 清空数据库中的头像路径
+        user.avatar = None
+        db.session.commit()
+        return jsonify({'message': 'Avatar deleted successfully'}), 200
+    else:
+        return jsonify({'message': 'No avatar to delete'}), 400
 
 
 @auth_bp.route('/register-page')

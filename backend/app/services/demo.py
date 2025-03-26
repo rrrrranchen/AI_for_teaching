@@ -1,6 +1,7 @@
 import random
-from sparkai.llm.llm import ChatSparkLLM
-from sparkai.core.messages import ChatMessage
+
+from bson import ObjectId
+
 
 
 # 定义嵌套的评估方案
@@ -102,35 +103,37 @@ def generate_teaching_design(course_description, content, purpose, interaction, 
     assessment = Assessment(
         criteria=["Objective 1", "Objective 2"],
         question_bank=[1, 2, 3],  # 示例题目 ID
+<<<<<<< HEAD
         assessresult="Good",
         recommend_rate=80,
+=======
+        assessresult="Good",      # 评估结果
+        recommend_rate=80         # 推荐指数
+>>>>>>> 67590e08ef6da717a032e9b3a4c7f1545bd62c98
     )
 
     # 构建内容结构
     content = Content(
+        objectives=purpose,  # 确保传入了 objectives
+        total_time=time,     # 确保传入了 total_time
+        resources=[ObjectId() for _ in range(3)],  # 示例资源ID，确保传入了 resources
         key_point=key_point,
         time_plan=time_plan,
         interaction_flows=interaction_flows,
         assessment=assessment,
     )
 
-    # 生成总结果汇总
-    total_result = (
-        f"Course Description: {course_description}\n"
-        f"Objectives: {', '.join(purpose)}\n"
-        f"Key Points: {', '.join(content.key_point)}\n"
-        f"Total Time: {time} minutes\n"
-        f"Time Plan: {', '.join([f'{tp.phase} ({tp.duration} mins)' for tp in content.time_plan])}\n"
-        f"Interaction Flows: {', '.join([f'{ifl.type} ({ifl.description})' for ifl in content.interaction_flows])}\n"
-        f"Assessment: {', '.join(content.assessment.criteria)}\n"
-        f"Assessment Result: {content.assessment.assessresult}\n"
-        f"Recommend Rate: {content.assessment.recommend_rate}%"
-    )
-
     # 返回教学方案设计
     return {
         "content": {
+<<<<<<< HEAD
             "key_point": content.key_point,  # 关键知识点
+=======
+            "objectives": content.objectives,
+            "total_time": content.total_time,
+            "resources": [str(res) for res in content.resources],
+            "key_point": content.key_point,
+>>>>>>> 67590e08ef6da717a032e9b3a4c7f1545bd62c98
             "time_plan": [
                 {"phase": tp.phase, "duration": tp.duration, "content": tp.content}
                 for tp in content.time_plan
@@ -144,11 +147,19 @@ def generate_teaching_design(course_description, content, purpose, interaction, 
                 for ifl in content.interaction_flows
             ],
             "assessment": {
+<<<<<<< HEAD
                 "criteria": content.assessment.criteria,  # 评估标准（主要用于给教师展示这套方案为什么合理等）
                 "assessresult": content.assessment.assessresult,  # 评估结果
                 "recommend_rate": content.assessment.recommend_rate,  # 推荐指数
             },
         },
+=======
+                "criteria": content.assessment.criteria,
+                "assessresult": content.assessment.assessresult,
+                "recommend_rate": content.assessment.recommend_rate
+            }
+        }
+>>>>>>> 67590e08ef6da717a032e9b3a4c7f1545bd62c98
     }
 
 
