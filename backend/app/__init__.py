@@ -8,6 +8,7 @@ from app.routes.courseclass import courseclass_bp
 from app.routes.course import course_bp
 from app.routes.forum import forum_bp
 from app.routes.question import question_bp
+from app.routes.teachingdesign import teachingdesign_bp
 # 初始化 Flask 应用
 def create_app():
     app = Flask(__name__)
@@ -26,6 +27,6 @@ def create_app():
     app.register_blueprint(course_bp)
     app.register_blueprint(forum_bp)
     app.register_blueprint(question_bp)
-    
+    app.register_blueprint(teachingdesign_bp)
 
     return app
