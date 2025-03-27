@@ -1,6 +1,6 @@
 import os
 from flask import Blueprint,  render_template, request, jsonify, session
-from app.utils.file_upload import upload_file
+from app.utils.file_upload import upload_file_avatar
 from werkzeug.security import check_password_hash
 from app.utils.database import db
 from app.models.user import User
@@ -170,7 +170,7 @@ def update_avatar():
 
     try:
         # 调用 file_upload.py 中的 upload_file 函数
-        relative_path = upload_file(file)
+        relative_path = upload_file_avatar(file)
         
         # 更新用户头像路径
         user.avatar = relative_path

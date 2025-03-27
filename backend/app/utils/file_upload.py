@@ -15,7 +15,7 @@ def allowed_file(filename):
     """检查文件扩展名是否允许"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def upload_file(file):
+def upload_file_avatar(file):
     """上传文件并返回文件路径"""
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
@@ -23,7 +23,7 @@ def upload_file(file):
         file.save(file_path)
         
         # 返回相对于静态目录的路径
-        relative_path = os.path.join('static', 'uploads', filename)
+        relative_path = os.path.join('static', 'uploads','avatar', filename)
         return relative_path
     else:
         raise ValueError("不支持的文件类型")
