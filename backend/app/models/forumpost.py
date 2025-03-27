@@ -5,6 +5,7 @@ from app.models.relationship import post_tag
 class ForumPost(db.Model):
     __tablename__ = 'forum_post'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     title = db.Column(db.String(200), nullable=False)
     content = db.Column(db.Text, nullable=False)
