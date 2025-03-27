@@ -2,8 +2,6 @@ from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 from app.utils.database import db
 
-
-
 class Analysis(db.Model):
     __tablename__ = 'analysis'
 
