@@ -9,9 +9,9 @@ class Courseclass(db.Model):
     description = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    teachers = db.relationship('User', secondary=teacher_class, back_populates='teacher_courseclasses', lazy='dynamic')
-    students = db.relationship('User', secondary=student_class, back_populates='student_courseclasses', lazy='dynamic')
-    courses = db.relationship('Course', secondary=course_courseclass, back_populates='courseclasses')
+    teachers = db.relationship('User', secondary=teacher_class, back_populates='teacher_courseclasses', lazy='joined')
+    students = db.relationship('User', secondary=student_class, back_populates='student_courseclasses', lazy='joined')
+    courses = db.relationship('Course', secondary=course_courseclass, back_populates='courseclasses', lazy='joined')
 
     def __repr__(self):
         return f'<Courseclass {self.name}>'

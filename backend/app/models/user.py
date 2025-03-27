@@ -16,8 +16,8 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # 定义与 Courseclass 的多对多关系
-    teacher_courseclasses = db.relationship('Courseclass', secondary=teacher_class, back_populates='teachers', lazy='dynamic')
-    student_courseclasses = db.relationship('Courseclass', secondary=student_class, back_populates='students', lazy='dynamic')
+    teacher_courseclasses = db.relationship('Courseclass', secondary=teacher_class, back_populates='teachers', lazy='joined')
+    student_courseclasses = db.relationship('Courseclass', secondary=student_class, back_populates='students', lazy='joined')
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password, method="pbkdf2:sha256")
