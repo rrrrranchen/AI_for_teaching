@@ -14,16 +14,15 @@ from app.routes.studentanswer import studentanswer_bp
 def create_app():
     app = Flask(__name__)
 
-    
-    app.config['JWT_SECRET_KEY'] = 'sadfasdfgghgafdshg' 
-    app.secret_key='jskldjflksdjlfksjd'
+    app.config["JWT_SECRET_KEY"] = "sadfasdfgghgafdshg"
+    app.secret_key = "jskldjflksdjlfksjd"
     JWTManager(app)
 
     # 初始化数据库
     init_db(app)
 
     # 注册蓝图
-    app.register_blueprint(auth_bp) 
+    app.register_blueprint(auth_bp)
     app.register_blueprint(courseclass_bp)
     app.register_blueprint(course_bp)
     app.register_blueprint(forum_bp)
