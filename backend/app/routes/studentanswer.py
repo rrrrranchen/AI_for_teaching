@@ -250,6 +250,9 @@ def get_course_answers(course_id):
     if page < 1 or per_page < 1:
         return jsonify({'error': '无效的分页参数'}), 400
 
+    # 获取学生ID参数
+    student_id = request.args.get('student_id', type=int)
+
     try:
         # 验证课程是否存在
         course = Course.query.get(course_id)
@@ -281,6 +284,10 @@ def get_course_answers(course_id):
                 return jsonify({'error': '无权限访问该课程数据'}), 403
         else:
             return jsonify({'error': '无效的用户角色'}), 403
+
+        # 学生ID过滤（如果提供了学生ID）
+        if student_id is not None:
+            query = query.filter(StudentAnswer.student_id == student_id)
 
         # 执行分页查询
         pagination = query.paginate(page=page, per_page=per_page, error_out=False)
@@ -318,5 +325,4 @@ def get_course_answers(course_id):
     except Exception as e:
         logger.error(f"查询失败: {str(e)}")
         return jsonify({'error': f'服务器错误: {str(e)}'}), 500
-    
     
