@@ -44,7 +44,9 @@ def get_courseclasses():
             return jsonify({'error': 'Only teachers can access course classes'}), 403
 
         # 查询当前老师的所有课程班
-        courseclasses = Courseclass.query.join(teacher_class).filter(teacher_class.c.teacher_id == current_user.id).all()
+        courseclasses = Courseclass.query.options(
+            db.joinedload(Courseclass.teachers)  # 使用类属性而不是字符串
+        ).join(teacher_class).filter(teacher_class.c.teacher_id == current_user.id).all()
 
         result = [
             {
@@ -52,7 +54,11 @@ def get_courseclasses():
                 'name': courseclass.name,
                 'description': courseclass.description,
                 'created_at': courseclass.created_at,
-                'courses': [{'id': course.id, 'name': course.name} for course in courseclass.courses]
+                'courses': [{'id': course.id, 'name': course.name} for course in courseclass.courses],
+                'teachers': [
+                    {'id': teacher.id, 'username': teacher.username}
+                    for teacher in courseclass.teachers
+                ]
             }
             for courseclass in courseclasses
         ]
@@ -450,7 +456,7 @@ def get_students_by_courseclass(courseclass_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-#根据关键字搜索相关课程班
+
 #根据关键字搜索相关课程班
 @courseclass_bp.route('/search_courseclasses', methods=['GET'])
 def search_courseclasses():

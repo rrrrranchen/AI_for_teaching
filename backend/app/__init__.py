@@ -12,7 +12,8 @@ from app.routes.teachingdesign import teachingdesign_bp
 from app.routes.studentanswer import studentanswer_bp
 # 初始化 Flask 应用
 def create_app():
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder='static')
+
 
     app.config["JWT_SECRET_KEY"] = "sadfasdfgghgafdshg"
     app.secret_key = "jskldjflksdjlfksjd"

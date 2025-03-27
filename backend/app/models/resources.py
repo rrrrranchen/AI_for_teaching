@@ -14,9 +14,8 @@ class MultimediaResource(Document):
     title = StringField(required=True)
     course_id = IntField(required=True)  # 关联MySQL的course.id
     class_ids = ListField(IntField(), required=True)  # 适用的班级ID数组
-    knowledge_tags = ListField(StringField(), required=True)  # 知识点标签
     uploader_id = IntField(required=True)  # 上传者ID（关联user.id）
-    storage_path = StringField(required=True)  # 云存储路径
+    storage_path = StringField(required=True)  # 本地存储路径
     preview_url = StringField(required=True)  # 缩略图/预览地址
     metadata = EmbeddedDocumentField(Metadata, required=True)  # 技术元数据
     created_at = DateTimeField(default=datetime.utcnow)
