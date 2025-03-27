@@ -3,7 +3,7 @@ from werkzeug.utils import secure_filename
 
 # 定义 uploads 目录路径
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-UPLOAD_FOLDER = os.path.join(project_root, 'static', 'uploads')
+UPLOAD_FOLDER = os.path.join(project_root, 'static', 'uploads','avatar')
 
 # 确保 uploads 目录存在
 if not os.path.exists(UPLOAD_FOLDER):
