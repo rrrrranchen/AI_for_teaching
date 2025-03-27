@@ -5,6 +5,7 @@ from app.models.course import Course
 from app.models.courseclass import Courseclass
 from app.models.user import User
 from app.models.relationship import teacher_class
+from app.models.relationship import student_class
 course_bp = Blueprint('course', __name__)
 
 # 检查用户是否登录
@@ -150,6 +151,5 @@ def delete_course(course_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
-
 
 

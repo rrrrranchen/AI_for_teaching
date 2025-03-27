@@ -1,11 +1,11 @@
 <template>
-  <div class="home"></div>
+  <div class="smart-preparation"></div>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
 
 export default defineComponent({
-  name: "HomeView",
+  name: "SmartPreparationView",
 });
 </script>

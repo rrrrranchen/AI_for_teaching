@@ -6,7 +6,9 @@ from bson import ObjectId
 class Assessment(EmbeddedDocument):
     criteria = ListField(StringField(), required=True)
     question_bank = ListField(IntField(), required=True)
-
+    assessresult = StringField()  # 添加评估结果字段
+    recommend_rate = IntField()   # 添加推荐指数字段
+    
 class InteractionFlow(EmbeddedDocument):
     type = StringField(required=True)
     description = StringField(required=True)
