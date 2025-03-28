@@ -59,7 +59,11 @@ def login():
     if not user or not user.check_password(data['password']):
         return jsonify({'message': 'Invalid username or password'}), 401
 
-    # 将用户 ID 存入 session
+    # 如果已有用户登录，清除 session
+    if 'user_id' in session:
+        session.pop('user_id', None)
+
+    # 将新用户 ID 存入 session
     session['user_id'] = user.id
     
     return jsonify({'message': 'User logged in successfully'}), 200
