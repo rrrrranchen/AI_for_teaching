@@ -4,7 +4,8 @@ from pdf2image import convert_from_path
 import subprocess
 from typing import Dict, Optional
 from flask import current_app
-
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PREVIEW_FOLDER = os.path.join(project_root, 'static', 'uploads','preview')
 def generate_preview(
     filepath: str, 
     unique_id: str,
@@ -28,7 +29,7 @@ def generate_preview(
             'large': (1200, 1200)
         }
     
-    preview_dir = current_app.config['PREVIEW_FOLDER']
+    preview_dir = PREVIEW_FOLDER
     os.makedirs(preview_dir, exist_ok=True)
     ext = os.path.splitext(filepath)[1][1:].lower()
     previews = {}

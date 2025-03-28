@@ -1,10 +1,10 @@
 import os
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 class Config:
     # 文件上传配置
-    UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads/teachingresources')
-    PREVIEW_FOLDER = os.path.join(os.getcwd(), 'static/previews')
-    ALLOWED_EXTENSIONS = {'pdf', 'docx', 'pptx', 'jpg', 'png', 'mp4', 'mp3'}
+    
+    ALLOWED_EXTENSIONS = {'pdf', 'docx', 'pptx', 'jpg', 'png', 'mp4', 'mp3','doc'}
     MAX_CONTENT_LENGTH = 500 * 1024 * 1024  # 500MB
     
     # 预览图尺寸配置

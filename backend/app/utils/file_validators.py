@@ -1,7 +1,7 @@
 import os
 from typing import Set, Optional
 from flask import current_app
-
+from filetype import guess
 # 支持的MIME类型映射
 MIME_TYPE_MAP = {
     'pdf': 'application/pdf',
@@ -13,47 +13,24 @@ MIME_TYPE_MAP = {
     'mp3': 'audio/mpeg'
 }
 
-def allowed_file(
-    filename: str, 
-    extensions: Optional[Set[str]] = None,
-    check_mime: bool = True
-) -> bool:
-    """
-    验证文件扩展名和MIME类型是否允许
+def allowed_file(filename):
+    """使用 filetype 替代 python-magic"""
+    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'mp4', 'pdf', 'docx'}
     
-    Args:
-        filename: 文件名
-        extensions: 允许的扩展名集合（默认使用配置中的ALLOWED_EXTENSIONS）
-        check_mime: 是否验证实际文件的MIME类型
-    
-    Returns:
-        bool: 是否允许上传
-    """
+    # 基础扩展名检查
     if '.' not in filename:
         return False
-    
     ext = filename.rsplit('.', 1)[1].lower()
-    allowed_ext = extensions or current_app.config.get('ALLOWED_EXTENSIONS', set())
     
-    # 扩展名检查
-    if ext not in allowed_ext:
-        return False
-    
-    # 可选MIME类型验证
-    if check_mime and hasattr(current_app, 'config'):
-        from magic import Magic
-        mime = Magic(mime=True)
-        file_mime = mime.from_file(filename)
-        expected_mime = MIME_TYPE_MAP.get(ext)
-        
-        if expected_mime and file_mime != expected_mime:
-            current_app.logger.warning(
-                f"MIME类型不匹配: 文件{file_mime} != 预期{expected_mime}"
-            )
+    # 验证真实文件类型（上传后检查）
+    def validate_real_type(file_path):
+        kind = guess(file_path)
+        if kind and kind.extension not in ALLOWED_EXTENSIONS:
+            os.remove(file_path)  # 删除不符合类型的文件
             return False
+        return True
     
-    return True
-
+    return ext in ALLOWED_EXTENSIONS, validate_real_type
 
 def validate_file_signature(filepath: str) -> bool:
     """

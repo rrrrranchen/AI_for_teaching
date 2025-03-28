@@ -1,23 +1,23 @@
 import os
+import uuid
 from venv import logger
 from bson import ObjectId
-from flask import Blueprint, current_app, redirect, render_template, request, jsonify, send_file, session
+from flask import Blueprint, app, current_app, redirect, render_template, request, jsonify, send_file, session
 from sqlalchemy import func, select
-from werkzeug.security import check_password_hash
 from app.utils.database import db
-from app.models.question import Question
-from app.models.course import Course
-from app.services.demo import mock_ai_interface
 from app.models.user import User
 from app.models.courseclass import Courseclass
 from app.models.resources import Metadata, MultimediaResource
 from app.models.relationship import teacher_class
-from app.utils.file_upload import allowed_file
+from app.utils.file_validators import allowed_file
 from app.utils.fileparser import FileParser
-from app.utils import secure_filename
+from app.utils.secure_filename import secure_filename
 from app.utils.preview_generator import generate_preview
-from werkzeug.utils import safe_join  # 添加这行导入
+from werkzeug.utils import safe_join  
 resource_bp=Blueprint('resource',__name__)
+
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+UPLOAD_FOLDER = os.path.join(project_root, 'static', 'uploads','techingresources')
 # 检查用户是否登录
 def is_logged_in():
     return 'user_id' in session
@@ -40,67 +40,89 @@ def is_teacher_of_courseclass(courseclass_id):
         )
     )
     return association > 0
+
+
 @resource_bp.route('/resources', methods=['POST'])
 def upload_resource():
-    """文件上传接口"""
-    # 1. 验证用户权限
-    if not is_logged_in() or get_current_user().role != 'teacher':
-        return jsonify({'error': '仅教师可上传资源'}), 403
-
-    # 2. 获取表单数据
     file = request.files.get('file')
-    if not file or file.filename == '':
-        return jsonify({'error': '未选择文件'}), 400
+    if not file:
+        return jsonify({"error": "No file provided"}), 400
 
-    # 3. 验证文件类型
-    if not allowed_file(file.filename):
-        return jsonify({'error': '不支持的文件类型'}), 415
+    is_allowed, validator = allowed_file(file.filename)
+    if not is_allowed:
+        return jsonify({"error": "File type not allowed"}), 400
 
-    # 4. 解析表单数据
+    # 确保上传目录存在
+    upload_folder = UPLOAD_FOLDER
+    if not os.path.exists(upload_folder):
+        os.makedirs(upload_folder)
+
+    # 获取安全的文件名
+    secure_name = secure_filename(file.filename)
+
+    # 检查文件名是否包含 .
+    if '.' not in secure_name:
+        return jsonify({"error": "File name does not contain an extension"}), 400
+
+    # 分离文件名和扩展名
+    name, ext = os.path.splitext(secure_name)
+
+    # 生成唯一的文件名
+    unique_filename = str(uuid.uuid4()) + ext
+
+    # 保存文件
+    storage_path = os.path.join(upload_folder, unique_filename)
+    file.save(storage_path)
+    
+    # 验证文件内容
+    if not validator(storage_path):
+        os.remove(storage_path)
+        return jsonify({"error": "File content does not match extension"}), 400
+
+    # 解析表单数据
     form_data = {
-        'title': request.form.get('title', file.filename.rsplit('.', 1)[0]),
+        'title': request.form.get('title', name),
         'description': request.form.get('description', ''),
         'course_id': int(request.form['course_id']),
         'class_ids': list(map(int, request.form.getlist('class_ids'))),
         'is_public': request.form.get('is_public', 'false').lower() == 'true'
     }
 
-    # 5. 保存原始文件
-    file_ext = secure_filename(file.filename).rsplit('.', 1)[1].lower()
-    unique_id = str(ObjectId())
-    storage_path = os.path.join(
-        current_app.config['UPLOAD_FOLDER'],
-        f"{unique_id}.{file_ext}"
-    )
-    file.save(storage_path)
-
-    # 6. 解析元数据
+    # 解析元数据
     parsed_meta = FileParser.parse_file(storage_path)
     if 'error' in parsed_meta:
         os.remove(storage_path)
         return jsonify({'error': parsed_meta['error']}), 400
 
-    # 7. 生成预览图
+    # 确保只包含 Metadata 模型中定义的字段
+    valid_meta_fields = {
+        'file_size', 'format', 'mime_type',
+        'duration', 'resolution', 'bitrate',
+        'page_count', 'word_count', 'author',
+        'color_mode', 'dpi', 'extra'
+    }
+    cleaned_meta = {k: v for k, v in parsed_meta.items() if k in valid_meta_fields}
+
+    # 生成预览图
     try:
-        previews = generate_preview(storage_path, unique_id)
+        previews = generate_preview(storage_path, unique_filename)
     except Exception as e:
         current_app.logger.error(f"预览生成失败: {str(e)}")
         previews = {"thumbnail": "/static/default_preview.jpg"}
-
-    # 8. 创建资源文档
-    resource = MultimediaResource(
-        _id=ObjectId(unique_id),
-        type=_map_file_type(file_ext),
-        storage_path=storage_path,
-        preview_urls=previews,
-        metadata=Metadata(**{
-            **parsed_meta,
-            'mime_type': file.mimetype,
-            'file_size': os.path.getsize(storage_path)
-        }),
-        uploader_id=get_current_user().id,
-        **form_data
-    )
+    path=os.path.join('static', 'uploads','avatar', unique_filename)
+    # 创建资源文档
+    resource = MultimediaResource(  # ✅ 不指定_id，使用自动生成的ObjectId
+    type=_map_file_type(ext),
+    storage_path=path,
+    preview_urls=previews,
+    metadata=Metadata(**{
+        'file_size': os.path.getsize(storage_path),
+        'mime_type': file.mimetype,
+        **cleaned_meta
+    }),
+    uploader_id=get_current_user().id,
+    **form_data
+)
     resource.save()
 
     return jsonify({
@@ -110,18 +132,16 @@ def upload_resource():
     }), 201
 
 def _map_file_type(ext):
-    """映射文件扩展名到资源类型"""
     type_map = {
         'pdf': 'ebook',
-        'pptx': 'presentation',
         'docx': 'document',
+        'pptx': 'presentation',
         'jpg': 'image',
+        'png': 'image',
         'mp4': 'video',
         'mp3': 'audio'
     }
     return type_map.get(ext, 'other')
-
-
 @resource_bp.route('/resources', methods=['GET'])
 def list_resources():
     """分页查询资源"""

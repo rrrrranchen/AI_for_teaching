@@ -8,6 +8,7 @@ class Courseclass(db.Model):
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    invite_code = db.Column(db.String(20), unique=True)  # 添加邀请码字段
 
     teachers = db.relationship('User', secondary=teacher_class, back_populates='teacher_courseclasses', lazy='joined')
     students = db.relationship('User', secondary=student_class, back_populates='student_courseclasses', lazy='joined')

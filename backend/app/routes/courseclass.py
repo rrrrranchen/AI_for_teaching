@@ -1,3 +1,5 @@
+import random
+import string
 from flask import Blueprint, render_template, request, jsonify, session
 from pymysql import IntegrityError
 from sqlalchemy import func, select
@@ -32,7 +34,13 @@ def is_teacher_of_courseclass(courseclass_id):
     )
     return association > 0
 
-#查询所有课程班
+# 生成固定长度的邀请码
+def generate_invite_code(length=20):
+    characters = string.ascii_letters + string.digits
+    invite_code = ''.join(random.choice(characters) for _ in range(length))
+    return invite_code
+
+# 查询所有课程班
 @courseclass_bp.route('/courseclasses', methods=['GET'])
 def get_courseclasses():
     if not is_logged_in():
@@ -54,6 +62,7 @@ def get_courseclasses():
                 'name': courseclass.name,
                 'description': courseclass.description,
                 'created_at': courseclass.created_at,
+                'invite_code': courseclass.invite_code,  # 返回邀请码
                 'courses': [{'id': course.id, 'name': course.name} for course in courseclass.courses],
                 'teachers': [
                     {'id': teacher.id, 'username': teacher.username}
@@ -85,13 +94,14 @@ def get_courseclass(courseclass_id):
             'name': courseclass.name,
             'description': courseclass.description,
             'created_at': courseclass.created_at,
+            'invite_code': courseclass.invite_code,  # 返回邀请码
             'courses': [{'id': course.id, 'name': course.name} for course in courseclass.courses]
         }
         return jsonify(result), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-#创建课程班
+# 创建课程班
 @courseclass_bp.route('/createcourseclasses', methods=['POST'])
 def create_courseclass():
     if not is_logged_in():
@@ -111,8 +121,11 @@ def create_courseclass():
         if not name:
             return jsonify({'error': 'Name is required'}), 400
 
+        # 生成邀请码
+        invite_code = generate_invite_code()
+
         # 创建新的课程班
-        new_courseclass = Courseclass(name=name, description=description)
+        new_courseclass = Courseclass(name=name, description=description, invite_code=invite_code)
         db.session.add(new_courseclass)
         db.session.flush()  # 获取 new_courseclass.id
 
@@ -129,7 +142,8 @@ def create_courseclass():
             'id': new_courseclass.id,
             'name': new_courseclass.name,
             'description': new_courseclass.description,
-            'created_at': new_courseclass.created_at
+            'created_at': new_courseclass.created_at,
+            'invite_code': new_courseclass.invite_code  # 返回邀请码
         }), 201
     except IntegrityError as e:
         db.session.rollback()
@@ -137,7 +151,6 @@ def create_courseclass():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
-
 
 # 更新课程班信息
 @courseclass_bp.route('/courseclasses/<int:courseclass_id>', methods=['PUT'])
@@ -310,22 +323,25 @@ def student_join_courseclass():
         return jsonify({"error": "User is not logged in"}), 401
 
     data = request.json
-    courseclass_id = data.get('courseclass_id')
+    invite_code = data.get('invite_code')  # 获取邀请码
 
-    if not courseclass_id:
-        return jsonify({"error": "Missing courseclass_id"}), 400
+    if not invite_code:
+        return jsonify({"error": "Missing invite_code"}), 400
 
     current_user = get_current_user()
     if not current_user or current_user.role != 'student':
         return jsonify({"error": "User is not a student"}), 403
 
-    courseclass = Courseclass.query.get(courseclass_id)
+    # 根据邀请码查询课程班
+    courseclass = Courseclass.query.filter_by(invite_code=invite_code).first()
     if not courseclass:
-        return jsonify({"error": "Course class not found"}), 404
+        return jsonify({"error": "Course class not found or invalid invite code"}), 404
 
+    # 检查学生是否已经加入了该课程班
     if current_user in courseclass.students:
         return jsonify({"error": "Student is already in this course class"}), 400
 
+    # 将学生添加到课程班
     courseclass.students.append(current_user)
     db.session.commit()
 
