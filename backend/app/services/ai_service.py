@@ -361,27 +361,3 @@ def fill_content(slide, content, keep_font=False):
                     keep_text_font(shape, new_text)
 
 
-def generate_PPT(subject, chapter, teacher_name='AI', time=None, title=None,
-                 ppt_filename=None, template='ppts/template.pptx', select='template'):
-    if select == 'ai':
-        content = callDeepSeekForPPT(subject, chapter, 教学大纲forAI)
-        # 连接kimi PPT助手生成
-    # elif select == 'template':
-    else:
-        content = callDeepSeekForPPT(subject, chapter, 教学大纲inJSON)
-        if not isinstance(content, dict):
-            raise 'AI返回内容不可使用!'
-        if title is None:
-            title = f'{content['subject']} {content['chapter']}'
-        if time is None:
-            time = datetime.now().strftime("%Y/%m/%d")
-
-        prs = set_content(content, teacher_name, time, title, template)
-
-        if ppt_filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            ppt_filename = f"ppts/{subject}-{chapter}教学PPT{timestamp}.pptx"
-
-        # 保存PPT文件到本地
-        prs.save(ppt_filename)
-        print(f"PPT已保存为: {ppt_filename}")

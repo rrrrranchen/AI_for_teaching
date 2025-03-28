@@ -1,3 +1,4 @@
+from flask import current_app, jsonify
 from app import create_app
 from flask_cors import CORS
 

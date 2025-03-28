@@ -1,8 +1,7 @@
 from bson import ObjectId
 from mongoengine import Document, StringField, IntField, ObjectIdField, DateTimeField, ListField, EmbeddedDocument, EmbeddedDocumentField, DictField
 from datetime import datetime
-
-from wtforms import BooleanField
+from mongoengine import BooleanField
 
 class Metadata(EmbeddedDocument):
     # 通用元数据字段
@@ -85,7 +84,7 @@ class MultimediaResource(Document):
         if self.storage_service == "local":
             return f"/downloads/{self._id}"
         elif self.storage_service == "s3":
-            return f"https://s3.amazonaws.com/bucket/{self.storage_path}"
+            return f"https://{self.storage_path}"
         return None
 
     def __repr__(self):
