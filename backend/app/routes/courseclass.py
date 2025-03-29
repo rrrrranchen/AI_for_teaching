@@ -363,6 +363,7 @@ def student_join_courseclass():
 
     return jsonify({"message": "Student joined the course class successfully"}), 200
 
+#学生离开课程班
 @courseclass_bp.route('/student_leave_courseclass', methods=['POST'])
 def student_leave_courseclass():
     if not is_logged_in():
