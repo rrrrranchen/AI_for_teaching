@@ -185,7 +185,21 @@ def update_avatar():
     except ValueError as e:
         return jsonify({'message': str(e)}), 400
 
+@auth_bp.route('/avatar/<int:user_id>', methods=['GET'])
+def get_avatar_by_user_id(user_id):
+    """
+    根据用户ID查询对应用户头像。
+    """
+    # 查询用户
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
 
+    # 返回用户头像路径
+    return jsonify({
+        'id': user.id,
+        'avatar': user.avatar
+    }), 200
 
 
 @auth_bp.route('/register-page')
