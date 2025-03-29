@@ -142,6 +142,10 @@ def _map_file_type(ext):
         'mp3': 'audio'
     }
     return type_map.get(ext, 'other')
+
+
+
+#查询资源
 @resource_bp.route('/resources', methods=['GET'])
 def list_resources():
     """分页查询资源"""
@@ -162,16 +166,19 @@ def list_resources():
         query['type'] = resource_type
 
     # 3. 执行分页查询
-    pagination = MultimediaResource.objects(**query).paginate(
-        page=page, 
-        per_page=per_page
-    )
+    total = MultimediaResource.objects(**query).count()  # 总记录数
+    items = MultimediaResource.objects(**query).skip((page - 1) * per_page).limit(per_page)  # 分页数据
 
-    return jsonify({
-        'items': [_format_resource(r) for r in pagination.items],
-        'total': pagination.total,
-        'pages': pagination.pages
-    })
+    # 构造分页结果
+    pagination = {
+        'items': [_format_resource(r) for r in items],
+        'total': total,
+        'pages': (total + per_page - 1) // per_page,  # 总页数
+        'page': page,
+        'per_page': per_page
+    }
+
+    return jsonify(pagination)
 
 def _format_resource(resource):
     """格式化资源输出"""
@@ -220,6 +227,8 @@ def _format_resource_detail(resource):
     })
     return base
 
+
+
 def _check_resource_access(resource):
     """检查资源访问权限"""
     user = get_current_user()
@@ -236,6 +245,8 @@ def _check_resource_access(resource):
     return False
 
 
+
+
 @resource_bp.route('/resources/<resource_id>/download', methods=['GET'])
 def download_resource(resource_id):
     """文件下载接口"""
@@ -247,7 +258,7 @@ def download_resource(resource_id):
         if resource.storage_service == 'local':
             # 使用 werkzeug 的 safe_join 确保路径安全
             file_path = safe_join(
-                current_app.config['UPLOAD_FOLDER'], 
+                UPLOAD_FOLDER, 
                 os.path.basename(resource.storage_path)  # 防止路径遍历
             )
             
