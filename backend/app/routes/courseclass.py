@@ -47,20 +47,28 @@ def get_courseclasses():
         return jsonify({'error': 'Unauthorized'}), 401
 
     try:
-        # 获取当前登录用户
         current_user = get_current_user()
         if not current_user:
             return jsonify({'error': 'User not found'}), 404
-
-        # 根据用户角色进行不同的查询
+        
         if current_user.role == 'teacher':
-            # 查询当前老师的所有课程班
             courseclasses = Courseclass.query.options(
                 db.joinedload(Courseclass.teachers)
-            ).join(teacher_class).filter(teacher_class.c.teacher_id == current_user.id).all()
+            ).join(
+                teacher_class,
+                Courseclass.id == teacher_class.c.class_id  # 使用 class_id
+            ).filter(
+                teacher_class.c.teacher_id == current_user.id
+            ).all()
         elif current_user.role == 'student':
-            # 查询当前学生所属的所有课程班
-            courseclasses = current_user.student_courseclasses.all()
+            courseclasses = Courseclass.query.options(
+                db.joinedload(Courseclass.students)
+            ).join(
+                student_class,
+                Courseclass.id == student_class.c.class_id  # 使用 class_id
+            ).filter(
+                student_class.c.student_id == current_user.id
+            ).all()
         else:
             return jsonify({'error': 'Invalid user role'}), 403
 
@@ -70,12 +78,12 @@ def get_courseclasses():
                 'name': courseclass.name,
                 'description': courseclass.description,
                 'created_at': courseclass.created_at,
-                'invite_code': courseclass.invite_code,  # 返回邀请码
+                'invite_code': courseclass.invite_code,
                 'courses': [{'id': course.id, 'name': course.name} for course in courseclass.courses],
                 'teachers': [
-                {'id': teacher.id, 'username': teacher.username}
-                for teacher in courseclass.teachers
-            ]
+                    {'id': teacher.id, 'username': teacher.username}
+                    for teacher in courseclass.teachers
+                ]
             }
             for courseclass in courseclasses
         ]
