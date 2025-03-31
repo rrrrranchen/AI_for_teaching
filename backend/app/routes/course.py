@@ -43,8 +43,22 @@ def get_course(course_id):
         if not course:
             return jsonify({'error': 'Course not found'}), 404
 
-        # 检查当前用户是否为该课程所属课程班的老师
-        if not any(is_teacher_of_courseclass(cc.id) for cc in course.courseclasses):
+        # 获取当前用户
+        current_user = get_current_user()
+
+        # 检查当前用户是否为该课程所属课程班的老师或学生
+        is_teacher = any(is_teacher_of_courseclass(cc.id) for cc in course.courseclasses)
+        is_student = any(
+            db.session.scalar(
+                select(func.count()).where(
+                    student_class.c.student_id == current_user.id,
+                    student_class.c.class_id == cc.id
+                )
+            ) > 0
+            for cc in course.courseclasses
+        )
+
+        if not is_teacher and not is_student:
             return jsonify({'error': 'You are not authorized to access this course'}), 403
 
         result = {
@@ -67,17 +81,21 @@ def create_course():
         data = request.json
         name = data.get('name')
         description = data.get('description')
-        courseclass_ids = data.get('courseclass_ids', [])  # 获取课程班 ID 列表
+        courseclass_ids = data.get('courseclass_ids', [])  # 获取课程班 ID 列表，允许为空
 
         if not name:
             return jsonify({'error': 'Name is required'}), 400
 
-        # 检查当前用户是否为所有指定课程班的老师
-        if not all(is_teacher_of_courseclass(cc_id) for cc_id in courseclass_ids):
+        # 如果提供了课程班号，检查当前用户是否为所有指定课程班的老师
+        if courseclass_ids and not all(is_teacher_of_courseclass(cc_id) for cc_id in courseclass_ids):
             return jsonify({'error': 'You are not authorized to create courses for one or more of the specified course classes'}), 403
 
         new_course = Course(name=name, description=description)
-        new_course.courseclasses = Courseclass.query.filter(Courseclass.id.in_(courseclass_ids)).all()
+
+        # 如果提供了课程班号，则将课程与课程班关联
+        if courseclass_ids:
+            new_course.courseclasses = Courseclass.query.filter(Courseclass.id.in_(courseclass_ids)).all()
+
         db.session.add(new_course)
         db.session.commit()
 
