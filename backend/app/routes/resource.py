@@ -3,6 +3,7 @@ import uuid
 from venv import logger
 from bson import ObjectId
 from flask import Blueprint, app, current_app, redirect, render_template, request, jsonify, send_file, session
+from jwt import InvalidKeyError
 from sqlalchemy import func, select
 from app.utils.database import db
 from app.models.user import User
@@ -14,6 +15,7 @@ from app.utils.fileparser import FileParser
 from app.utils.secure_filename import secure_filename
 from app.utils.preview_generator import generate_preview
 from werkzeug.utils import safe_join  
+from mongoengine.errors import DoesNotExist, ValidationError
 resource_bp=Blueprint('resource',__name__)
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -165,51 +167,136 @@ def list_resources():
     if resource_type:
         query['type'] = resource_type
 
+    print("Query:", query)
+
     # 3. 执行分页查询
     total = MultimediaResource.objects(**query).count()  # 总记录数
+    print("Total records:", total)
     items = MultimediaResource.objects(**query).skip((page - 1) * per_page).limit(per_page)  # 分页数据
+    print("Items:", items)
 
     # 构造分页结果
     pagination = {
-        'items': [_format_resource(r) for r in items],
+        'items': [_format_resource(r) for r in items if _format_resource(r) is not None],
         'total': total,
         'pages': (total + per_page - 1) // per_page,  # 总页数
         'page': page,
         'per_page': per_page
     }
 
+    if page > pagination['pages']:
+        pagination['items'] = []
+        print(f"Warning: Requested page {page} exceeds the total number of pages ({pagination['pages']}).")
+
+    print("Pagination:", pagination)
     return jsonify(pagination)
 
 def _format_resource(resource):
-    """格式化资源输出"""
-    return {
-        'id': str(resource.id),
-        'title': resource.title,
-        'type': resource.type,
-        'preview_url': resource.preview_urls.get('thumbnail'),
-        'course_id': resource.course_id,
-        'uploader_id': resource.uploader_id,
-        'created_at': resource.created_at.isoformat(),
-        'metadata': {
-            'duration': resource.metadata.duration,
-            'page_count': resource.metadata.page_count,
-            'file_size': resource.metadata.file_size
+    try:
+        return {
+            'id': str(resource.id),
+            'title': resource.title,
+            'type': resource.type,
+            'preview_url': resource.preview_urls.get('thumbnail'),
+            'course_id': resource.course_id,
+            'uploader_id': resource.uploader_id,
+            'created_at': resource.created_at.isoformat(),
+            'metadata': {
+                'duration': getattr(resource.metadata, 'duration', None),
+                'page_count': getattr(resource.metadata, 'page_count', None),
+                'file_size': getattr(resource.metadata, 'file_size', None)
+            }
         }
-    }
-
+    except Exception as e:
+        print(f"Error formatting resource {resource.id}: {e}")
+        return None
 
 @resource_bp.route('/resources/<resource_id>', methods=['GET'])
 def get_resource(resource_id):
-    """获取资源详情"""
+    """获取资源详情（修正版）"""
+    # 生成唯一请求ID
+    request_id = str(uuid.uuid4())
+    logger.info(f"[{request_id}] 资源详情请求: {resource_id}")
+
     try:
-        resource = MultimediaResource.objects.get(id=resource_id)
+        # 验证ObjectID格式
+        obj_id = ObjectId(resource_id)
+    except Exception as e:
+        logger.warning(f"[{request_id}] 无效的ObjectID: {resource_id} - {str(e)}")
+        return jsonify({
+            'error': '资源ID格式错误',
+            'valid_example': '507f1f77bcf86cd799439011',
+            'request_id': request_id
+        }), 400
+
+    try:
+        # 修正查询字段：使用 _id 替代 id
+        resource = MultimediaResource.objects.get(_id=obj_id)
+        
+        # 权限验证
         if not _check_resource_access(resource):
-            return jsonify({'error': '无权访问该资源'}), 403
+            logger.info(f"[{request_id}] 访问被拒绝: {resource_id}")
+            return jsonify({
+                'error': '无访问权限',
+                'required_conditions': [
+                    '资源已公开 或',
+                    '您是上传者 或',
+                    '属于关联班级'
+                ],
+                'request_id': request_id
+            }), 403
 
+        logger.debug(f"[{request_id}] 资源查询成功: {resource_id}")
         return jsonify(_format_resource_detail(resource))
-    except:
-        return jsonify({'error': '资源不存在'}), 404
 
+    except DoesNotExist:
+        logger.warning(f"[{request_id}] 资源不存在: {resource_id}")
+        return jsonify({
+            'error': '资源不存在',
+            'check_suggestion': [
+                '确认资源ID是否正确',
+                '检查资源是否已被删除'
+            ],
+            'request_id': request_id
+        }), 404
+        
+    except (ValidationError, InvalidKeyError) as e:
+        logger.error(f"[{request_id}] 查询错误: {str(e)}")
+        return jsonify({
+            'error': '查询参数验证失败',
+            'technical_info': '请检查资源ID格式',
+            'request_id': request_id
+        }), 400
+        
+    except Exception as e:
+        logger.error(f"[{request_id}] 服务器错误: {str(e)}", exc_info=True)
+        return jsonify({
+            'error': '服务器内部错误',
+            'request_id': request_id
+        }), 500
+
+def _check_resource_access(resource):
+    """增强版权限验证"""
+    user = get_current_user()
+    
+    # 公开资源允许访问
+    if resource.is_public:
+        return True
+    
+    # 未登录用户拒绝访问
+    if not user:
+        return False
+    
+    # 上传者允许访问
+    if hasattr(user, 'id') and user.id == resource.uploader_id:
+        return True
+    
+    # 检查用户是否在关联班级中
+    if (hasattr(user, 'class_ids') and 
+        set(user.class_ids) & set(resource.class_ids)):
+        return True
+    
+    return False
 def _format_resource_detail(resource):
     """格式化详情输出"""
     base = _format_resource(resource)
@@ -227,22 +314,6 @@ def _format_resource_detail(resource):
     })
     return base
 
-
-
-def _check_resource_access(resource):
-    """检查资源访问权限"""
-    user = get_current_user()
-    if resource.is_public:
-        return True
-    if not user:
-        return False
-    if user.role == 'admin':
-        return True
-    if user.id == resource.uploader_id:
-        return True
-    if set(resource.class_ids) & set(c.id for c in user.student_courseclasses):
-        return True
-    return False
 
 
 
