@@ -71,7 +71,11 @@ def get_courseclasses():
                 'description': courseclass.description,
                 'created_at': courseclass.created_at,
                 'invite_code': courseclass.invite_code,  # 返回邀请码
-                'courses': [{'id': course.id, 'name': course.name} for course in courseclass.courses]
+                'courses': [{'id': course.id, 'name': course.name} for course in courseclass.courses],
+                'teachers': [
+                {'id': teacher.id, 'username': teacher.username}
+                for teacher in courseclass.teachers
+            ]
             }
             for courseclass in courseclasses
         ]
@@ -106,11 +110,8 @@ def get_courseclass(courseclass_id):
             'description': courseclass.description,
             'created_at': courseclass.created_at,
             'invite_code': courseclass.invite_code,  # 返回邀请码
-            'courses': [{'id': course.id, 'name': course.name} for course in courseclass.courses],
-            'teachers': [
-                {'id': teacher.id, 'username': teacher.username}
-                for teacher in courseclass.teachers
-            ]
+            'courses': [{'id': course.id, 'name': course.name} for course in courseclass.courses]
+            
         }
         return jsonify(result), 200
     except Exception as e:
