@@ -40,7 +40,7 @@ def generate_invite_code(length=20):
     invite_code = ''.join(random.choice(characters) for _ in range(length))
     return invite_code
 
-# 查询所有课程班
+# 查询用户的所有课程班
 @courseclass_bp.route('/courseclasses', methods=['GET'])
 def get_courseclasses():
     if not is_logged_in():
@@ -71,7 +71,10 @@ def get_courseclasses():
                 'description': courseclass.description,
                 'created_at': courseclass.created_at,
                 'invite_code': courseclass.invite_code,  # 返回邀请码
-                'courses': [{'id': course.id, 'name': course.name} for course in courseclass.courses]
+                'teachers': [
+                {'id': teacher.id, 'username': teacher.username}
+                for teacher in courseclass.teachers
+            ]
             }
             for courseclass in courseclasses
         ]

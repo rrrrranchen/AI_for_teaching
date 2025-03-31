@@ -3,7 +3,6 @@ import FScreen from "../views/FScreen.vue";
 import LoginAregister from "../views/loginAregister.vue";
 import BasicLayout from "../layouts/BasicLayout.vue";
 import HomeView from "../views/HomeView.vue";
-import MyClassView from "../views/MyClassView.vue";
 import SmartPreparationView from "../views/SmartPreparationView.vue";
 import CommunityView from "../views/CommunityView.vue";
 import MyProfileView from "../views/MyProfile.vue";
@@ -31,8 +30,23 @@ const routes: Array<RouteRecordRaw> = [
       },
       {
         path: "my-class",
-        name: "my-class",
-        component: MyClassView,
+        redirect: (to) => {
+          const authStore = useAuthStore();
+          return authStore.user?.role === "teacher"
+            ? "/home/t-class"
+            : "/home/s-class";
+        },
+      },
+      {
+        path: "t-class",
+        name: "t-class",
+        component: () => import("../views/TeacherMyClass.vue"),
+        meta: { menuKey: 2 },
+      },
+      {
+        path: "s-class",
+        name: "s-class",
+        component: () => import("../views/StudentMyClass.vue"),
         meta: { menuKey: 2 },
       },
       {
@@ -48,9 +62,13 @@ const routes: Array<RouteRecordRaw> = [
         meta: { menuKey: 4 },
       },
       {
-        path: "/profile",
+        path: "profile", // 修改为相对路径
         name: "profile",
         component: MyProfileView,
+        meta: {
+          menuKey: 5, // 可以分配一个新的菜单键
+          requiresAuth: true, // 需要登录
+        },
       },
     ],
   },
@@ -72,22 +90,29 @@ const router = createRouter({
 
 router.beforeEach(async (to) => {
   const authStore = useAuthStore();
+  console.log(
+    "Navigation to:",
+    to.name,
+    "Auth state:",
+    authStore.isAuthenticated
+  );
 
-  // 如果路由需要认证但用户未登录
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    // 先检查当前认证状态
+    console.log("Checking auth...");
     await authStore.checkAuth();
-
-    // 如果仍然未认证，重定向到登录页
     if (!authStore.isAuthenticated) {
-      return { name: "login", query: { redirect: to.fullPath } };
+      console.log("Redirecting to login");
+      return {
+        name: "login&register",
+        query: { redirect: to.fullPath },
+      };
     }
   }
 
-  // 如果用户已登录但访问的是登录页，重定向到首页
-  if (to.name === "login" && authStore.isAuthenticated) {
-    return { name: "home" };
-  }
+  // if (to.name === "login&register" && authStore.isAuthenticated) {
+  //   console.log("Already authenticated, redirecting home");
+  //   return { name: "home" };
+  // }
 });
 
 export default router;
