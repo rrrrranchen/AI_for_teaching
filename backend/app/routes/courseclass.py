@@ -40,7 +40,7 @@ def generate_invite_code(length=20):
     invite_code = ''.join(random.choice(characters) for _ in range(length))
     return invite_code
 
-# 查询所有课程班
+# 查询用户的所有课程班
 @courseclass_bp.route('/courseclasses', methods=['GET'])
 def get_courseclasses():
     if not is_logged_in():
