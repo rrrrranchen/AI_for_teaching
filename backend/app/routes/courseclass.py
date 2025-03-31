@@ -79,7 +79,6 @@ def get_courseclasses():
                 'description': courseclass.description,
                 'created_at': courseclass.created_at,
                 'invite_code': courseclass.invite_code,
-                'courses': [{'id': course.id, 'name': course.name} for course in courseclass.courses],
                 'teachers': [
                     {'id': teacher.id, 'username': teacher.username}
                     for teacher in courseclass.teachers
