@@ -19,6 +19,21 @@ class User(db.Model):
     teacher_courseclasses = db.relationship('Courseclass', secondary=teacher_class, back_populates='teachers', lazy='joined')
     student_courseclasses = db.relationship('Courseclass', secondary=student_class, back_populates='students', lazy='joined')
 
+    # 添加 posts 属性，表示用户发布的帖子
+    posts = db.relationship('ForumPost', back_populates='author')
+
+    # 添加 comments 属性，表示用户发布的评论
+    comments = db.relationship('ForumComment', back_populates='author')
+
+    # 添加 liked_posts 属性，表示用户点赞的帖子
+    liked_posts = db.relationship('ForumPostLike', back_populates='user')
+
+    # 添加 favorites 属性，表示用户收藏的帖子
+    favorites = db.relationship('ForumFavorite', back_populates='user')
+
+    # 添加 teaching_design_versions 属性，表示用户创建的教学设计版本
+    teaching_design_versions = db.relationship('TeachingDesignVersion', back_populates='author')
+
     def set_password(self, password):
         self.password_hash = generate_password_hash(password, method="pbkdf2:sha256")
 
