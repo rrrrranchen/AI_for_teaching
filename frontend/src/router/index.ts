@@ -50,6 +50,15 @@ const routes: Array<RouteRecordRaw> = [
         meta: { menuKey: 2 },
       },
       {
+        path: "courseclass/:id",
+        name: "CourseClassDetail",
+        component: () => import("../views/CourseClassDetail.vue"),
+        meta: {
+          requiresAuth: true,
+          menuKey: 2, // 保持在同一菜单项下
+        },
+      },
+      {
         path: "smart-preparation",
         name: "smart-preparation",
         component: SmartPreparationView,

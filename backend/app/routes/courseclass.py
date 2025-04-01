@@ -117,6 +117,10 @@ def get_courseclass(courseclass_id):
             'description': courseclass.description,
             'created_at': courseclass.created_at,
             'invite_code': courseclass.invite_code,  # 返回邀请码
+            'teachers': [
+                    {'id': teacher.id, 'username': teacher.username}
+                    for teacher in courseclass.teachers
+                ],
             'courses': [{'id': course.id, 'name': course.name} for course in courseclass.courses]
             
         }
@@ -234,40 +238,82 @@ def delete_courseclass(courseclass_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-# 为课程班添加课程
-@courseclass_bp.route('/courseclasses/<int:courseclass_id>/add_courses', methods=['POST'])
-def add_courses_to_courseclass(courseclass_id):
+# 为课程班创建课程
+@courseclass_bp.route('/courseclasses/<int:courseclass_id>/create_course', methods=['POST'])
+def create_course_for_courseclass(courseclass_id):
     if not is_logged_in():
         return jsonify({'error': 'Unauthorized'}), 401
+
     try:
         # 检查当前用户是否为该课程班的老师
         if not is_teacher_of_courseclass(courseclass_id):
-            return jsonify({'error': 'You are not authorized to add courses to this course class'}), 403
+            return jsonify({'error': 'You are not authorized to create courses for this course class'}), 403
 
         courseclass = Courseclass.query.get(courseclass_id)
         if not courseclass:
             return jsonify({'error': 'CourseClass not found'}), 404
 
+        # 获取请求数据
         data = request.json
-        course_ids = data.get('course_ids')
-        if not course_ids:
-            return jsonify({'error': 'Course IDs are required'}), 400
+        name = data.get('name')
+        description = data.get('description')
 
-        # 查询所有指定的课程
-        courses = Course.query.filter(Course.id.in_(course_ids)).all()
-        if len(courses) != len(course_ids):
-            return jsonify({'error': 'One or more courses not found'}), 404
+        if not name:
+            return jsonify({'error': 'Name is required'}), 400
+
+        # 创建新的课程
+        new_course = Course(name=name, description=description)
+        db.session.add(new_course)
+        db.session.flush()  # 获取 new_course.id
 
         # 将课程添加到课程班
-        for course in courses:
-            if course not in courseclass.courses:
-                courseclass.courses.append(course)
-
+        courseclass.courses.append(new_course)
         db.session.commit()
-        return jsonify({'message': 'Courses added to CourseClass successfully'}), 200
+
+        return jsonify({
+            'id': new_course.id,
+            'name': new_course.name,
+            'description': new_course.description,
+            'created_at': new_course.created_at
+        }), 201
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+# # 为课程班添加课程
+# @courseclass_bp.route('/courseclasses/<int:courseclass_id>/add_courses', methods=['POST'])
+# def add_courses_to_courseclass(courseclass_id):
+#     if not is_logged_in():
+#         return jsonify({'error': 'Unauthorized'}), 401
+#     try:
+#         # 检查当前用户是否为该课程班的老师
+#         if not is_teacher_of_courseclass(courseclass_id):
+#             return jsonify({'error': 'You are not authorized to add courses to this course class'}), 403
+
+#         courseclass = Courseclass.query.get(courseclass_id)
+#         if not courseclass:
+#             return jsonify({'error': 'CourseClass not found'}), 404
+
+#         data = request.json
+#         course_ids = data.get('course_ids')
+#         if not course_ids:
+#             return jsonify({'error': 'Course IDs are required'}), 400
+
+#         # 查询所有指定的课程
+#         courses = Course.query.filter(Course.id.in_(course_ids)).all()
+#         if len(courses) != len(course_ids):
+#             return jsonify({'error': 'One or more courses not found'}), 404
+
+#         # 将课程添加到课程班
+#         for course in courses:
+#             if course not in courseclass.courses:
+#                 courseclass.courses.append(course)
+
+#         db.session.commit()
+#         return jsonify({'message': 'Courses added to CourseClass successfully'}), 200
+#     except Exception as e:
+#         db.session.rollback()
+#         return jsonify({'error': str(e)}), 500
 
 
 #为课程班删除课程
