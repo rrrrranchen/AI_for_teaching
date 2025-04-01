@@ -59,7 +59,11 @@ def login():
     if not user or not user.check_password(data['password']):
         return jsonify({'message': 'Invalid username or password'}), 401
 
-    # 将用户 ID 存入 session
+    # 如果已有用户登录，清除 session
+    if 'user_id' in session:
+        session.pop('user_id', None)
+
+    # 将新用户 ID 存入 session
     session['user_id'] = user.id
     
     return jsonify({'message': 'User logged in successfully'}), 200
@@ -181,7 +185,21 @@ def update_avatar():
     except ValueError as e:
         return jsonify({'message': str(e)}), 400
 
+@auth_bp.route('/avatar/<int:user_id>', methods=['GET'])
+def get_avatar_by_user_id(user_id):
+    """
+    根据用户ID查询对应用户头像。
+    """
+    # 查询用户
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
 
+    # 返回用户头像路径
+    return jsonify({
+        'id': user.id,
+        'avatar': user.avatar
+    }), 200
 
 
 @auth_bp.route('/register-page')

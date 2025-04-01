@@ -33,7 +33,7 @@
           <TeamOutlined />
           <span class="nav-text">我的班级</span>
         </a-menu-item>
-        <a-menu-item key="3">
+        <a-menu-item v-if="auth.user?.role === 'teacher'" key="3">
           <ReconciliationFilled />
           <span class="nav-text">智能备课</span>
         </a-menu-item>
@@ -41,49 +41,70 @@
           <SlackCircleFilled />
           <span class="nav-text">社区</span>
         </a-menu-item>
-        <a-menu-item key="5">
-          <cloud-outlined />
-          <span class="nav-text">nav 5</span>
-        </a-menu-item>
-        <a-menu-item key="6">
-          <appstore-outlined />
-          <span class="nav-text">nav 6</span>
-        </a-menu-item>
-        <a-menu-item key="7">
-          <team-outlined />
-          <span class="nav-text">nav 7</span>
-        </a-menu-item>
-        <a-menu-item key="8">
-          <shop-outlined />
-          <span class="nav-text">nav 8</span>
-        </a-menu-item>
       </a-menu>
+      <!-- 用户信息区域 - 固定在侧边栏底部 -->
+      <div
+        class="user-info-container"
+        :style="{
+          bottom: 20,
+          position: 'fixed',
+          width: collapsed ? '90px' : '250px',
+        }"
+      >
+        <div
+          class="user-info"
+          v-if="auth.isAuthenticated"
+          @click="goToProfile"
+          :style="collapsed ? { justifyContent: 'center' } : {}"
+        >
+          <a-avatar
+            v-if="auth.user?.avatar"
+            :size="48"
+            :src="'http://localhost:5000/' + auth.user?.avatar"
+            class="nav-avatar"
+          >
+          </a-avatar>
+          <a-avatar v-else :size="48" class="nav-avatar">
+            <UserOutlined />
+          </a-avatar>
+          <span v-if="!collapsed" class="username">{{
+            auth.user?.username
+          }}</span>
+        </div>
+      </div>
     </a-layout-sider>
     <a-layout
       :style="{
-        marginLeft: collapsed ? '80px' : '250px',
+        marginLeft: collapsed ? '90px' : '250px',
         transition: 'margin 0.2s',
       }"
     >
-      <a-layout-content :style="{ overflow: 'initial' }">
-        <router-view />
+      <a-layout-content
+        :style="{
+          overflow: 'initial',
+          minHeight: '100vh',
+          padding: '0',
+          margin: '0 16px 16px 8px',
+        }"
+      >
+        <div class="g-card"><router-view /></div>
       </a-layout-content>
-      <a-layout-footer :style="{ textAlign: 'center' }"> </a-layout-footer>
     </a-layout>
   </a-layout>
 </template>
 <script lang="ts" setup>
 import { ref, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
+import { useAuthStore } from "@/stores/auth";
+
+const auth = useAuthStore();
 
 import {
   HomeFilled,
   TeamOutlined,
   ReconciliationFilled,
   SlackCircleFilled,
-  CloudOutlined,
-  AppstoreOutlined,
-  ShopOutlined,
+  UserOutlined,
 } from "@ant-design/icons-vue";
 const collapsed = ref<boolean>(false);
 const selectedKeys = ref<string[]>(["1"]);
@@ -108,7 +129,11 @@ const handleMenuClick = ({ key }: { key: string }) => {
       router.push("/home");
       break;
     case "2":
-      router.push("/home/my-class");
+      if (auth.user?.role === "teacher") {
+        router.push("/home/t-class");
+      } else {
+        router.push("/home/s-class");
+      }
       break;
     case "3":
       router.push("/home/smart-preparation");
@@ -118,6 +143,10 @@ const handleMenuClick = ({ key }: { key: string }) => {
       break;
     // 其他菜单项...
   }
+};
+
+const goToProfile = () => {
+  router.push("/home/profile");
 };
 </script>
 <style scoped>
@@ -215,5 +244,71 @@ const handleMenuClick = ({ key }: { key: string }) => {
     margin-right: 18px !important; /* 图标与文字间距 */
     margin-left: 0px !important;
   }
+}
+
+/* 新增用户信息区域样式 */
+.user-info-container {
+  padding: 16px;
+  background: inherit;
+  transition: all 0.2s;
+  display: flex;
+  justify-content: center;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s;
+  width: 100%;
+}
+
+.username {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+  transition: opacity 0.2s;
+  margin: auto;
+}
+
+.user-info:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+/* 响应式调整头像大小 */
+.nav-avatar {
+  flex-shrink: 0;
+  transition: all 0.3s;
+  padding: 0;
+  border: none;
+}
+
+/* 确保在折叠状态下头像居中 */
+.ant-layout-sider-collapsed .user-info {
+  justify-content: center;
+  padding: 8px 0;
+}
+
+/* 确保在折叠状态下用户名完全隐藏 */
+.ant-layout-sider-collapsed .username {
+  display: none;
+}
+
+.user-info:active {
+  transform: scale(0.95);
+}
+
+.g-card {
+  background: inherit;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  margin: 10px;
 }
 </style>

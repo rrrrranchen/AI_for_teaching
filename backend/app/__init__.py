@@ -1,3 +1,4 @@
+import os
 from bson import ObjectId
 from flask import Flask
 from flask_jwt_extended import JWTManager
@@ -10,12 +11,13 @@ from app.routes.question import question_bp
 from app.routes.teachingdesign import teachingdesign_bp
 from app.routes.studentanswer import studentanswer_bp
 from app.routes.resource import resource_bp
+from config import Config
 
 # 初始化 Flask 应用
 def create_app():
     app = Flask(__name__, static_folder='static')
-
-
+    app.config.from_object(Config)
+    print("ALLOWED_EXTENSIONS:", app.config.get('ALLOWED_EXTENSIONS', set()))
     app.config["JWT_SECRET_KEY"] = "sadfasdfgghgafdshg"
     app.secret_key = "jskldjflksdjlfksjd"
     JWTManager(app)

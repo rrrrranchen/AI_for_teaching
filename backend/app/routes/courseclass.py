@@ -1,3 +1,5 @@
+import random
+import string
 from flask import Blueprint, render_template, request, jsonify, session
 from pymysql import IntegrityError
 from sqlalchemy import func, select
@@ -32,21 +34,43 @@ def is_teacher_of_courseclass(courseclass_id):
     )
     return association > 0
 
-#查询所有课程班
+# 生成固定长度的邀请码
+def generate_invite_code(length=20):
+    characters = string.ascii_letters + string.digits
+    invite_code = ''.join(random.choice(characters) for _ in range(length))
+    return invite_code
+
+# 查询用户的所有课程班
 @courseclass_bp.route('/courseclasses', methods=['GET'])
 def get_courseclasses():
     if not is_logged_in():
         return jsonify({'error': 'Unauthorized'}), 401
-    try:
-        # 获取当前登录用户
-        current_user = get_current_user()
-        if not current_user or current_user.role != 'teacher':
-            return jsonify({'error': 'Only teachers can access course classes'}), 403
 
-        # 查询当前老师的所有课程班
-        courseclasses = Courseclass.query.options(
-            db.joinedload(Courseclass.teachers)  # 使用类属性而不是字符串
-        ).join(teacher_class).filter(teacher_class.c.teacher_id == current_user.id).all()
+    try:
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        if current_user.role == 'teacher':
+            courseclasses = Courseclass.query.options(
+                db.joinedload(Courseclass.teachers)
+            ).join(
+                teacher_class,
+                Courseclass.id == teacher_class.c.class_id  # 使用 class_id
+            ).filter(
+                teacher_class.c.teacher_id == current_user.id
+            ).all()
+        elif current_user.role == 'student':
+            courseclasses = Courseclass.query.options(
+                db.joinedload(Courseclass.students)
+            ).join(
+                student_class,
+                Courseclass.id == student_class.c.class_id  # 使用 class_id
+            ).filter(
+                student_class.c.student_id == current_user.id
+            ).all()
+        else:
+            return jsonify({'error': 'Invalid user role'}), 403
 
         result = [
             {
@@ -54,7 +78,7 @@ def get_courseclasses():
                 'name': courseclass.name,
                 'description': courseclass.description,
                 'created_at': courseclass.created_at,
-                'courses': [{'id': course.id, 'name': course.name} for course in courseclass.courses],
+                'invite_code': courseclass.invite_code,
                 'teachers': [
                     {'id': teacher.id, 'username': teacher.username}
                     for teacher in courseclass.teachers
@@ -66,32 +90,42 @@ def get_courseclasses():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
 # 根据 ID 查询单个课程班
 @courseclass_bp.route('/courseclasses/<int:courseclass_id>', methods=['GET'])
 def get_courseclass(courseclass_id):
     if not is_logged_in():
         return jsonify({'error': 'Unauthorized'}), 401
-    try:
-        # 检查当前用户是否为该课程班的老师
-        if not is_teacher_of_courseclass(courseclass_id):
-            return jsonify({'error': 'You are not authorized to access this course class'}), 403
 
+    try:
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({'error': 'User not found'}), 404
+
+        # 检查当前用户是否为该课程班的老师或学生
         courseclass = Courseclass.query.get(courseclass_id)
         if not courseclass:
             return jsonify({'error': 'CourseClass not found'}), 404
+
+        # 检查用户是否为该课程班的老师或学生
+        if not is_teacher_of_courseclass(courseclass_id) and current_user not in courseclass.students:
+            return jsonify({'error': 'You are not authorized to access this course class'}), 403
 
         result = {
             'id': courseclass.id,
             'name': courseclass.name,
             'description': courseclass.description,
             'created_at': courseclass.created_at,
+            'invite_code': courseclass.invite_code,  # 返回邀请码
             'courses': [{'id': course.id, 'name': course.name} for course in courseclass.courses]
+            
         }
         return jsonify(result), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-#创建课程班
+
+# 创建课程班
 @courseclass_bp.route('/createcourseclasses', methods=['POST'])
 def create_courseclass():
     if not is_logged_in():
@@ -111,8 +145,11 @@ def create_courseclass():
         if not name:
             return jsonify({'error': 'Name is required'}), 400
 
+        # 生成邀请码
+        invite_code = generate_invite_code()
+
         # 创建新的课程班
-        new_courseclass = Courseclass(name=name, description=description)
+        new_courseclass = Courseclass(name=name, description=description, invite_code=invite_code)
         db.session.add(new_courseclass)
         db.session.flush()  # 获取 new_courseclass.id
 
@@ -129,7 +166,8 @@ def create_courseclass():
             'id': new_courseclass.id,
             'name': new_courseclass.name,
             'description': new_courseclass.description,
-            'created_at': new_courseclass.created_at
+            'created_at': new_courseclass.created_at,
+            'invite_code': new_courseclass.invite_code  # 返回邀请码
         }), 201
     except IntegrityError as e:
         db.session.rollback()
@@ -137,7 +175,6 @@ def create_courseclass():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
-
 
 # 更新课程班信息
 @courseclass_bp.route('/courseclasses/<int:courseclass_id>', methods=['PUT'])
@@ -310,27 +347,31 @@ def student_join_courseclass():
         return jsonify({"error": "User is not logged in"}), 401
 
     data = request.json
-    courseclass_id = data.get('courseclass_id')
+    invite_code = data.get('invite_code')  # 获取邀请码
 
-    if not courseclass_id:
-        return jsonify({"error": "Missing courseclass_id"}), 400
+    if not invite_code:
+        return jsonify({"error": "Missing invite_code"}), 400
 
     current_user = get_current_user()
     if not current_user or current_user.role != 'student':
         return jsonify({"error": "User is not a student"}), 403
 
-    courseclass = Courseclass.query.get(courseclass_id)
+    # 根据邀请码查询课程班
+    courseclass = Courseclass.query.filter_by(invite_code=invite_code).first()
     if not courseclass:
-        return jsonify({"error": "Course class not found"}), 404
+        return jsonify({"error": "Course class not found or invalid invite code"}), 404
 
+    # 检查学生是否已经加入了该课程班
     if current_user in courseclass.students:
         return jsonify({"error": "Student is already in this course class"}), 400
 
+    # 将学生添加到课程班
     courseclass.students.append(current_user)
     db.session.commit()
 
     return jsonify({"message": "Student joined the course class successfully"}), 200
 
+#学生离开课程班
 @courseclass_bp.route('/student_leave_courseclass', methods=['POST'])
 def student_leave_courseclass():
     if not is_logged_in():
@@ -359,63 +400,7 @@ def student_leave_courseclass():
     return jsonify({"message": "Student left the course class successfully"}), 200
 
 
-#学生查询所属课程班的id与课程班名
-@courseclass_bp.route('/student_courseclasses', methods=['GET'])
-def get_student_courseclasses():
-    if not is_logged_in():
-        return jsonify({'error': 'Unauthorized'}), 401
 
-    try:
-        current_user = get_current_user()
-        if not current_user or current_user.role != 'student':
-            return jsonify({'error': 'Only students can access their course classes'}), 403
-
-        # 查询当前学生所属的所有课程班
-        courseclasses = current_user.student_courseclasses.all()
-
-        result = [
-            {
-                'id': courseclass.id,
-                'name': courseclass.name,
-            }
-            for courseclass in courseclasses
-        ]
-        return jsonify(result), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-#学生查询自己所属的单个课程班的所有课程
-@courseclass_bp.route('/courseclasses/<int:courseclass_id>/student_courses', methods=['GET'])
-def get_courses_by_courseclass_for_student(courseclass_id):
-    if not is_logged_in():
-        return jsonify({'error': 'Unauthorized'}), 401
-
-    try:
-        current_user = get_current_user()
-        if not current_user or current_user.role != 'student':
-            return jsonify({'error': 'Only students can access course information'}), 403
-
-        courseclass = Courseclass.query.get(courseclass_id)
-        if not courseclass:
-            return jsonify({'error': 'CourseClass not found'}), 404
-
-        # 检查学生是否属于该课程班
-        if current_user not in courseclass.students:
-            return jsonify({'error': 'You are not enrolled in this course class'}), 403
-
-        # 查询该课程班的所有课程
-        courses = courseclass.courses
-
-        result = [
-            {
-                'id': course.id,
-                'name': course.name
-            }
-            for course in courses
-        ]
-        return jsonify(result), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
 
 
 #查询单个课程班的所有学生信息
@@ -426,11 +411,11 @@ def get_students_by_courseclass(courseclass_id):
 
     try:
         current_user = get_current_user()
-        if not current_user or current_user.role != 'teacher':
-            return jsonify({'error': 'Only teachers can access this information'}), 403
+        if not current_user:
+            return jsonify({'error': 'User not found'}), 404
 
-        # 检查当前用户是否为该课程班的老师
-        if not is_teacher_of_courseclass(courseclass_id):
+        # 检查当前用户是否为该课程班的老师或学生
+        if not is_teacher_of_courseclass(courseclass_id) and current_user not in Courseclass.query.get(courseclass_id).students:
             return jsonify({'error': 'You are not authorized to access students of this course class'}), 403
 
         courseclass = Courseclass.query.get(courseclass_id)
@@ -443,9 +428,6 @@ def get_students_by_courseclass(courseclass_id):
             {
                 'id': student.id,
                 'username': student.username,
-                'email': student.email,
-                'signature': student.signature,
-                'created_at': student.created_at
             }
             for student in students
         ]
@@ -455,7 +437,6 @@ def get_students_by_courseclass(courseclass_id):
         }), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
 
 #根据关键字搜索相关课程班
 @courseclass_bp.route('/search_courseclasses', methods=['GET'])
@@ -501,6 +482,9 @@ def search_courseclasses():
         return jsonify(result), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+
+
 @courseclass_bp.route('/courseclass')
 def courseclasspage():
     return render_template('courseclass.html')
