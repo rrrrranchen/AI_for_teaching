@@ -100,6 +100,19 @@
                 :disabled="auth.isLoading"
               />
             </div>
+            <!-- 新增角色选择部分 -->
+            <div class="form-group">
+              <label for="register-role">角色</label>
+              <select
+                id="register-role"
+                v-model="registerForm.role"
+                class="form-select"
+                :disabled="auth.isLoading"
+              >
+                <option value="student">学生</option>
+                <option value="teacher">教师</option>
+              </select>
+            </div>
             <div v-if="passwordMismatch" class="error-message">
               两次输入的密码不一致
             </div>
@@ -176,9 +189,12 @@ export default defineComponent({
 
     const handleLogin = async () => {
       try {
+        auth.isLoading = true; // 确保在开始时设置为 true
         await auth.login(loginForm.value.username, loginForm.value.password);
       } catch (error) {
-        // 错误已在store中处理
+        // 错误已在 store 中处理
+      } finally {
+        auth.isLoading = false; // 登录完成后，无论成功或失败，都重置为 false
       }
     };
 
@@ -186,6 +202,7 @@ export default defineComponent({
       if (passwordMismatch.value) return;
 
       try {
+        auth.isLoading = true; // 确保在开始时设置为 true
         await auth.register({
           username: registerForm.value.username,
           email: registerForm.value.email,
@@ -193,7 +210,9 @@ export default defineComponent({
           role: registerForm.value.role,
         });
       } catch (error) {
-        // 错误已在store中处理
+        // 错误已在 store 中处理
+      } finally {
+        auth.isLoading = false; // 注册完成后，无论成功或失败，都重置为 false
       }
     };
 
@@ -366,5 +385,27 @@ export default defineComponent({
   font-size: 0.875rem;
   margin-bottom: 1rem;
   text-align: center;
+}
+
+/* 新增样式 */
+.form-select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  color: #4a5568;
+  transition: border-color 0.3s ease;
+  background-color: white;
+  appearance: none; /* 移除默认的下拉箭头样式 */
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1em;
+}
+
+.form-select:focus {
+  border-color: #4299e1;
+  outline: none;
 }
 </style>

@@ -18,16 +18,6 @@
 
 from openai import OpenAI
 import time
-import json
-# import pptx
-from pptx import Presentation, util
-from pptx.dml.color import RGBColor
-from langchain.llms.base import LLM
-from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
-from langchain_core.callbacks.manager import CallbackManagerForLLMRun
-from typing import Optional, List, Any
-from datetime import datetime
 
 
 # 定义自己的 API Key
