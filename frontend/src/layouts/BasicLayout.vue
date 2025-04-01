@@ -303,7 +303,9 @@ const goToProfile = () => {
 }
 
 .g-card {
-  background: inherit;
+  background: rgba(255, 255, 255, 0.8) url("../assets/FirstScreenbg.png")
+    no-repeat center center fixed;
+  background-size: cover; /* 添加这一行 */
   border-radius: 16px;
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
   width: 100%;

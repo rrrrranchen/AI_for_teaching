@@ -1,59 +1,80 @@
 <template>
-  <div class="student-class p-4">
-    <!-- 搜索和加入 -->
-    <div class="flex justify-between mb-6">
-      <a-input-search
-        v-model:value="searchKeyword"
-        placeholder="搜索已加入课程班"
-        style="width: 300px"
-        @search="handleSearch"
-      />
-      <a-button type="primary" @click="showJoinModal">
-        <template #icon><plus-outlined /></template>
-        加入课程班
-      </a-button>
+  <div class="student-class p-6">
+    <div class="flex-1"></div>
+    <!-- 占位元素 -->
+    <div
+      style="
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: 20px;
+      "
+    >
+      <div style="font-weight: bold; font-size: 24px; margin-left: 10px">
+        我的班级
+      </div>
+      <div style="display: flex; align-items: center">
+        <a-input-search
+          v-model:value="searchKeyword"
+          placeholder="搜索课程班"
+          enter-Button
+          size="large"
+          style="width: 200px; margin-right: 10px"
+          @search="handleSearch"
+        />
+        <a-button type="primary" size="large" @click="showJoinModal">
+          <template #icon><plus-outlined /></template>
+          加入课程班
+        </a-button>
+      </div>
     </div>
 
+    <a-divider class="!my-4" />
+    <!-- 分割线 -->
     <!-- 课程班列表 -->
-    <a-list :data-source="filteredClasses" :loading="loading">
-      <template #renderItem="{ item }">
-        <a-list-item>
-          <a-card hoverable class="w-full">
-            <template #title>
-              <router-link :to="`/courseclass/${item.id}`">{{
-                item.name
-              }}</router-link>
-            </template>
-
-            <a-card-meta>
-              <template #description>
-                <div class="space-y-2">
-                  <p>{{ item.description || "暂无描述" }}</p>
-                  <div class="flex items-center gap-2 text-sm text-gray-500">
-                    <span
-                      >教师：{{
-                        item.teachers.map((t: any) => t.username).join(", ")
-                      }}</span
+    <div style="margin-left: 10px; margin-right: 10px">
+      <a-spin :spinning="loading">
+        <a-row
+          v-if="filteredClasses.length > 0"
+          :gutter="[24, 24]"
+          class="mt-6"
+        >
+          <a-col
+            v-for="item in filteredClasses"
+            :key="item.id"
+            :xs="24"
+            :sm="12"
+            :md="8"
+            :lg="6"
+          >
+            <a-card hoverable class="h-full p-4">
+              <template #title>
+                <div class="flex justify-between items-center flex-wrap gap-2">
+                  <router-link
+                    :to="`/home/courseclass/${item.id}`"
+                    class="text-base font-semibold hover:text-blue-600 transition-colors"
+                  >
+                    {{ item.name }}
+                  </router-link>
+                  <div class="flex gap-2">
+                    <a-tag color="green"
+                      >课程：{{ item.course_count || 0 }}</a-tag
                     >
-                    <a-divider type="vertical" />
-                    <span>创建时间：{{ formatDate(item.created_at) }}</span>
                   </div>
                 </div>
               </template>
-            </a-card-meta>
 
-            <template #actions>
-              <a-popconfirm
-                title="确定要退出这个课程班吗？"
-                @confirm="handleLeave(item.id)"
-              >
-                <a-button type="link" danger>退出</a-button>
-              </a-popconfirm>
-            </template>
-          </a-card>
-        </a-list-item>
-      </template>
-    </a-list>
+              <a-card-meta :description="item.description || '暂无描述'">
+                <template #avatar>
+                  <user-outlined class="text-lg bg-blue-100 p-2 rounded-full" />
+                </template>
+              </a-card-meta>
+            </a-card>
+          </a-col>
+        </a-row>
+        <a-empty v-else description="暂无课程班" class="mt-20" />
+      </a-spin>
+    </div>
 
     <!-- 加入模态框 -->
     <a-modal
@@ -78,7 +99,7 @@
 <script lang="ts">
 import { defineComponent, ref, computed, onMounted } from "vue";
 import { message } from "ant-design-vue";
-import { PlusOutlined } from "@ant-design/icons-vue";
+import { PlusOutlined, UserOutlined } from "@ant-design/icons-vue";
 import { useAuthStore } from "@/stores/auth";
 import {
   getAllCourseclasses,
@@ -89,7 +110,7 @@ import type { Courseclass } from "@/api/courseclass";
 
 export default defineComponent({
   name: "StudentMyClassView",
-  components: { PlusOutlined },
+  components: { PlusOutlined, UserOutlined },
   setup() {
     const authStore = useAuthStore();
     const loading = ref(false);
@@ -168,3 +189,61 @@ export default defineComponent({
   },
 });
 </script>
+<style>
+/* 卡片样式 */
+.ant-card {
+  transition: transform 0.2s, box-shadow 0.2s;
+  border-radius: 12px !important;
+  border: 1px solid #8ef1ea; /* 添加边框 */
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.ant-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1) !important;
+}
+
+.ant-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* 标题和内容间距 */
+.ant-card :deep(.ant-card-head) {
+  margin-bottom: 12px;
+  min-height: auto;
+  padding: 0 16px;
+  border-bottom: 0;
+}
+
+.ant-card :deep(.ant-card-head-title) {
+  padding: 12px 0;
+}
+
+/* 描述文本 */
+.ant-card-meta-description {
+  line-height: 1.6 !important;
+  color: #64748b !important;
+  margin-bottom: 16px !important;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .teacher-class {
+    padding: 1.5rem !important;
+  }
+
+  .ant-card {
+    margin-bottom: 0 !important;
+  }
+
+  .flex.justify-between {
+    gap: 12px;
+    margin-bottom: 1.5rem;
+  }
+}
+</style>

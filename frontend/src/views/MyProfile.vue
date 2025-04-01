@@ -309,17 +309,16 @@ export default defineComponent({
 }
 
 .profile-container {
-  background: #f0f2f5;
+  background: inherit;
   min-height: calc(100vh - 64px);
   display: flex;
   justify-content: center;
 }
 
 .profile-card {
-  border-radius: 16px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  background: inherit;
   width: 100%;
-  min-height: 680px;
+  height: 100%;
   overflow: hidden;
 }
 

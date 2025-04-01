@@ -52,7 +52,10 @@
               <template #title>
                 <div class="flex justify-between items-center flex-wrap gap-2">
                   <router-link
-                    :to="`/courseclass/${item.id}`"
+                    :to="{
+                      path: `/home/courseclass/${item.id}`,
+                      query: { className: item.name },
+                    }"
                     class="text-base font-semibold hover:text-blue-600 transition-colors"
                   >
                     {{ item.name }}
@@ -75,7 +78,16 @@
 
               <a-card-meta :description="item.description || '暂无描述'">
                 <template #avatar>
-                  <user-outlined class="text-lg bg-blue-100 p-2 rounded-full" />
+                  <a-avatar
+                    v-if="authStore.user?.avatar"
+                    size="small"
+                    :src="'http://localhost:5000/' + authStore.user?.avatar"
+                    class="nav-avatar"
+                  >
+                  </a-avatar>
+                  <a-avatar v-else size="small" class="nav-avatar">
+                    <UserOutlined />
+                  </a-avatar>
                 </template>
               </a-card-meta>
             </a-card>
@@ -201,9 +213,7 @@ export default defineComponent({
 </script>
 <style scoped>
 .teacher-class {
-  max-width: 1440px;
   margin: 0 auto;
-  background-color: inherit;
   min-height: 100vh;
 }
 
@@ -211,6 +221,7 @@ export default defineComponent({
 .ant-card {
   transition: transform 0.2s, box-shadow 0.2s;
   border-radius: 12px !important;
+  border: 1px solid #8ef1ea; /* 添加边框 */
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -272,5 +283,3 @@ export default defineComponent({
   transform: translateX(2px);
 }
 </style>
-
-<!-- 在模板中添加Tailwind类优化布局 -->
