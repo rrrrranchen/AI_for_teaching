@@ -529,8 +529,47 @@ def search_courseclasses():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
+# 为课程班创建课程
+@courseclass_bp.route('/courseclasses/<int:courseclass_id>/create_course', methods=['POST'])
+def create_course_for_courseclass(courseclass_id):
+    if not is_logged_in():
+        return jsonify({'error': 'Unauthorized'}), 401
 
+    try:
+        # 检查当前用户是否为该课程班的老师
+        if not is_teacher_of_courseclass(courseclass_id):
+            return jsonify({'error': 'You are not authorized to create courses for this course class'}), 403
 
+        courseclass = Courseclass.query.get(courseclass_id)
+        if not courseclass:
+            return jsonify({'error': 'CourseClass not found'}), 404
+
+        # 获取请求数据
+        data = request.json
+        name = data.get('name')
+        description = data.get('description')
+
+        if not name:
+            return jsonify({'error': 'Name is required'}), 400
+
+        # 创建新的课程
+        new_course = Course(name=name, description=description)
+        db.session.add(new_course)
+        db.session.flush()  # 获取 new_course.id
+
+        # 将课程添加到课程班
+        courseclass.courses.append(new_course)
+        db.session.commit()
+
+        return jsonify({
+            'id': new_course.id,
+            'name': new_course.name,
+            'description': new_course.description,
+            'created_at': new_course.created_at
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 @courseclass_bp.route('/courseclass')
 def courseclasspage():
     return render_template('courseclass.html')

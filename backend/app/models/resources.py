@@ -39,8 +39,8 @@ class MultimediaResource(Document):
     description = StringField(max_length=500)
     
     # 系统关联
-    course_id = IntField(required=True)  # 关联MySQL的course.id
-    class_ids = ListField(IntField(), required=True, default=list)  # 适用的班级ID数组
+    course_id = IntField(required=False)  # 关联MySQL的course.id
+    class_ids = ListField(IntField(), required=False, default=list)  # 适用的班级ID数组
     uploader_id = IntField(required=True)  # 上传者ID（关联user.id）
     
     # 存储信息
@@ -54,7 +54,7 @@ class MultimediaResource(Document):
     # 状态标记
     is_processed = BooleanField(default=False)  # 是否已完成处理
     is_public = BooleanField(default=False)  # 是否公开可见
-    
+    is_teaching_design = BooleanField(default=False)  # 是否为教学设计，默认为 False
     # 时间信息
     created_at = DateTimeField(default=datetime.utcnow)
     updated_at = DateTimeField()
