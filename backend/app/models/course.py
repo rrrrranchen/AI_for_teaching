@@ -12,6 +12,6 @@ class Course(db.Model):
 
     
     courseclasses = db.relationship('Courseclass', secondary=course_courseclass, back_populates='courses')
-
+    teaching_designs = db.relationship('TeachingDesign', back_populates='course')
     def __repr__(self):
         return f'<Course {self.name}>'

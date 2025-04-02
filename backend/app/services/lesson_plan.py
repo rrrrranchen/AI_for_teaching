@@ -1,3 +1,4 @@
+import json
 from openai import OpenAI
 import time
 from docx import Document
@@ -19,21 +20,74 @@ def printChar(text, delay=0.05):
 
 # 生成预备知识检测题和问卷
 def generate_pre_class_questions(course_content):
-    response = client.chat.completions.create(
-        model="deepseek-chat",
-        messages=[
-            {
-                "role": "system",
-                "content": "你是教学设计专家，请根据教师提供的课程内容生成一份预备知识检测练习题和一份调查问卷，用于了解学生对相关内容的了解程度。"
-            },
-            {
-                "role": "user",
-                "content": f"课程内容如下：\n{course_content}"
+    """
+    调用AI接口生成课前预习题目，返回符合Question数据模型的题目列表
+    :param course_content: 课程内容文本
+    :param course_id: 关联的课程ID
+    :return: 包含题目字典的列表，每个字典符合Question模型结构
+    """
+    # 构造更详细的系统提示，要求AI返回特定格式的题目
+    system_prompt = """你是教学设计专家，请根据教师提供的课程内容生成3-5道预备知识检测练习题。
+要求：
+1. 返回格式为JSON列表，每个题目包含以下字段：
+   - type: 题目类型(choice/fill/short_answer)
+   - content: 题目内容
+   - correct_answer: 正确答案
+   - difficulty: 难度等级(1-5)
+2. 题目类型要多样，包含选择题、填空题和简答题
+3. 题目要真正检测学生对预备知识的掌握程度
+4. 生成的选择题的题目内容中要包含选项，选择题正确答案应该是ABCD这样的形式"""
+
+    try:
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": f"请为以下课程内容生成课前预习题目:\n{course_content}\n\n请返回符合要求的JSON格式题目列表。"
+                }
+            ],
+            response_format={"type": "json_object"},  # 要求返回JSON格式
+            stream=False
+        )
+        
+        # 解析AI返回的JSON内容
+        ai_response = json.loads(response.choices[0].message.content)
+        
+        # 确保返回的是列表格式
+        questions_data = ai_response.get('questions', []) if isinstance(ai_response, dict) else ai_response
+        
+        # 转换为符合Question模型的格式
+        questions = []
+        for i, q in enumerate(questions_data, start=1):
+            question = {
+                "type": q.get("type", "choice"),  # 默认选择题
+                "content": q.get("content", f"课前预习题目{i}"),
+                "correct_answer": q.get("correct_answer", ""),
+                "difficulty": min(max(int(q.get("difficulty", 3)), 1), 5),  # 确保难度在1-5范围内
+                "timing": "pre_class"
             }
-        ],
-        stream=False
-    )
-    return response.choices[0].message.content
+            questions.append(question)
+        
+        return questions
+    
+    except Exception as e:
+        print(f"生成题目时出错: {e}")
+        # 返回一个默认题目以防出错
+        return [{
+            "type": "choice",
+            "content": f"关于{course_content[:50]}...的基本概念是什么？",
+            "correct_answer": "默认正确答案",
+            "difficulty": 3,
+            "timing": "pre_class"
+        }]
+    
+
+
 
 # 将习题和问卷生成word文档
 
@@ -60,7 +114,7 @@ def generate_pre_class_questions(course_content):
 
 
 # 生成结构化教案（按六大模块分段）
-def generate_lesson_plans(course_content, student_feedback):
+def generate_lesson_plans(Objectives, course_content, student_feedback):
     response = client.chat.completions.create(
         model="deepseek-chat",
         messages=[
@@ -79,17 +133,24 @@ def generate_lesson_plans(course_content, student_feedback):
                     "    - 必须设计不少于三个互动环节，如小组讨论、角色扮演、实时问答、投票、课堂游戏等。\n"
                     "    - 每个环节说明教学方法、活动安排、教师与学生的行为、时间分配、使用的工具与材料、预期学习成果。\n"
                     "6. 课后作业：布置有层次的作业任务，至少包含基础题与拓展题。\n\n"
-                    "请使用 Markdown 格式输出，便于后续整理归档。"
+                    "使用 --- 作为每个教案的分隔符同时请使用 Markdown 格式输出，便于后续整理归档。"
                 )
             },
             {
                 "role": "user",
-                "content": f"课程内容如下：\n{course_content}\n\n学生反馈如下：\n{student_feedback}"
+                "content": f"教学目标如下: \n{Objectives}课程内容如下：\n{course_content}\n\n学生反馈如下：\n{student_feedback}"
             }
         ],
         stream=False
     )
-    return response.choices[0].message.content
+    
+    # 将返回的内容按 "---" 分割成三份教案
+    lesson_plans = response.choices[0].message.content.split("---")
+    
+    # 去掉可能存在的空字符串，并去除首尾空白
+    lesson_plans = [plan.strip() for plan in lesson_plans if plan.strip()]
+    
+    return lesson_plans
 
 
 # 推荐指数
@@ -167,7 +228,7 @@ def teacher_assistant():
 
     # 1. 输入课程内容
     course_content = input("📚 请输入本节课的教学内容（学科、章节或知识点）：\n")
-
+    Objectives="计算机网络"
     print("\n🤖 正在生成预备知识检测题与学生问卷，请稍候...\n")
     questions = generate_pre_class_questions(course_content)
     print("✅ 以下是为本节课自动生成的内容：\n")
@@ -188,7 +249,7 @@ def teacher_assistant():
 
     print("\n🤖 正在根据反馈生成个性化教案，请稍候...\n")
 
-    lesson_plans = generate_lesson_plans(course_content, student_feedback)
+    lesson_plans = generate_lesson_plans(Objectives,course_content, student_feedback)
 
     # 评估教案推荐指数
     recommendation = evaluate_recommendation(student_feedback)
