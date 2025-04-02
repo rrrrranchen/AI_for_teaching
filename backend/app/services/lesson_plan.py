@@ -114,7 +114,7 @@ def generate_pre_class_questions(course_content):
 
 
 # 生成结构化教案（按六大模块分段）
-def generate_lesson_plans(Objectives,course_content, student_feedback):
+def generate_lesson_plans(Objectives, course_content, student_feedback):
     response = client.chat.completions.create(
         model="deepseek-chat",
         messages=[
@@ -133,7 +133,7 @@ def generate_lesson_plans(Objectives,course_content, student_feedback):
                     "    - 必须设计不少于三个互动环节，如小组讨论、角色扮演、实时问答、投票、课堂游戏等。\n"
                     "    - 每个环节说明教学方法、活动安排、教师与学生的行为、时间分配、使用的工具与材料、预期学习成果。\n"
                     "6. 课后作业：布置有层次的作业任务，至少包含基础题与拓展题。\n\n"
-                    "请使用 Markdown 格式输出，便于后续整理归档。"
+                    "使用 --- 作为每个教案的分隔符同时请使用 Markdown 格式输出，便于后续整理归档。"
                 )
             },
             {
@@ -143,7 +143,14 @@ def generate_lesson_plans(Objectives,course_content, student_feedback):
         ],
         stream=False
     )
-    return response.choices[0].message.content
+    
+    # 将返回的内容按 "---" 分割成三份教案
+    lesson_plans = response.choices[0].message.content.split("---")
+    
+    # 去掉可能存在的空字符串，并去除首尾空白
+    lesson_plans = [plan.strip() for plan in lesson_plans if plan.strip()]
+    
+    return lesson_plans
 
 
 # 推荐指数
@@ -221,7 +228,7 @@ def teacher_assistant():
 
     # 1. 输入课程内容
     course_content = input("📚 请输入本节课的教学内容（学科、章节或知识点）：\n")
-
+    Objectives="计算机网络"
     print("\n🤖 正在生成预备知识检测题与学生问卷，请稍候...\n")
     questions = generate_pre_class_questions(course_content)
     print("✅ 以下是为本节课自动生成的内容：\n")
@@ -242,7 +249,7 @@ def teacher_assistant():
 
     print("\n🤖 正在根据反馈生成个性化教案，请稍候...\n")
 
-    lesson_plans = generate_lesson_plans(course_content, student_feedback)
+    lesson_plans = generate_lesson_plans(Objectives,course_content, student_feedback)
 
     # 评估教案推荐指数
     recommendation = evaluate_recommendation(student_feedback)
