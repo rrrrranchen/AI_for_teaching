@@ -214,7 +214,7 @@ def get_content(shape, content):
 
 
 def generate_PPT(subject, chapter, teacher_name='AI', time=None, title=None, subtitle=None,
-                 template='ppts/template.pptx', ppt_filename=None, select='template'):
+                 template='backend/app/services/ppts/template.pptx', ppt_filename=None, select='template'):  # 'ppts/template.pptx'
     if select == 'ai':
         pass
         # 连接AI PPT助手生成--尚未开发
@@ -234,7 +234,7 @@ def generate_PPT(subject, chapter, teacher_name='AI', time=None, title=None, sub
 
         if ppt_filename is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            ppt_filename = f"ppts/{subject}-{chapter}教学PPT{timestamp}.pptx"
+            ppt_filename = f"backend/app/services/ppts/{subject}-{chapter}教学PPT{timestamp}.pptx"
 
         # 保存PPT文件到本地
         prs.save(ppt_filename)
@@ -332,3 +332,6 @@ def get_template(subject, chapter):
     return content
 
 
+print('开始：', datetime.now())
+generate_PPT('计算机网络', 'TCP-IP协议', '丁力宏')
+print('结束：', datetime.now())
