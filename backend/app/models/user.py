@@ -34,6 +34,9 @@ class User(db.Model):
     # 添加 teaching_design_versions 属性，表示用户创建的教学设计版本
     teaching_design_versions = db.relationship('TeachingDesignVersion', back_populates='author')
 
+    # 添加 teaching_designs 属性，表示用户创建的教学设计
+    teaching_designs = db.relationship('TeachingDesign', back_populates='creator')
+
     def set_password(self, password):
         self.password_hash = generate_password_hash(password, method="pbkdf2:sha256")
 
