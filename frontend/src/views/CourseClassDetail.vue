@@ -3,7 +3,7 @@
     <div class="class-card">
       <!-- 面包屑导航 -->
       <div class="breadcrumb-section">
-        <a-breadcrumb>
+        <a-breadcrumb separator=">">
           <a-breadcrumb-item>
             <router-link to="/home/my-class">我的班级</router-link>
           </a-breadcrumb-item>
@@ -43,15 +43,16 @@
                 <template #icon><copy-outlined /></template>
                 邀请码：{{ courseclassDetail?.invite_code }}
               </a-tag>
-              <span
-                ><calendar-outlined /> 创建时间：{{
-                  courseclassDetail?.created_at
-                }}</span
-              >
+              <p class="class-description">
+                <calendar-outlined /> 创建时间：{{
+                  formatCreatedAt(courseclassDetail?.created_at)
+                }}
+              </p>
+              <p class="class-description">
+                <BookOutlined />
+                {{ courseclassDetail?.description || "暂无班级描述" }}
+              </p>
             </div>
-            <p class="class-description">
-              {{ courseclassDetail?.description || "暂无班级描述" }}
-            </p>
           </div>
 
           <!-- 任课教师 -->
@@ -101,28 +102,46 @@
                   />
                 </div>
 
-                <a-list :data-source="filteredCourses">
-                  <template #renderItem="{ item }">
-                    <a-list-item class="course-item">
-                      <a-checkbox
-                        v-if="multiSelecting"
-                        :checked="selectedCourseIds.includes(item.id)"
-                        @change="() => toggleCourseSelection(item.id)"
-                      />
-                      <a-list-item-meta>
-                        <template #title>
-                          <span class="course-title">{{ item.name }}</span>
-                        </template>
-                        <template #description>
-                          <span class="course-description">
-                            {{ item.description || "暂无描述" }}
-                          </span>
-                        </template>
-                      </a-list-item-meta>
-                      <a-button type="link" class="edit-btn">编辑</a-button>
-                    </a-list-item>
-                  </template>
-                </a-list>
+                <!-- 改进后的课程列表 -->
+                <div class="course-list-container">
+                  <a-empty
+                    v-if="filteredCourses.length === 0"
+                    description="暂无课程"
+                    class="empty-placeholder"
+                  />
+
+                  <div v-else class="course-grid">
+                    <div
+                      v-for="course in filteredCourses"
+                      :key="course.id"
+                      class="course-card"
+                      :class="{
+                        selected: selectedCourseIds.includes(course.id),
+                      }"
+                    >
+                      <div class="course-card-header">
+                        <a-checkbox
+                          v-if="multiSelecting"
+                          :checked="selectedCourseIds.includes(course.id)"
+                          @change="() => toggleCourseSelection(course.id)"
+                          class="course-checkbox"
+                        />
+                        <h3 class="course-title">{{ course.name }}</h3>
+                      </div>
+
+                      <p class="course-description">
+                        {{ course.description || "暂无课程描述" }}
+                      </p>
+
+                      <div class="course-actions">
+                        <a-button type="text" size="small" class="edit-btn">
+                          <template #icon><edit-outlined /></template>
+                          编辑
+                        </a-button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </a-tab-pane>
 
@@ -137,18 +156,40 @@
                   />
                 </div>
 
-                <a-list :data-source="filteredStudents">
-                  <template #renderItem="{ item }">
-                    <a-list-item class="student-item">
-                      <a-list-item-meta>
-                        <template #title>
-                          <span class="student-name">{{ item.username }}</span>
-                        </template>
-                      </a-list-item-meta>
-                      <a-tag color="red" class="remove-btn">移除</a-tag>
-                    </a-list-item>
-                  </template>
-                </a-list>
+                <!-- 改进后的学生列表 -->
+                <div class="student-list-container">
+                  <a-empty
+                    v-if="filteredStudents.length === 0"
+                    description="暂无学生"
+                    class="empty-placeholder"
+                  />
+
+                  <div class="student-table">
+                    <div class="student-table-header">
+                      <div class="header-cell" style="flex: 2">学生姓名</div>
+                      <div class="header-cell" style="flex: 1">操作</div>
+                    </div>
+
+                    <div
+                      v-for="student in filteredStudents"
+                      :key="student.id"
+                      class="student-table-row"
+                    >
+                      <div class="student-cell" style="flex: 2">
+                        <user-outlined class="student-icon" />
+                        <span class="student-name">{{ student.username }}</span>
+                      </div>
+                      <div class="student-cell" style="flex: 1">
+                        <a-popconfirm title="确定要移除此学生吗？">
+                          <a-button type="text" danger size="small">
+                            <template #icon><delete-outlined /></template>
+                            移除
+                          </a-button>
+                        </a-popconfirm>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </a-tab-pane>
           </a-tabs>
@@ -195,18 +236,31 @@ import {
   createCourseForClass,
   removeCoursesFromClass,
 } from "@/api/course";
-import type { Courseclass, Student } from "@/api/courseclass";
+import type { Courseclass, Student, MongoDate } from "@/api/courseclass";
 import type { Course } from "@/api/course";
 import {
   PlusOutlined,
   UserOutlined,
   CopyOutlined,
   SelectOutlined,
+  CalendarOutlined,
+  BookOutlined,
+  EditOutlined,
+  DeleteOutlined,
 } from "@ant-design/icons-vue";
 
 export default defineComponent({
   name: "CourseClassDetail",
-  components: { PlusOutlined, UserOutlined, CopyOutlined, SelectOutlined },
+  components: {
+    PlusOutlined,
+    UserOutlined,
+    CopyOutlined,
+    SelectOutlined,
+    CalendarOutlined,
+    BookOutlined,
+    EditOutlined,
+    DeleteOutlined,
+  },
   setup() {
     const route = useRoute();
     const courseclassId = ref<number>(0);
@@ -370,6 +424,28 @@ export default defineComponent({
       }
     };
 
+    type CreatedAtType = string | MongoDate | Date | null | undefined;
+    const formatCreatedAt = (date: CreatedAtType): string => {
+      if (!date) return "未知时间";
+
+      let dateStr: string;
+
+      if (typeof date === "string") {
+        dateStr = date;
+      } else if ("$date" in date) {
+        dateStr = date.$date;
+      } else if (date instanceof Date) {
+        dateStr = date.toISOString();
+      } else {
+        return "无效日期格式";
+      }
+
+      try {
+        return new Date(dateStr).toLocaleString();
+      } catch {
+        return "无效日期格式";
+      }
+    };
     return {
       courseclassId,
       courseclassDetail,
@@ -395,6 +471,7 @@ export default defineComponent({
       toggleMultiSelect,
       showCreateModal: () => (createVisible.value = true),
       copyInviteCode,
+      formatCreatedAt,
     };
   },
 });
@@ -439,9 +516,10 @@ export default defineComponent({
 
 .class-meta {
   display: flex;
+  flex-direction: column;
   gap: 16px;
-  align-items: center;
-  margin-bottom: 12px;
+  align-items: left;
+  margin-top: 20px;
   color: rgba(0, 0, 0, 0.45);
 }
 
@@ -518,6 +596,7 @@ export default defineComponent({
 
 .invite-code {
   display: flex;
+  max-width: 250px;
   align-items: center;
   gap: 6px;
   padding: 4px 12px;
@@ -573,5 +652,196 @@ export default defineComponent({
 
 .ant-tag:hover .anticon-copy {
   transform: translateX(2px);
+}
+
+/* 课程列表样式 */
+.course-list-container {
+  margin-top: 16px;
+}
+
+.empty-placeholder {
+  padding: 40px 0;
+  background: #fff;
+  border-radius: 8px;
+}
+
+.course-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.course-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+  border: 1px solid #f0f0f0;
+  transition: all 0.3s;
+  position: relative;
+}
+
+.course-card:hover {
+  box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+  border-color: #d9d9d9;
+}
+
+.course-card.selected {
+  border-color: #1890ff;
+  background-color: #f0f8ff;
+}
+
+.course-card-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.course-checkbox {
+  margin-right: 8px;
+}
+
+.course-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.85);
+  margin: 0;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.course-description {
+  color: rgba(0, 0, 0, 0.65);
+  font-size: 14px;
+  line-height: 1.5;
+  margin-bottom: 16px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 42px;
+}
+
+.course-actions {
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px dashed #f0f0f0;
+  padding-top: 12px;
+}
+
+.edit-btn {
+  color: #1890ff;
+}
+
+/* 学生列表样式 */
+.student-list-container {
+  margin-top: 16px;
+}
+
+.student-table {
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+  border: 1px solid #f0f0f0;
+}
+
+.student-table-header {
+  display: flex;
+  background-color: #fafafa;
+  padding: 12px 16px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.85);
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.student-table-row {
+  display: flex;
+  padding: 12px 16px;
+  align-items: center;
+  transition: background-color 0.3s;
+}
+
+.student-table-row:hover {
+  background-color: #fafafa;
+}
+
+.student-table-row:not(:last-child) {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.student-cell {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+}
+
+.student-icon {
+  color: #1890ff;
+  margin-right: 8px;
+  font-size: 14px;
+}
+
+.student-name {
+  color: rgba(0, 0, 0, 0.85);
+  font-weight: 500;
+}
+
+.student-id {
+  color: rgba(0, 0, 0, 0.65);
+  font-size: 14px;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .course-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .student-table-header {
+    display: none;
+  }
+
+  .student-table-row {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 16px;
+  }
+
+  .student-cell {
+    width: 100%;
+    padding: 4px 0;
+    justify-content: space-between;
+    border-bottom: none !important;
+  }
+
+  .student-cell::before {
+    content: attr(data-label);
+    color: rgba(0, 0, 0, 0.45);
+    margin-right: 8px;
+  }
+
+  .student-cell[style*="flex: 2"]::before {
+    content: "学生姓名";
+  }
+
+  .student-cell[style*="flex: 3"]::before {
+    content: "学号";
+  }
+
+  .student-cell[style*="flex: 1"] {
+    justify-content: flex-end;
+    width: 100%;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed #f0f0f0;
+  }
+
+  .student-cell[style*="flex: 1"]::before {
+    content: none;
+  }
 }
 </style>

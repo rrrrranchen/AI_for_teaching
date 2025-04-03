@@ -30,7 +30,7 @@ const routes: Array<RouteRecordRaw> = [
       },
       {
         path: "my-class",
-        redirect: (to) => {
+        redirect: () => {
           const authStore = useAuthStore();
           return authStore.user?.role === "teacher"
             ? "/home/t-class"
@@ -54,7 +54,6 @@ const routes: Array<RouteRecordRaw> = [
         name: "CourseClassDetail",
         component: () => import("../views/CourseClassDetail.vue"),
         meta: {
-          requiresAuth: true,
           menuKey: 2, // 保持在同一菜单项下
         },
       },

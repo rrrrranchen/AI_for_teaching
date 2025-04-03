@@ -32,7 +32,16 @@
     <a-divider class="!my-4" />
     <!-- 分割线 -->
     <!-- 课程班列表 -->
-    <div style="margin-left: 10px; margin-right: 10px">
+    <div
+      style="
+        margin-left: 10px;
+        margin-right: 10px;
+        height: 89vh;
+        overflow-y: auto;
+        padding-top: 10px;
+        padding-bottom: 20px;
+      "
+    >
       <a-spin :spinning="loading">
         <a-row
           v-if="filteredClasses.length > 0"
@@ -51,7 +60,10 @@
               <template #title>
                 <div class="flex justify-between items-center flex-wrap gap-2">
                   <router-link
-                    :to="`/home/courseclass/${item.id}`"
+                    :to="{
+                      path: `/home/courseclass/${item.id}`,
+                      query: { className: item.name },
+                    }"
                     class="text-base font-semibold hover:text-blue-600 transition-colors"
                   >
                     {{ item.name }}
@@ -190,6 +202,11 @@ export default defineComponent({
 });
 </script>
 <style>
+.student-class {
+  margin: 0 auto;
+  min-height: 100vh;
+}
+
 /* 卡片样式 */
 .ant-card {
   transition: transform 0.2s, box-shadow 0.2s;
