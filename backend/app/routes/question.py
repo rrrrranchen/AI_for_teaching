@@ -149,6 +149,7 @@ def delete_question(question_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
     
+
 # 查询单个课程的所有预习题目
 @question_bp.route('/prequestions/<int:course_id>', methods=['GET'])
 def get_questions_by_course(course_id):
@@ -175,8 +176,13 @@ def get_questions_by_course(course_id):
         if current_user not in course_class.teachers and current_user not in course_class.students:
             return jsonify({'error': 'You do not have permission to access questions for this course'}), 403
 
-        # 获取该课程的所有预习题目
-        questions = Question.query.filter_by(course_id=course_id, timing='pre_class').all()
+        # 根据用户角色决定是否过滤 is_public 字段
+        if current_user.role == 'student':
+            # 学生只能查看公开的题目
+            questions = Question.query.filter_by(course_id=course_id, timing='pre_class', is_public=True).all()
+        else:
+            # 老师可以查看所有题目
+            questions = Question.query.filter_by(course_id=course_id, timing='pre_class').all()
 
         # 返回题目列表
         return jsonify([{
@@ -187,11 +193,13 @@ def get_questions_by_course(course_id):
             'correct_answer': question.correct_answer,
             'difficulty': question.difficulty,
             'timing': question.timing,
-            'is_public': question.is_public  # 添加 is_public 字段
+            'is_public': question.is_public  # 返回 is_public 字段
         } for question in questions]), 200
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+
 # 查询单个题目
 @question_bp.route('/question/<int:question_id>', methods=['GET'])
 def get_question(question_id):
