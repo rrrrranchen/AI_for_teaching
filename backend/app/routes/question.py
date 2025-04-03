@@ -1,5 +1,6 @@
 from venv import logger
 from flask import Blueprint, render_template, request, jsonify, session
+from sqlalchemy import and_
 from werkzeug.security import check_password_hash
 from app.utils.database import db
 from app.models.question import Question
@@ -8,6 +9,7 @@ from app.services.demo import mock_ai_interface
 from app.models.user import User
 from app.models.courseclass import Courseclass
 from app.services.lesson_plan import generate_pre_class_questions
+from app.models.studentanswer import StudentAnswer
 question_bp=Blueprint('question',__name__)
 
 def is_logged_in():
@@ -289,6 +291,10 @@ def update_question(question_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+    
+
+
+
 
 @question_bp.route('/question-page')
 def questiontest():
