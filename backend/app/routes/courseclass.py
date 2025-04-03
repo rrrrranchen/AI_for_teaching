@@ -312,14 +312,17 @@ def remove_courses_from_courseclass(courseclass_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+
+#
 @courseclass_bp.route('/courseclasses/<int:courseclass_id>/courses', methods=['GET'])
 def get_courses_by_courseclass(courseclass_id):
     if not is_logged_in():
         return jsonify({'error': 'Unauthorized'}), 401
     try:
+        current_user=get_current_user()
         # 检查当前用户是否为该课程班的老师
-        if not is_teacher_of_courseclass(courseclass_id):
-            return jsonify({'error': 'You are not authorized to access courses of this course class'}), 403
+        if not is_teacher_of_courseclass(courseclass_id) and current_user not in Courseclass.query.get(courseclass_id).students:
+            return jsonify({'error': 'You are not authorized to access students of this course class'}), 403
 
         courseclass = Courseclass.query.get(courseclass_id)
         if not courseclass:
