@@ -25,6 +25,7 @@ class TeachingDesignVersion(db.Model):
     content = db.Column(db.Text, nullable=False)  # 可存储JSON格式的详细教学设计
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    level = db.Column(db.String(50), nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     recommendation_score = db.Column(db.Float, default=0.0, comment="推荐指数(0-100分)")  
     # 关联关系

@@ -262,46 +262,6 @@ def save_to_markdown(content, filename="教案.md"):
 #     print(f"\n✅ PDF 已保存为：{filename}")
 
 
-# 推荐指数
-def evaluate_recommendation(student_feedback):
-    """
-    评估教学方案推荐指数
-    :param student_feedback: 学生反馈
-    :return: 包含推荐指数和分析的字典
-    """
-    try:
-        response = client.chat.completions.create(
-            model="deepseek-chat",
-            messages=[
-                {"role": "system", "content": "你是教学评估专家..."},
-                {"role": "user", "content": f"分析以下学生反馈:\n{student_feedback}"}
-            ],
-            response_format={"type": "json_object"},
-            stream=False
-        )
-        
-        ai_response = json.loads(response.choices[0].message.content)
-        recommendation = ai_response.get('recommendation', {
-            '掌握良好': 33, '掌握一般': 34, '掌握薄弱': 33
-        })
-        
-        # 标准化百分比
-        total = sum(recommendation.values())
-        if total != 100:
-            recommendation = {k: int(v/total*100) for k, v in recommendation.items()}
-        
-        return {
-            **recommendation,
-            'analysis': ai_response.get('analysis', 'AI分析完成')
-        }
-    
-    except Exception:
-        return {
-            '掌握良好': 33,
-            '掌握一般': 34,
-            '掌握薄弱': 33,
-            'analysis': '自动评估失败'
-        }
 
 
 

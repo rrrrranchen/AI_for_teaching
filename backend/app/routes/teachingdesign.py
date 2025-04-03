@@ -153,16 +153,6 @@ def check_authentication():
     
 @teachingdesign_bp.route('/createteachingdesign', methods=['POST'])
 def create_teaching_design():
-    """
-    创建教学设计并生成三个版本（自动获取预习题目作为反馈）
-    请求参数:
-    {
-        "course_id": int,       # 课程ID（必填）
-        "title": str,           # 设计标题
-        "objectives": str,      # 教学目标
-        "course_content": str   # 课程内容
-    }
-    """
     try:
         # 1. 身份验证和基础校验
         current_user = get_current_user()
@@ -182,7 +172,7 @@ def create_teaching_design():
             student_feedback=student_feedback
         )
 
-        # 4. 创建数据库记录（示例代码，需适配您的ORM）
+        # 4. 创建数据库记录
         new_design = TeachingDesign(
             course_id=data['course_id'],
             creator_id=current_user.id,
@@ -203,7 +193,8 @@ def create_teaching_design():
                     'analysis': plan.get('analysis', '')
                 }),
                 recommendation_score=plan['recommendation'],
-                level=plan['level']
+                level=plan['level'],
+                author_id=current_user.id  
             )
             db.session.add(version)
             versions.append(version)
@@ -223,7 +214,7 @@ def create_teaching_design():
                 "feedback_used": student_feedback[:200] + "..." if len(student_feedback) > 200 else student_feedback,
                 "versions": [{
                     "id": v.id,
-                    "level": v.level,
+                    "level": v.level,  # 返回 level 字段
                     "recommendation": v.recommendation_score
                 } for v in versions]
             }
