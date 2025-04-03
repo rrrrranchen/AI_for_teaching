@@ -9,6 +9,7 @@ from app.models.courseclass import Courseclass
 from app.models.course import Course
 from app.models.user import User
 from app.models.relationship import teacher_class,student_class,course_courseclass
+from app.models.question import Question
 courseclass_bp = Blueprint('courseclass', __name__)
 
 # 检查用户是否登录
@@ -311,7 +312,6 @@ def remove_courses_from_courseclass(courseclass_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-# 根据课程班 ID 查找所有所属课程班的课程
 @courseclass_bp.route('/courseclasses/<int:courseclass_id>/courses', methods=['GET'])
 def get_courses_by_courseclass(courseclass_id):
     if not is_logged_in():
@@ -319,7 +319,7 @@ def get_courses_by_courseclass(courseclass_id):
     try:
         # 检查当前用户是否为该课程班的老师
         if not is_teacher_of_courseclass(courseclass_id):
-            return jsonify({'error': 'You are not authorized to access students of this course class'}), 403
+            return jsonify({'error': 'You are not authorized to access courses of this course class'}), 403
 
         courseclass = Courseclass.query.get(courseclass_id)
         if not courseclass:
@@ -331,7 +331,8 @@ def get_courses_by_courseclass(courseclass_id):
             {
                 'id': course.id,
                 'name': course.name,
-                'description': course.description
+                'description': course.description,
+                'has_public_questions': Question.query.filter_by(course_id=course.id, is_public=True).count() > 0
             }
             for course in courses
         ]

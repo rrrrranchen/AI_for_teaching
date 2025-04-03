@@ -15,6 +15,7 @@ if __name__ == "__main__":
     # 设置主机和端口
     host = "0.0.0.0"  # 允许外部访问
     port = 5000       # 后端运行端口
-
+    
     # 启动 Flask 应用
     app.run(host=host, port=port, debug=True)
+    
