@@ -82,7 +82,7 @@
       <a-layout-content
         :style="{
           overflow: 'initial',
-          minHeight: '100vh',
+          height: '98vh',
           padding: '0',
           margin: '0 16px 16px 8px',
         }"

@@ -33,7 +33,16 @@
     <!-- 分割线 -->
 
     <!-- 课程班列表 -->
-    <div style="margin-left: 10px; margin-right: 10px">
+    <div
+      style="
+        margin-left: 10px;
+        margin-right: 10px;
+        height: 89vh;
+        overflow-y: auto;
+        padding-top: 10px;
+        padding-bottom: 20px;
+      "
+    >
       <a-spin :spinning="loading">
         <a-row
           v-if="filteredClasses.length > 0"
@@ -282,4 +291,23 @@ export default defineComponent({
 .ant-tag:hover .anticon-copy {
   transform: translateX(2px);
 }
+
+/* 滚动条样式 */
+/* ::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+} */
 </style>

@@ -1,12 +1,16 @@
 import api from "@/request";
 import type { AxiosResponse } from "axios";
 
+export interface MongoDate {
+  $date: string;
+}
+
 // 课程班基础类型
 export interface Courseclass {
   id: number;
   name: string;
   description: string;
-  created_at: string;
+  created_at: MongoDate;
   invite_code: string;
   teacher_count?: number;
   student_count?: number;
