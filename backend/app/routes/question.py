@@ -186,12 +186,12 @@ def get_questions_by_course(course_id):
             'content': question.content,
             'correct_answer': question.correct_answer,
             'difficulty': question.difficulty,
-            'timing': question.timing
+            'timing': question.timing,
+            'is_public': question.is_public  # 添加 is_public 字段
         } for question in questions]), 200
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
 # 查询单个题目
 @question_bp.route('/question/<int:question_id>', methods=['GET'])
 def get_question(question_id):
@@ -231,12 +231,14 @@ def get_question(question_id):
             'content': question.content,
             'correct_answer': question.correct_answer,
             'difficulty': question.difficulty,
-            'timing': question.timing
+            'timing': question.timing,
+            'is_public': question.is_public  # 添加 is_public 字段
         }), 200
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
+
 # 修改单个题目
 @question_bp.route('/question/<int:question_id>', methods=['PUT'])
 def update_question(question_id):
@@ -279,13 +281,22 @@ def update_question(question_id):
         question.correct_answer = data.get('correct_answer', question.correct_answer)
         question.difficulty = data.get('difficulty', question.difficulty)
         question.timing = data.get('timing', question.timing)
+        question.is_public = data.get('is_public', question.is_public)  # 添加对 is_public 字段的更新
 
         # 提交更改
         db.session.commit()
 
         return jsonify({
             'message': 'Question updated successfully',
-            'question_id': question.id
+            'question_id': question.id,
+            'updated_fields': {
+                'type': question.type,
+                'content': question.content,
+                'correct_answer': question.correct_answer,
+                'difficulty': question.difficulty,
+                'timing': question.timing,
+                'is_public': question.is_public  # 返回更新后的 is_public 状态
+            }
         }), 200
 
     except Exception as e:
