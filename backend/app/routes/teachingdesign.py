@@ -105,21 +105,7 @@ def get_question_type_name(type_enum):
         'fill': '填空题',
         'short_answer': '简答题'
     }.get(type_enum, '未知题型')
-def generate_lesson_plans(objectives, course_content):
-    return [
-        {
-            "content": "版本1内容",
-            "recommend_rate": "80"  # 改为字符串形式的数字
-        },
-        {
-            "content": "版本2内容",
-            "recommend_rate": "85"
-        },
-        {
-            "content": "版本3内容", 
-            "recommend_rate": "90"
-        }
-    ]
+
 def is_logged_in():
     """检查用户是否登录"""
     return 'user_id' in session

@@ -292,7 +292,62 @@ def update_question(question_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
     
+# 修改题目的公开状态
+@question_bp.route('/question/<int:question_id>/toggle_public', methods=['PUT'])
+def toggle_question_public(question_id):
+    if not is_logged_in():
+        return jsonify({'error': 'Unauthorized'}), 401
 
+    try:
+        # 获取当前登录用户
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({'error': 'User not found'}), 404
+
+        # 查询要修改的题目
+        question = Question.query.get(question_id)
+        if not question:
+            return jsonify({'error': 'Question not found'}), 404
+
+        # 获取题目所属的课程
+        course = Course.query.get(question.course_id)
+        if not course:
+            return jsonify({'error': 'Course not found'}), 404
+
+        # 获取课程所属的课程班
+        course_class = Courseclass.query.filter(Courseclass.courses.contains(course)).first()
+        if not course_class:
+            return jsonify({'error': 'Course class not found'}), 404
+
+        # 检查当前用户是否是课程班的老师
+        if current_user not in course_class.teachers:
+            return jsonify({'error': 'You do not have permission to update this question'}), 403
+
+        # 获取请求中的 JSON 数据
+        data = request.json
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        # 获取公开状态的值
+        is_public = data.get('is_public')
+        if is_public is None:
+            return jsonify({'error': 'No is_public value provided'}), 400
+
+        # 更新题目的公开状态
+        question.is_public = is_public
+
+        # 提交更改
+        db.session.commit()
+
+        return jsonify({
+            'message': 'Question public status updated successfully',
+            'question_id': question.id,
+            'is_public': question.is_public
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 
 
