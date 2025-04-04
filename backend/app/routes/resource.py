@@ -20,6 +20,7 @@ resource_bp=Blueprint('resource',__name__)
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UPLOAD_FOLDER = os.path.join(project_root, 'static', 'uploads','techingresources')
+
 # 检查用户是否登录
 def is_logged_in():
     return 'user_id' in session
