@@ -14,6 +14,8 @@ from app.routes.studentanswer import studentanswer_bp
 from app.routes.resource import resource_bp
 from app.routes.forum import forum_bp
 from app.routes.teachingdesign import teachingdesign_bp
+from app.routes.ppts import ppts_bp
+from app.utils.database import init_db
 from config import Config
 
 # 初始化 Flask 应用
@@ -36,5 +38,5 @@ def create_app():
     app.register_blueprint(resource_bp)
     app.register_blueprint(forum_bp)
     app.register_blueprint(teachingdesign_bp)
-    
+    app.register_blueprint(ppts_bp)
     return app
