@@ -18,6 +18,7 @@
 
 from openai import OpenAI
 import time
+import os
 
 
 # 定义自己的 API Key
@@ -213,14 +214,28 @@ def get_content(shape, content):
     # return content[content[content.keys[i]].keys[j]].keys[k]
 
 
-def generate_PPT(subject, chapter, teacher_name='AI', time=None, title=None, subtitle=None,
-                 template='backend/app/services/ppts/template.pptx', ppt_filename=None, select='template'):  # 'ppts/template.pptx'
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PPTTEMPLATE_FOLDER = os.path.join(project_root, 'static', 'template')
+PPT_FOLDER=os.path.join(project_root,'static','uploads','ppts')
+filename='template.pptx'
+templatepath=os.path.join(PPTTEMPLATE_FOLDER, filename)
+structure = {
+'template.pptx': [
+    [3, 3],
+    [3, 3, 3],
+    [3, 4, 3],
+    [3, 3, 3, 3],
+    [3, 3, 3]
+    ]
+}
+def generate_PPT(subject, chapter, teaching_plan=None, teacher_name='AI', time=None, title=None, subtitle=None,
+                 template=templatepath, ppt_filename=None, select='template'):  # 'ppts/template.pptx'
     if select == 'ai':
         pass
         # 连接AI PPT助手生成--尚未开发
     # elif select == 'template':
-    else:
-        content = get_template(subject, chapter)
+    elif select == 'plan' and teaching_plan:
+        content = get_template(subject, chapter, structure[filename], teaching_plan)
         if not isinstance(content, dict):
             raise 'AI返回内容不可使用!'
         if title is None:
@@ -234,11 +249,36 @@ def generate_PPT(subject, chapter, teacher_name='AI', time=None, title=None, sub
 
         if ppt_filename is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            ppt_filename = f"backend/app/services/ppts/{subject}-{chapter}教学PPT{timestamp}.pptx"
+            ppt_filename = os.path.join(PPT_FOLDER, f"{subject}-{chapter}教学PPT{timestamp}.pptx")
+        else:
+            ppt_filename = os.path.join(PPT_FOLDER, ppt_filename if '.pptx' in ppt_filename else f'{ppt_filename}.pptx')
 
         # 保存PPT文件到本地
         prs.save(ppt_filename)
         print(f"PPT已保存为: {ppt_filename}")
+    else:
+        content = get_template(subject, chapter, structure[filename])
+        if not isinstance(content, dict):
+            raise 'AI返回内容不可使用!'
+        if title is None:
+            title = subject
+        if subtitle is None:
+            subtitle = chapter
+        if time is None:
+            time = datetime.now().strftime("%Y/%m/%d")
+
+        prs = set_ppt_content(content, template, teacher_name, time, title, subtitle)
+
+        if ppt_filename is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            ppt_filename = os.path.join(PPT_FOLDER, f"{subject}-{chapter}教学PPT{timestamp}.pptx")
+        else:
+            ppt_filename = os.path.join(PPT_FOLDER, ppt_filename if '.pptx' in ppt_filename else f'{ppt_filename}.pptx')
+
+        # 保存PPT文件到本地
+        prs.save(ppt_filename)
+        print(f"PPT已保存为: {ppt_filename}")
+
 
 
 def get_AI_content(template):
@@ -272,26 +312,30 @@ def clean_content(content):
     return content
 
 
-def get_template(subject, chapter):
+def get_template(subject, chapter, structure, teaching_plan=None):
     template1 = lambda topic, number, type: (
-        f"请围绕“{topic}”设计 {number} 个教学{type}，"
-        f"并以列表的形式返回各{type}名称，不需要序号，例如："
-        f"[str1, str2, ...]")
+        f"请围绕“{subject} {chapter} {topic}”设计 {number} 个教学{type}，"
+        f"并以列表的形式返回各{type}名称，不需要序号，字数控制在10字以内，例如："
+        f"[str1, str2, ...]") if type != '知识点' or teaching_plan is None else (
+        f"请围绕“{subject} {chapter} {topic}”设计 {number} 个教学环节，必要时请包含一个互动环节，"
+        f"并以列表的形式返回各环节名称，不需要序号，字数控制在10字以内，例如："
+        f"[str1, str2, ...]"
+        )
     # (f'请根据{theme}的内容设计{number}个教学{type}，并以Python列表的形式返回{type}名称')
-    template2 = lambda theme, type: (f'请总结{subject}-{chapter}-{theme}的内容，提取它的相关知识点，'
-                                     f'并返回它的{type}，字数控制在50字左右，不需要返回标题和字数，仅返回内容')
+    template2 = lambda theme, type: (f'请总结{subject} {chapter} {theme}，提取它的相关知识点，'
+                                     f'并返回它的{type}，字数控制在30字左右，不可太多或太少；不需要返回标题和字数，仅返回内容')
     content = {}
-    structure = [
-        [3, 3],
-        [3, 3, 3],
-        [3, 4, 3],
-        [3, 3, 3, 3],
-        [3, 3, 3]
-    ]
+    parts = []
 
     num1 = len(structure)
-    parts = get_AI_content(template1(f'{subject}-{chapter}', num1, '环节'))
-    print(parts)
+    if teaching_plan:
+        parts = get_AI_content(f"请围绕以下教案内容，按序提取 {num1} 个关键教学环节：{teaching_plan}，"
+                               f"并以列表的形式返回各环节名称，不需要序号，例如："
+                               f"[str1, str2, ...]")
+        print(parts)
+    else:
+        parts = get_AI_content(template1(f'', num1, '环节'))
+        print(parts)
     
     text = parts.replace('，', ',').replace("'", '').replace('"', '')
     text = text.strip('[]').strip()
@@ -301,7 +345,7 @@ def get_template(subject, chapter):
 
     for i in range(num1):
         # 生成概述
-        summary = get_AI_content(template2(f'{parts[i]}', '概述'))
+        summary = get_AI_content(template2(f'{parts[i]}的内容', '概述'))
         content[parts[i]]['概述'] = summary
 
         # 生成小标题
@@ -318,20 +362,312 @@ def get_template(subject, chapter):
             content[parts[i]][titles[j]] = {}
 
         for j in range(num2):
-            subtitles = get_AI_content(template1(titles[j], part[j], '知识点'))
+            subtitles = get_AI_content(template1(f'{parts[i]} {titles[j]}', part[j], '知识点'))
             print(subtitles)
             
             text = subtitles.replace('，', ',').replace("'", '').replace('"', '')
             text = text.strip('[]').strip()
             subtitles = [item.strip() for item in text.split(',')]
             for subtitle in subtitles:
-                sub_content = get_AI_content(template2(subtitle, '教学内容'))
+                sub_content = get_AI_content(template2(f'{parts[i]} {titles[j]} {subtitle}的内容' if teaching_plan is None else
+                                                       f'{parts[i]} {titles[j]}的{subtitle}环节', '教学内容'))  # 是否需要 {titles[j]}
                 print(sub_content)
                 content[parts[i]][titles[j]][subtitle] = sub_content
 
     return content
 
 
-print('开始：', datetime.now())
-generate_PPT('计算机网络', 'TCP-IP协议', '丁力宏')
-print('结束：', datetime.now())
+# print('开始：', datetime.now())
+# # generate_PPT('计算机网络', 'TCP-IP协议', '丁力宏')
+# plan = "# 计算机网络基础教案\n\n## 教学目标\n1. **知识目标**：学生能够准确描述计算机网络的三大功能（资源共享、信息传输、分布式处理），并能区分局域网、城域网和广域网的特点。\n2. **理解目标**：学生能够分析比较星型、总线型、环型三种网络拓扑结构的优缺点，准确率不低于90%。\n3. **应用目标**：学生能够根据给定的场景（如小型办公室、校园网等）选择合适的网络拓扑结构，并说明理由。\n4. **分析目标**：学生能够解释TCP/IP协议栈各层的功能及其相互关系，准确识别常见协议所属的层次。\n5. **评价目标**：学生能够评估不同网络设计方案的优势与局限，提出改进建议。\n\n## 教学重难点\n**重点**：\n1. 网络分类标准及各类网络的特点比较\n2. 三种主要拓扑结构的性能比较\n\n**难点**：\n1. 抽象的网络协议概念理解\n2. TCP/IP协议栈的分层逻辑\n\n**突破策略**：\n1. 使用类比教学法（如将网络协议比作语言交流规则）\n2. 通过网络模拟软件可视化数据流动过程\n3. 设计分层拼图游戏强化协议栈记忆\n\n## 教学内容\n1. **计算机网络基础概念**\n   - 定义：互联的自治计算机系统集合\n   - 三大功能模块：\n     * 资源共享（硬件、软件、数据）\n     * 信息传输（电子邮件、文件传输）\n     * 分布式处理（云计算、并行计算）\n\n2. **网络分类体系**\n   - 按覆盖范围：\n     * 局域网（LAN）：<1km，高带宽\n     * 城域网（MAN）：1-100km\n     * 广域网（WAN）：>100km，低带宽\n   - 按传输介质：有线/无线网络\n   - 按使用性质：公用/专用网络\n\n3. **拓扑结构专题**\n   - 星型结构：\n     * 中心节点压力大\n     * 单点故障影响\n   - 总线型结构：\n     * 冲突检测机制\n     * 扩展性限制\n   - 环型结构：\n     * 令牌传递机制\n     * 双向环冗余设计\n\n4. **TCP/IP协议栈**\n   - 四层模型：\n     * 应用层（HTTP/FTP/SMTP）\n     * 传输层（TCP/UDP）\n     * 网络层（IP/ICMP）\n     * 网络接口层\n\n## 教学时间安排\n| 教学环节 | 时间分配 |\n|---------|---------|\n| 导入活动 | 5分钟 |\n| 概念讲解 | 12分钟 |\n| 拓扑结构分析 | 10分钟 |\n| 协议栈探究 | 8分钟 |\n| 综合应用 | 7分钟 |\n| 总结提升 | 3分钟 |\n\n## 教学过程\n\n### 1. 导入环节（5分钟）\n**方法**：情境设问+实物演示  \n**活动**：  \n- 展示校园网拓扑图（互动环节1：快速问答）  \n  * 教师：\"当你在图书馆下载教学楼服务器上的文件时，数据经过哪些设备？\"  \n  * 学生抢答，教师用激光笔指示图中路径  \n**工具**：电子白板展示3D网络示意图  \n**预期**：激发兴趣，建立具象认知  \n\n### 2. 概念讲授（12分钟）\n**方法**：对比表格+案例教学  \n**活动**：  \n- 分发三种网络类型的对比表格（覆盖范围/典型应用/传输速率）  \n- 播放银行系统广域网案例视频  \n**学生行为**：小组填写表格关键数据  \n**教师行为**：  \n1. 用不同颜色标注表格重点  \n2. 演示Wireshark抓包过程（互动环节2：实时观测）  \n**材料**：预录制的数据包分析视频  \n\n### 3. 拓扑结构分析（10分钟）\n**方法**：模拟实验+角色扮演  \n**活动**：（互动环节3：拓扑模拟游戏）  \n- 将教室划分为三个区域，分别代表不同拓扑  \n- 学生分组扮演数据包，按规则\"传输\"笔记本  \n- 记录各结构传输耗时和故障影响范围  \n**工具**：计时器、故障情景卡片（如\"中心交换机断电\"）  \n**预期成果**：生成各拓扑性能对比报告  \n\n### 4. 协议栈探究（8分钟）\n**方法**：拼图竞赛+动画解析  \n**活动**：  \n- 分组拼装协议栈磁贴（应用层→物理层）  \n- 观看TCP三次握手动画（慢速播放+分段讲解）  \n**重点强调**：  \n- 协议封装/解封装过程  \n- 端口号与IP地址的协同作用  \n\n### 5. 综合应用（7分钟）\n**案例**：设计咖啡馆无线网络  \n**要求**：  \n1. 选择拓扑结构并说明理由  \n2. 列出需要的协议（至少3层）  \n3. 预测可能出现的网络问题  \n**展示方式**：小组代表使用思维导图软件汇报  \n\n### 6. 小结提升（3分钟）\n**方法**：概念地图填空  \n**活动**：  \n- 投影不完整的知识框架图  \n- 学生接力补充关键术语（网关、MTU、CSMA/CD等）  \n**升华提问**：\"为什么OSI七层模型在实际中较少使用？\"  \n\n## 课后作业\n**基础题**：  \n1. 绘制双绞线连接的星型拓扑图，标注关键设备  \n2. 匹配协议与层次（HTTP→应用层）  \n\n**拓展题**：  \n1. 分析智能家居系统适合的网络类型，需考虑：  \n   - 设备数量（20+ IoT设备）  \n   - 数据传输特点（小数据包、高频率）  \n2. 用Wireshark捕获一次网页访问过程，识别至少3种协议  \n\n**挑战题**（选做）：  \n设计校园宿舍区网络改造方案，要求：  \n- 比较有线与无线方案的优劣  \n- 估算500个终端同时在线所需带宽  \n- 列出可能采用的QoS策略"
+# generate_PPT('计算机网络', '', teacher_name='朱钟', teaching_plan=plan, select='plan')
+# print('结束：', datetime.now())
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+import pandas as pd
+from docx import Document
+from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+from docx.oxml.ns import qn
+from docx.shared import Pt, RGBColor
+from docx.shared import Inches
+import os
+from datetime import datetime
+
+# 中文显示配置
+plt.rcParams['font.sans-serif'] = ['SimHei']
+plt.rcParams['axes.unicode_minus'] = False
+
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+WORDTEMPLATE_FOLDER = os.path.join(project_root, 'static', 'template')
+REPORT_FOLDER=os.path.join(project_root,'static','uploads','reports')
+PNG_FOLDER=os.path.join(project_root,'static','uploads','pngs')
+filename='template.docx'
+templatepath=os.path.join(WORDTEMPLATE_FOLDER, filename)
+
+def analyze_data():
+    """
+    data = {
+        'q_id': ['q1', 'q2'],
+        's1': [1, 'A'],
+        's2': [0, 'B'],
+        'type': ['填空', '选择'],
+        'answers': [0, 'C']
+    }
+    scores = {
+        'q_id': ['q1', 'q2'],
+        's1': [0.0, 0.0],
+        's2': [1.0, 0.0],
+    }
+    """
+    pass
+
+
+def bar_chart(scores, output_dir):
+    plt.figure(figsize=(12, 6))
+    df = pd.DataFrame({
+        'Question': scores['q_id'],
+        'ScoreRate': np.mean([v for k, v in scores.items() if k != 'q_id'], axis=0)
+    })
+
+    ax = sns.barplot(
+        x='Question',
+        y='ScoreRate',
+        data=df,
+        palette=['#ff0000' if x < 0.6 else '#00ff00' for x in df['ScoreRate']],
+        edgecolor='black',
+        linewidth=1.5
+    )
+
+    plt.axhline(0.6, color='r', linestyle='--', alpha=0.3)
+    plt.title("各题目平均得分", pad=20)
+    plt.xlabel("题目编号")
+    plt.ylabel("得分率")
+    plt.ylim(0, 1)
+
+    for p in ax.patches:
+        ax.annotate(
+            f"{p.get_height():.1%}",
+            (p.get_x() + p.get_width() / 2., p.get_height()),
+            ha='center',
+            va='center',
+            xytext=(0, 10),
+            textcoords='offset points',
+            fontsize=12
+        )
+
+    # 保存图像
+    os.makedirs(output_dir, exist_ok=True)
+    path = os.path.join(output_dir, "平均得分.png")
+    plt.savefig(path, bbox_inches='tight', dpi=300)
+    plt.close()
+
+    return path
+
+
+def question_charts(data, scores, output_dir):
+    num = len(data['q_id'])
+    paths = [''] * num
+
+    for i in range(num):
+        q_id = data['q_id'][i]
+        q_type = data['type'][i]
+
+        plt.figure(figsize=(8, 6))
+
+        # ================== 选择题处理 ==================
+        if q_type == '选择':
+            labels = ['A', 'B', 'C', 'D']
+            records = [l for k, l in data.items()
+                       if k not in ['q_id', 'type', 'answers']]
+            record = [s[i] for s in records]
+            sizes = [max(record.count(k) / len(record), 1e-5) for k in labels]
+            colors = ['#00ff00' if k == data['answers'][i] else '#ff0000'
+                      for k in labels]
+
+            plt.pie(sizes, labels=labels, autopct='%1.1f%%', colors=colors)
+            plt.title(f"题目{q_id}选项分布")
+
+        # ================== 简答题处理 ================== 分数为一区间值
+        elif q_type == '简答':
+            q_scores = [s[i] for s in scores.values() if s is not scores['q_id']]
+
+            # 分箱统计
+            bins = [
+                ('0分', lambda x: x == 0),
+                ('低分', lambda x: 0 < x < 0.6),
+                ('及格', lambda x: 0.6 <= x < 0.8),
+                ('高分', lambda x: 0.8 <= x < 1.0),
+                ('满分', lambda x: x == 1)
+            ]
+            sizes = [max(len(list(filter(func, q_scores))) / len(q_scores), 1e-5)
+                     for (label, func) in bins]
+            labels = [label for (label, func) in bins]
+            colors = ['#ff0000', '#990099', '#000099', '#009999', '#00ff00']
+
+            plt.pie(sizes, labels=labels, autopct='%1.1f%%', colors=colors)
+            plt.title(f"题目{q_id}得分分布")
+
+        # ================== 其他题型处理 ================== 分数为1/0
+        else:
+            q_scores = [s[i] for s in scores.values() if s is not scores['q_id']]
+            count_1 = int(sum(q_scores))
+            count_0 = len(q_scores) - count_1
+            total = len(q_scores)
+            percent_1 = count_1 / total
+            percent_0 = count_0 / total
+
+            df = pd.DataFrame({
+                "Category": ["正确", "错误"],
+                "Percentage": [percent_1, percent_0]
+            })
+
+            plt.figure(figsize=(8, 3))
+            sns.barplot(
+                x="Percentage",
+                y="Category",
+                data=df,
+                palette=["#ff0000", "#00ff00"],
+                errorbar=None  # 不显示误差条
+            )
+
+            plt.title(f"题目{q_id}正确率分布")
+            plt.xlabel("比例")
+            plt.ylabel("")
+            plt.xlim(0, 1)
+
+            # 添加百分比标签
+            for index, value in enumerate(df["Percentage"]):
+                plt.text(
+                    value,
+                    index,
+                    f"{value:.1%}",
+                    va="center",
+                    ha="left",
+                    fontsize=12
+                )
+            # 多个分数值
+            # q_scores = [s[i] for s in scores.values() if s is not scores['q_id']]
+            #
+            # unique_scores = sorted(list(set(q_scores)))
+            # counts = [q_scores.count(s) for s in unique_scores]
+            # total = len(q_scores)
+            # percentages = [c / total for c in counts]
+            #
+            # # 横向柱状图
+            # plt.barh(unique_scores, percentages, color='#0099ff')
+            # plt.title(f"题目{q_id}得分分布")
+            # plt.xlabel("比例")
+            # plt.ylabel("得分")
+            # plt.xlim(0, 1)
+            #
+            # for idx, (score, pct) in enumerate(zip(unique_scores, percentages)):
+            #     plt.text(pct, idx, f"{pct:.1%}",
+            #              va='center', ha='left', fontsize=10)
+
+        # ================== 保存文件 ==================
+        os.makedirs(output_dir, exist_ok=True)
+        filename = f"{q_id}{q_type}分析.png"
+        path = os.path.join(output_dir, filename)
+        plt.savefig(path, bbox_inches='tight', dpi=300)
+        plt.close()
+        paths[i] = path
+
+    return paths
+
+
+def set_word_font(doc, font_name):
+    for p in doc.paragraphs:
+        if p.text:
+            # 设置段落字体
+            run = p.runs[0]
+            run.font.name = font_name
+            # run.font.size = Pt(12)  # 设置字体大小
+
+
+def generate_report(data, scores):
+    output_dir = PNG_FOLDER
+    # os.makedirs(output_dir, exist_ok=True)
+    file_name = os.path.join(REPORT_FOLDER, f"学生作答分析报告{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx")
+
+    # 1. 生成总得分柱状图
+    bar_path = bar_chart(scores, output_dir)
+
+    # 2. 生成每个题目的饼图
+    pie_paths = question_charts(data, scores, output_dir)
+
+    # 3. 生成报告
+    doc = Document(templatepath)
+    # title = doc.add_heading('学生作答综合分析报告', 0)
+    # title.paragraph_format.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+
+    # 总得分图
+    # doc.add_heading('各题目得分率对比', level=1)
+    # doc.add_picture(bar_path, width=Inches(6))
+    for p in doc.paragraphs:
+        if p.text == '平均得分.png':
+            p.clear()
+            run = p.add_run()
+            run.add_picture(bar_path, width=Inches(6))
+
+    # 题目分析
+    # doc.add_heading('各题目详细分析', level=1)
+    for idx, path in enumerate(pie_paths):
+        if data['type'][idx] == '选择':
+            records = [l for k, l in scores.items()
+                       if k != 'q_id']
+            record = [s[idx] for s in records]
+            # doc.add_heading(f"题目{idx+1}选项分布\n"
+            #                 f"正确答案: {data['answers'][idx]}\n"
+            #                 f"正确率: {100 * round(record.count(1.0) / len(record), 4)}%", level=2)
+            p = doc.add_paragraph()
+            run = p.add_run(f"题目{idx + 1}选项分布\n"
+                            f"正确答案: {data['answers'][idx]}\n"
+                            f"正确率: {100 * round(record.count(1.0) / len(record), 4)}%")
+            run.font.color.rgb = RGBColor(0, 0, 0)
+            # run.font.name = '楷体'
+            run.font.name = "KaiTi"  # 楷体的英文字体名
+            run._element.rPr.rFonts.set(qn("w:eastAsia"), "KaiTi")  # 强制设置东亚字体
+            run.font.size = Pt(12)
+        else:
+            records = [l for k, l in scores.items()
+                       if k != 'q_id']
+            record = [s[idx] for s in records]
+            # doc.add_heading(f"题目{idx + 1}答案解析\n"
+            #                 f"正确答案: {data['answers'][idx]}\n"
+            #                 f"正确率: {100 * round(record.count(1.0) / len(record), 4)}%", level=2)
+            p = doc.add_paragraph()
+            run = p.add_run(f"题目{idx + 1}答案解析\n"
+                            f"正确答案: {data['answers'][idx]}\n"
+                            f"正确率: {100 * round(record.count(1.0) / len(record), 4)}%")
+            run.font.color.rgb = RGBColor(0, 0, 0)
+            run.font.name = "KaiTi"  # 楷体的英文字体名
+            run._element.rPr.rFonts.set(qn("w:eastAsia"), "KaiTi")  # 强制设置东亚字体
+            run.font.size = Pt(12)
+        doc.add_picture(path, width=Inches(4))
+
+    # set_word_font(doc, '楷体')
+    doc.save(file_name)
+    print(f'报告已保存为: {file_name}')
+
+
+# 模拟数据
+data = {
+    'q_id': ['q1', 'q2', 'q3'],
+    's1': [1, 'A', '10'],
+    's2': [0, 'B', '01'],
+    's3': [1, 'C', '11'],
+    's4': [0, 'D', '00'],
+    'type': ['填空', '选择', '简答'],
+    'answers': [0, 'A', '11']
+}
+scores = {
+    'q_id': ['q1', 'q2', 'q3'],
+    's1': [0.0, 1.0, 0.75],
+    's2': [1.0, 0.0, 0.25],
+    's3': [0.0, 0.0, 1.0],
+    's4': [1.0, 0.0, 0.0]
+}
+generate_report(data, scores)  # Warning是正常的!
+
