@@ -8,14 +8,7 @@ from sqlalchemy import func, select
 from app.utils.database import db
 from app.models.user import User
 from app.models.courseclass import Courseclass
-from app.models.resources import Metadata, MultimediaResource
 from app.models.relationship import teacher_class
-from app.utils.file_validators import allowed_file
-from app.utils.fileparser import FileParser
-from app.utils.secure_filename import secure_filename
-from app.utils.preview_generator import generate_preview
-from werkzeug.utils import safe_join  
-from mongoengine.errors import DoesNotExist, ValidationError
 from app.models.course import Course
 from app.models.teaching_design import TeachingDesign
 from app.models.teachingdesignversion import TeachingDesignVersion
@@ -95,7 +88,7 @@ def get_pre_class_questions_as_feedback(course_id):
             
             feedback_lines.append(f"- 最难题目: 题目ID {hardest['question'].id} (平均正确率: {hardest['avg_correct']:.1f}%)")
             feedback_lines.append(f"- 最易题目: 题目ID {easiest['question'].id} (平均正确率: {easiest['avg_correct']:.1f}%)")
-
+    print(feedback_lines)
     return "\n".join(feedback_lines)
 
 def get_question_type_name(type_enum):
@@ -586,3 +579,4 @@ def migrate_course_designs(source_course_id, target_course_id):
         db.session.rollback()
         logger.error(f"迁移教学设计失败: {str(e)}")
         return jsonify(code=500, message="服务器内部错误"), 500
+    
