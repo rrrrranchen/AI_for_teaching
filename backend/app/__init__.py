@@ -3,8 +3,6 @@ from bson import ObjectId
 from flask import Flask
 from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
-
-
 from .utils.database import init_db
 from app.routes.auth import auth_bp
 from app.routes.courseclass import courseclass_bp
@@ -14,6 +12,7 @@ from app.routes.studentanswer import studentanswer_bp
 from app.routes.resource import resource_bp
 from app.routes.forum import forum_bp
 from app.routes.teachingdesign import teachingdesign_bp
+from app.routes.ppts import ppts_bp
 from config import Config
 
 # 初始化 Flask 应用
@@ -36,5 +35,5 @@ def create_app():
     app.register_blueprint(resource_bp)
     app.register_blueprint(forum_bp)
     app.register_blueprint(teachingdesign_bp)
-    
+    app.register_blueprint(ppts_bp)
     return app
