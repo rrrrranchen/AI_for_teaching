@@ -156,6 +156,72 @@ def generate_lesson_plans(course_content, student_feedback, student_level):
     return response.choices[0].message.content
 
 
+def generate_post_class_questions(lesson_plan_content):
+    """
+    调用 AI 接口根据教案内容生成课后习题，返回符合 Question 数据模型的题目列表
+    :param lesson_plan_content: 教案内容文本
+    :return: 包含题目字典的列表，每个字典符合 Question 模型结构
+    """
+    # 构造系统提示：要求生成检测学生对教案中知识点理解与掌握情况的课后习题
+    system_prompt = """你是教学设计专家，请根据下面提供的教案内容生成15道课后巩固练习题。
+要求：
+1. 返回格式为JSON列表，每个题目包含以下字段：
+   - type: 题目类型(choice/fill/short_answer)
+   - content: 题目内容
+   - correct_answer: 正确答案
+   - difficulty: 难度等级(1-5)
+2. 题目类型要多样，包含选择题、填空题和简答题
+3. 题目应检测学生对教案中涉及的关键知识点、互动环节以及实践环节的理解与掌握情况
+4. 对于选择题，题目内容中应包含选项，并且正确答案格式为ABCD这样的形式"""
+
+    try:
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": f"请根据下面的教案内容生成课后习题:\n{lesson_plan_content}\n\n请返回符合要求的JSON格式题目列表。"
+                }
+            ],
+            response_format={"type": "json_object"},
+            stream=False
+        )
+
+        # 解析 AI 返回的 JSON 内容
+        ai_response = json.loads(response.choices[0].message.content)
+        # 如果返回结果为字典且包含 'questions' 键，则取出对应列表，否则直接作为列表使用
+        questions_data = ai_response.get('questions', []) if isinstance(ai_response, dict) else ai_response
+
+        # 转换为符合 Question 模型格式（与课前习题格式保持一致）
+        questions = []
+        for i, q in enumerate(questions_data, start=1):
+            question = {
+                "type": q.get("type", "choice"),  # 默认题型为选择题
+                "content": q.get("content", f"课后习题{i}"),
+                "correct_answer": q.get("correct_answer", ""),
+                "difficulty": min(max(int(q.get("difficulty", 3)), 1), 5),  # 难度限定在 1-5 之间
+                "timing": "post_class"  # 标记为课后习题
+            }
+            questions.append(question)
+
+        return questions
+
+    except Exception as e:
+        print(f"生成课后习题时出错: {e}")
+        # 出错时返回一个默认的课后习题，确保格式一致
+        return [{
+            "type": "choice",
+            "content": f"根据教案内容，回答关键知识点是什么？",
+            "correct_answer": "默认正确答案",
+            "difficulty": 3,
+            "timing": "post_class"
+        }]
+
+
 
 # 推荐指数
 def evaluate_recommendation(student_feedback):
@@ -293,5 +359,3 @@ def generate_teaching_plans(course_content, student_feedback):
         'plans': lesson_plans,
         'recommendation': recommendation_scores
     }
-
-
