@@ -5,7 +5,7 @@ from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
 
 
-# from .utils.database import init_db
+from .utils.database import init_db
 from app.routes.auth import auth_bp
 from app.routes.courseclass import courseclass_bp
 from app.routes.course import course_bp
