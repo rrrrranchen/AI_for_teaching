@@ -13,7 +13,7 @@ from app.models.course import Course
 from app.models.teaching_design import TeachingDesign
 from app.models.teachingdesignversion import TeachingDesignVersion
 from app.models.question import Question
-from app.services.lesson_plan import generate_teaching_plans
+from app.services.lesson_plan import generate_post_class_questions, generate_teaching_plans
 
 teachingdesign_bp=Blueprint('teachingdesign',__name__)
 
@@ -583,4 +583,5 @@ def migrate_course_designs(source_course_id, target_course_id):
         db.session.rollback()
         logger.error(f"迁移教学设计失败: {str(e)}")
         return jsonify(code=500, message="服务器内部错误"), 500
-    
+
+

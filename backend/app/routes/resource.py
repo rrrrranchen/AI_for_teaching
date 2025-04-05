@@ -112,20 +112,20 @@ def upload_resource():
     except Exception as e:
         current_app.logger.error(f"预览生成失败: {str(e)}")
         previews = {"thumbnail": "/static/default_preview.jpg"}
-    path=os.path.join('static', 'uploads','avatar', unique_filename)
+
     # 创建资源文档
-    resource = MultimediaResource(  # ✅ 不指定_id，使用自动生成的ObjectId
-    type=_map_file_type(ext),
-    storage_path=path,
-    preview_urls=previews,
-    metadata=Metadata(**{
-        'file_size': os.path.getsize(storage_path),
-        'mime_type': file.mimetype,
-        **cleaned_meta
-    }),
-    uploader_id=get_current_user().id,
-    **form_data
-)
+    resource = MultimediaResource(
+        type=_map_file_type(ext),
+        storage_path=os.path.join('static', 'uploads', 'teachingresources', unique_filename),
+        preview_urls=previews,
+        metadata=Metadata(**{
+            'file_size': os.path.getsize(storage_path),
+            'mime_type': file.mimetype,
+            **cleaned_meta
+        }),
+        uploader_id=get_current_user().id,
+        **form_data
+    )
     resource.save()
 
     return jsonify({
