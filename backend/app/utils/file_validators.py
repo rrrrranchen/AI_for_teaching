@@ -15,7 +15,7 @@ MIME_TYPE_MAP = {
 
 def allowed_file(filename):
     """使用 filetype 替代 python-magic"""
-    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'mp4', 'pdf', 'docx'}
+    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'mp4', 'pdf', 'docx','pptx','ppt'}
     
     # 基础扩展名检查
     if '.' not in filename:

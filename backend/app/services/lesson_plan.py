@@ -349,6 +349,7 @@ def generate_post_class_questions(lesson_plan_content: str) -> list:
 
 
 # 推荐指数
+
 def evaluate_recommendation(student_feedback):
     """
     使用AI分析学生反馈，智能评估三套教案的适用性，返回推荐指数。
@@ -392,6 +393,14 @@ def evaluate_recommendation(student_feedback):
         })
         
         # 确保所有值都存在且总和约等于100
+        if not isinstance(recommendation, dict):
+            raise ValueError("recommendation 不是字典类型")
+        
+        # 确保所有值都是数字
+        for key, value in recommendation.items():
+            if not isinstance(value, (int, float)):
+                raise ValueError(f"recommendation 中的值 {key} 不是数字类型")
+        
         total = sum(recommendation.values())
         if total != 100:
             for key in recommendation:

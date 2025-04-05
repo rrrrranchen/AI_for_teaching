@@ -1,3 +1,4 @@
+from datetime import datetime
 import os
 import uuid
 from venv import logger
@@ -16,6 +17,10 @@ from app.utils.secure_filename import secure_filename
 from app.utils.preview_generator import generate_preview
 from werkzeug.utils import safe_join  
 from mongoengine.errors import DoesNotExist, ValidationError
+
+from app.services.ai_service import generate_PPT
+from app.models.ppttemplate import PPTTemplate
+from app.models.teachingdesignversion import TeachingDesignVersion
 resource_bp=Blueprint('resource',__name__)
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -43,6 +48,97 @@ def is_teacher_of_courseclass(courseclass_id):
         )
     )
     return association > 0
+
+
+@resource_bp.route('/createPPT/<int:course_id>/<int:teachingdesignversion_id>/<int:ppttemplate_id>')
+def generatePPT(course_id, teachingdesignversion_id, ppttemplate_id):
+    # 查询教学设计版本
+    teaching_design_version = TeachingDesignVersion.query.filter_by(
+        id=teachingdesignversion_id
+    ).first()
+    
+    if not teaching_design_version:
+        return jsonify({"error": "Teaching design version not found"}), 404
+
+    # 获取教学设计内容
+    teaching_plan = teaching_design_version.content
+
+    # 查询 PPT 模板
+    ppt_template = PPTTemplate.query.filter_by(id=ppttemplate_id).first()
+    if not ppt_template:
+        return jsonify({"error": "PPT template not found"}), 404
+
+    # 获取模板路径
+    template_path = ppt_template.url
+
+    # 从请求中获取标题
+    title = request.args.get('title', default="教学设计 PPT", type=str)  # 从 URL 查询参数获取
+    # 如果需要从表单数据获取，可以使用 request.form.get('title', default="教学设计 PPT")
+
+    # 生成 PPT
+    storage_path = generate_PPT(
+        teaching_plan=teaching_plan,
+        teacher_name="AI",
+        time=datetime.utcnow().strftime("%Y/%m/%d"),
+        template=template_path,  
+        ppt_filename=None,
+        select='plan'
+    )
+
+    # 生成唯一的文件名
+    unique_filename = str(uuid.uuid4()) + ".pptx"
+    final_storage_path = os.path.join("static", "uploads", "teachingresources", unique_filename)
+
+    # 将 PPT 文件移动到最终存储路径
+    os.rename(storage_path, final_storage_path)
+
+    # 生成元数据
+    parsed_meta = FileParser.parse_file(final_storage_path)
+    if 'error' in parsed_meta:
+        os.remove(final_storage_path)
+        return jsonify({'error': parsed_meta['error']}), 400
+
+    # 确保只包含 Metadata 模型中定义的字段
+    valid_meta_fields = {
+        'file_size', 'format', 'mime_type',
+        'duration', 'resolution', 'bitrate',
+        'page_count', 'word_count', 'author',
+        'color_mode', 'dpi', 'extra'
+    }
+    cleaned_meta = {k: v for k, v in parsed_meta.items() if k in valid_meta_fields}
+
+    # 生成预览图
+    try:
+        previews = generate_preview(final_storage_path, unique_filename)
+    except Exception as e:
+        current_app.logger.error(f"预览生成失败: {str(e)}")
+        previews = {"thumbnail": "/static/default_preview.jpg"}
+
+    # 创建资源文档
+    resource = MultimediaResource(
+        type="presentation",  # PPT 类型
+        title=title,  # 使用前端提供的标题
+        description="自动生成的教学设计 PPT",
+        course_id=course_id,
+        designversion_id=teachingdesignversion_id,
+        uploader_id=get_current_user().id,
+        storage_path=final_storage_path,
+        preview_urls=previews,
+        metadata=Metadata(**{
+            'file_size': os.path.getsize(final_storage_path),
+            'mime_type': "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            **cleaned_meta
+        }),
+        is_teaching_design=True  # 标记为教学设计 PPT
+    )
+    resource.save()
+
+    return jsonify({
+        'id': str(resource.id),
+        'preview_url': previews.get('thumbnail'),
+        'metadata': parsed_meta,
+        'message': "PPT generated and stored successfully"
+    }), 201
 
 
 @resource_bp.route('/resources', methods=['POST'])
@@ -87,7 +183,7 @@ def upload_resource():
         'title': request.form.get('title', name),
         'description': request.form.get('description', ''),
         'course_id': int(request.form['course_id']),
-        'class_ids': list(map(int, request.form.getlist('class_ids'))),
+        'designversion_id': int(request.form['designversion_id']),  # 新增字段
         'is_public': request.form.get('is_public', 'false').lower() == 'true'
     }
 
@@ -145,7 +241,6 @@ def _map_file_type(ext):
         'mp3': 'audio'
     }
     return type_map.get(ext, 'other')
-
 
 
 #查询资源
