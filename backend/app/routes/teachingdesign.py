@@ -422,7 +422,8 @@ def get_course_designs(course_id):
     except Exception as e:
         logger.error(f"查询课程教学设计失败: {str(e)}")
         return jsonify(code=500, message="服务器内部错误"), 500
-    
+
+#修改单个教学设计的基本信息
 @teachingdesign_bp.route('/design/<int:design_id>', methods=['PUT'])
 def update_teaching_design(design_id):
     """
@@ -461,7 +462,9 @@ def update_teaching_design(design_id):
         db.session.rollback()
         logger.error(f"更新教学设计失败: {str(e)}")
         return jsonify(code=500, message="服务器内部错误"), 500
-    
+
+#修改单个教学设计版本的基本信息
+
 @teachingdesign_bp.route('/design/<int:design_id>/version/<int:version_id>', methods=['PUT'])
 def update_teaching_design_version(design_id, version_id):
     """
@@ -508,6 +511,7 @@ def update_teaching_design_version(design_id, version_id):
         return jsonify(code=500, message="服务器内部错误"), 500
 
 
+#将一个课程中的教学设计及其所有版本迁移到另一个课程
 @teachingdesign_bp.route('/course/<int:source_course_id>/migrate/<int:target_course_id>', methods=['POST'])
 def migrate_course_designs(source_course_id, target_course_id):
     """
