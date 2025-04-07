@@ -1,0 +1,113 @@
+
+
+
+def parse_teaching_plan(teaching_plan):
+    """
+    通过 AI 接口解析教学计划，提取学科（subject）和章节总知识点（chapter）。
+    
+    Args:
+        teaching_plan (str): 教学计划的文本内容。
+    
+    Returns:
+        tuple: (subject, chapter)，其中 subject 是学科，chapter 是章节总知识点。
+    """
+    print("正在通过 AI 接口解析教学计划...")
+    
+    # 更明确的提示词，要求AI返回特定格式
+    prompt = f"""请从以下教学计划中提取信息并以严格的JSON格式返回：
+    - "subject": 课程主题或学科名称
+    - "chapter": 主要知识点（一个总的知识点）
+    
+    教学计划内容：
+    {teaching_plan}
+    
+    返回格式示例：
+    {{
+        "subject": "计算机网络",
+        "chapter": "网络分类、拓扑结构、TCP/IP协议"
+    }}
+    """
+    
+    try:
+        # 调用 AI 接口解析教学计划
+        ai_response = sendToDeepSeek(prompt)
+        
+        # 预处理响应：替换中文标点为英文标点
+        ai_response = ai_response.replace('：', ':').replace('，', ',').replace('“', '"').replace('”', '"')
+        
+        # 尝试提取JSON部分（有时AI会在JSON前后添加解释文本）
+        start_idx = ai_response.find('{')
+        end_idx = ai_response.rfind('}') + 1
+        json_str = ai_response[start_idx:end_idx]
+        
+        # 解析JSON
+        ai_result = ast.literal_eval(json_str)
+        subject = ai_result.get('subject', '默认学科')
+        chapter = ai_result.get('chapter', '默认知识点')
+        
+        print(f"AI 解析结果：学科 = {subject}，知识点 = {chapter}")
+        return subject, chapter
+        
+    except Exception as e:
+        print(f"解析 AI 响应时出错：{e}。使用默认值。原始响应：\n{ai_response}")
+        # 尝试从教学计划中提取前两行作为备选
+        lines = teaching_plan.split('\n')
+        subject = lines[0].strip() if len(lines) > 0 else "默认学科"
+        chapter = lines[1].strip() if len(lines) > 1 else "默认知识点"
+        return subject, chapter
+def generate_PPT(subject=None, chapter=None, teaching_plan=None, teacher_name='AI', time=None, title=None, subtitle=None,
+                 template=templatepath, ppt_filename=None, select='template'):  # 'ppts/template.pptx'
+    if select == 'ai':
+        pass
+        # 连接AI PPT助手生成--尚未开发
+    elif select == 'plan' and teaching_plan:
+        if not subject or not chapter:
+            # 调用解析函数
+            subject, chapter = parse_teaching_plan(teaching_plan)
+        
+        content = get_template(subject, chapter, structure[filename], teaching_plan)
+        if not isinstance(content, dict):
+            raise ValueError('AI返回内容不可使用!')
+        if title is None:
+            title = subject
+        if subtitle is None:
+            subtitle = chapter[0] if chapter else '默认知识点'
+        if time is None:
+            time = datetime.now().strftime("%Y/%m/%d")
+
+        prs = set_ppt_content(content, template, teacher_name, time, title, subtitle)
+
+        if ppt_filename is None:
+            unique_id = uuid.uuid4()  # 生成一个唯一的UUID
+            ppt_filename = os.path.join(PPT_FOLDER, f"{subject}-{chapter[0]}教学PPT-{unique_id}.pptx")
+        else:
+            ppt_filename = os.path.join(PPT_FOLDER, ppt_filename if '.pptx' in ppt_filename else f'{ppt_filename}.pptx')
+
+        # 保存PPT文件到本地
+        prs.save(ppt_filename)
+        print(f"PPT已保存为: {ppt_filename}")
+    else:
+        content = get_template(subject, chapter, structure[filename])
+        if not isinstance(content, dict):
+            raise ValueError('AI返回内容不可使用!')
+        if title is None:
+            title = subject
+        if subtitle is None:
+            subtitle = chapter[0] if chapter else '默认知识点'
+        if time is None:
+            time = datetime.now().strftime("%Y/%m/%d")
+
+        prs = set_ppt_content(content, template, teacher_name, time, title, subtitle)
+
+        if ppt_filename is None:
+            unique_id = uuid.uuid4()  # 生成一个唯一的UUID
+            ppt_filename = os.path.join(PPT_FOLDER, f"{subject}-{chapter[0]}教学PPT-{unique_id}.pptx")
+        else:
+            ppt_filename = os.path.join(PPT_FOLDER, ppt_filename if '.pptx' in ppt_filename else f'{ppt_filename}.pptx')
+
+        # 保存PPT文件到本地
+        prs.save(ppt_filename)
+        print(f"PPT已保存为: {ppt_filename}")
+
+    # 返回文件的存储路径
+    return ppt_filename
