@@ -133,13 +133,6 @@
                       <p class="course-description">
                         {{ course.description || "暂无课程描述" }}
                       </p>
-
-                      <div class="course-actions">
-                        <a-button type="text" size="small" class="edit-btn">
-                          <template #icon><edit-outlined /></template>
-                          编辑
-                        </a-button>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -246,7 +239,6 @@ import {
   SelectOutlined,
   CalendarOutlined,
   BookOutlined,
-  EditOutlined,
   DeleteOutlined,
 } from "@ant-design/icons-vue";
 
@@ -259,7 +251,6 @@ export default defineComponent({
     SelectOutlined,
     CalendarOutlined,
     BookOutlined,
-    EditOutlined,
     DeleteOutlined,
   },
   setup() {
@@ -286,7 +277,8 @@ export default defineComponent({
       router.push({
         path: `/home/t-course/${courseId}`,
         query: {
-          className: courseclassDetail.value?.name || "未知班级",
+          courseclassName: courseclassDetail.value?.name || "未知班级",
+          courseclassId: courseclassId.value,
         },
       });
     };
@@ -821,5 +813,62 @@ export default defineComponent({
   .student-cell[style*="flex: 1"]::before {
     content: none;
   }
+}
+
+/* 课程列表容器 - 单列布局 */
+.course-list-container {
+  margin-top: 16px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+/* 课程卡片 - 单列布局 */
+.course-card {
+  padding: 16px;
+  margin-bottom: 12px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.course-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.course-card.selected {
+  background-color: #f0f9ff;
+  border-left: 3px solid #1890ff;
+}
+
+/* 学生列表容器 - 单列布局 */
+.student-list-container {
+  margin-top: 16px;
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+/* 学生表格 - 单列布局 */
+.student-table {
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  border: 1px solid #f0f0f0;
+}
+
+.student-table-row {
+  display: flex;
+  padding: 12px 16px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.student-table-row:last-child {
+  border-bottom: none;
 }
 </style>

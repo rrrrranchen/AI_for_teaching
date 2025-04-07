@@ -1,5 +1,22 @@
 <template>
   <div class="course-container">
+    <!-- 面包屑导航 -->
+    <div class="breadcrumb-section">
+      <a-breadcrumb separator=">">
+        <a-breadcrumb-item>
+          <router-link to="/home/my-class">我的班级</router-link>
+        </a-breadcrumb-item>
+        <a-breadcrumb-item>
+          <router-link
+            :to="{
+              path: `/home/courseclass/${courseclassId}`,
+            }"
+            >{{ courseclassName }}</router-link
+          >
+        </a-breadcrumb-item>
+      </a-breadcrumb>
+    </div>
+
     <!-- 题目列表 -->
     <a-card
       :title="`课前预习题目 (${preQuestions.length})`"
@@ -66,7 +83,71 @@
 
     <a-card :title="`教学设计`" style="margin-bottom: 20px"></a-card>
 
-    <a-card :title="`课后题目`" style="margin-bottom: 20px"></a-card>
+    <a-card
+      :title="`课后练习题目 (${postQuestions.length})`"
+      style="margin-bottom: 20px"
+    >
+      <template #extra>
+        <a-button type="link" @click="toggleCollapsePost" size="small">
+          <template #icon>
+            <UpOutlined v-if="!isCollapsedPost" />
+            <DownOutlined v-else />
+          </template>
+          {{ isCollapsedPost ? "展开" : "收起" }}
+        </a-button>
+      </template>
+
+      <a-table
+        v-show="!isCollapsedPost"
+        :columns="questionColumns"
+        :dataSource="postQuestions"
+        :loading="loading"
+        rowKey="id"
+      >
+        <template #bodyCell="{ column, record }">
+          <!-- 复用相同的内容解析逻辑 -->
+          <template v-if="column.key === 'content'">
+            <div v-if="record.type === 'choice'">
+              <div class="question-text">
+                {{ parsedContent(record.content).question }}
+              </div>
+              <div
+                v-for="(option, index) in parsedContent(record.content).options"
+                :key="index"
+                class="option-item"
+              >
+                {{ option }}
+              </div>
+            </div>
+            <template v-else>
+              {{ record.content }}
+            </template>
+          </template>
+
+          <template v-if="column.key === 'actions'">
+            <a-space>
+              <!-- 复用相同的操作按钮 -->
+              <a-button size="small" @click="showEditModal(record)">
+                <template #icon><EditOutlined /></template>
+              </a-button>
+              <a-button size="small" danger @click="confirmDelete(record.id)">
+                <template #icon><DeleteOutlined /></template>
+              </a-button>
+              <a-switch
+                checked-children="已发布"
+                un-checked-children="未发布"
+                :checked="record.is_public"
+                @change="(checked: any) => togglePublic(record.id, checked)"
+              />
+            </a-space>
+          </template>
+
+          <template v-else-if="column.key === 'difficulty'">
+            <a-rate :value="Number(record.difficulty)" disabled />
+          </template>
+        </template>
+      </a-table>
+    </a-card>
 
     <!-- 编辑题目模态框 -->
     <a-modal
@@ -119,10 +200,33 @@ export default defineComponent({
   components: { DeleteOutlined, EditOutlined, UpOutlined, DownOutlined },
   setup() {
     const route = useRoute();
+    const courseclassName = ref<string>("");
+    const courseclassId = ref<number>(0);
     const courseId = ref<number>(0);
     const loading = ref(false);
     const preQuestions = ref<Question[]>([]);
     const currentQuestion = ref<Question | null>(null);
+    const postQuestions = ref<Question[]>([]);
+    const isCollapsedPost = ref(true);
+
+    // 新增折叠方法
+    const toggleCollapsePost = () => {
+      isCollapsedPost.value = !isCollapsedPost.value;
+    };
+
+    // 新增获取课后习题方法
+    const fetchPostQuestions = async () => {
+      try {
+        loading.value = true;
+        const response = await questionApi.getPostQuestions(courseId.value);
+        postQuestions.value = response;
+      } catch (error) {
+        message.error("获取课后题目失败");
+        console.error("获取课后题目错误:", error);
+      } finally {
+        loading.value = false;
+      }
+    };
 
     const isCollapsed = ref(false);
     const toggleCollapse = () => {
@@ -176,9 +280,11 @@ export default defineComponent({
       try {
         const id = Number(route.params.courseId);
         if (isNaN(id)) throw new Error("无效的课程ID");
-
         courseId.value = id;
-        await fetchPreQuestions();
+        courseclassId.value = Number(route.query.courseclassId);
+        courseclassName.value = route.query.courseclassName as string;
+        console.log("课程班信息：", courseclassId.value, courseclassName.value);
+        await Promise.all([fetchPreQuestions(), fetchPostQuestions()]); // 并行请求
       } catch (err) {
         message.error("初始化失败");
         console.error("初始化错误:", err);
@@ -308,9 +414,12 @@ export default defineComponent({
       }
     };
     return {
+      courseclassId,
+      courseclassName,
       courseId,
       loading,
       preQuestions,
+      postQuestions,
       currentQuestion,
       questionColumns,
       addModalVisible,
@@ -318,7 +427,9 @@ export default defineComponent({
       addFormState,
       editFormState,
       isCollapsed,
+      isCollapsedPost,
       toggleCollapse,
+      toggleCollapsePost,
       handleAddPreQuestion,
       resetAddForm,
       showEditModal,
@@ -341,6 +452,11 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+.breadcrumb-section {
+  padding: 16px 24px;
+  border-bottom: 1px solid #f0f0f0;
 }
 
 /* 卡片包裹层 */
