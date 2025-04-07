@@ -40,7 +40,7 @@ class MultimediaResource(Document):
     
     # 系统关联
     course_id = IntField(required=False)  # 关联MySQL的course.id
-    class_ids = ListField(IntField(), required=False, default=list)  # 适用的班级ID数组
+    designversion_id = IntField(required=False)  
     uploader_id = IntField(required=True)  # 上传者ID（关联user.id）
     
     # 存储信息
@@ -63,7 +63,7 @@ class MultimediaResource(Document):
     meta = {
         'indexes': [
             'course_id',
-            'class_ids',
+            'designversion_id',
             'uploader_id',
             'type',
             {'fields': ['created_at'], 'expireAfterSeconds': 3600*24*365}  # 自动过期（示例）
@@ -82,7 +82,7 @@ class MultimediaResource(Document):
     def get_download_url(self):
         """获取下载URL的抽象方法"""
         if self.storage_service == "local":
-            return f"/downloads/{self._id}"
+            return f"http://127.0.0.1:5000/{self.storage_path}"
         elif self.storage_service == "s3":
             return f"https://{self.storage_path}"
         return None

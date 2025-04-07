@@ -16,6 +16,7 @@
 
 #实现调用ai接口获取相关题目功能(参数)
 
+import uuid
 from openai import OpenAI
 import time
 import os
@@ -233,11 +234,10 @@ def generate_PPT(subject, chapter, teaching_plan=None, teacher_name='AI', time=N
     if select == 'ai':
         pass
         # 连接AI PPT助手生成--尚未开发
-    # elif select == 'template':
     elif select == 'plan' and teaching_plan:
         content = get_template(subject, chapter, structure[filename], teaching_plan)
         if not isinstance(content, dict):
-            raise 'AI返回内容不可使用!'
+            raise ValueError('AI返回内容不可使用!')
         if title is None:
             title = subject
         if subtitle is None:
@@ -248,8 +248,8 @@ def generate_PPT(subject, chapter, teaching_plan=None, teacher_name='AI', time=N
         prs = set_ppt_content(content, template, teacher_name, time, title, subtitle)
 
         if ppt_filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            ppt_filename = os.path.join(PPT_FOLDER, f"{subject}-{chapter}教学PPT{timestamp}.pptx")
+            unique_id = uuid.uuid4()  # 生成一个唯一的UUID
+            ppt_filename = os.path.join(PPT_FOLDER, f"{subject}-{chapter}教学PPT-{unique_id}.pptx")
         else:
             ppt_filename = os.path.join(PPT_FOLDER, ppt_filename if '.pptx' in ppt_filename else f'{ppt_filename}.pptx')
 
@@ -259,7 +259,7 @@ def generate_PPT(subject, chapter, teaching_plan=None, teacher_name='AI', time=N
     else:
         content = get_template(subject, chapter, structure[filename])
         if not isinstance(content, dict):
-            raise 'AI返回内容不可使用!'
+            raise ValueError('AI返回内容不可使用!')
         if title is None:
             title = subject
         if subtitle is None:
@@ -270,14 +270,17 @@ def generate_PPT(subject, chapter, teaching_plan=None, teacher_name='AI', time=N
         prs = set_ppt_content(content, template, teacher_name, time, title, subtitle)
 
         if ppt_filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            ppt_filename = os.path.join(PPT_FOLDER, f"{subject}-{chapter}教学PPT{timestamp}.pptx")
+            unique_id = uuid.uuid4()  # 生成一个唯一的UUID
+            ppt_filename = os.path.join(PPT_FOLDER, f"{subject}-{chapter}教学PPT-{unique_id}.pptx")
         else:
             ppt_filename = os.path.join(PPT_FOLDER, ppt_filename if '.pptx' in ppt_filename else f'{ppt_filename}.pptx')
 
         # 保存PPT文件到本地
         prs.save(ppt_filename)
         print(f"PPT已保存为: {ppt_filename}")
+
+    # 返回文件的存储路径
+    return ppt_filename
 
 
 

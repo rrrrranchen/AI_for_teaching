@@ -5,7 +5,7 @@ from docx import Document
 import markdown
 import pdfkit
 from sqlalchemy import and_
-
+from typing import List, Dict, Union
 from app.models.question import Question
 from app.models.studentanswer import StudentAnswer
 
@@ -23,72 +23,166 @@ def printChar(text, delay=0.05):
 
 
 # 生成预备知识检测题和问卷
-def generate_pre_class_questions(course_content):
+import json
+
+
+def generate_pre_class_questions(course_content: str) -> List[Dict[str, Union[str, int]]]:
     """
-    调用AI接口生成课前预习题目，返回符合Question数据模型的题目列表
-    :param course_content: 课程内容文本
-    :param course_id: 关联的课程ID
-    :return: 包含题目字典的列表，每个字典符合Question模型结构
+    生成课前预习题目（完整优化版）
+    
+    参数:
+        course_content: 课程内容文本
+        
+    返回:
+        题目列表，每个题目包含:
+        - type: 题目类型 (choice/fill/short_answer)
+        - content: 题目内容（选择题为JSON字符串）
+        - correct_answer: 正确答案
+        - difficulty: 难度等级 (1-5)
+        - timing: 题目时间类型
+        
+    异常处理:
+        - 自动修复格式问题
+        - 提供默认值保证始终返回有效数据
     """
-    # 构造更详细的系统提示，要求AI返回特定格式的题目
-    system_prompt = """你是教学设计专家，请根据教师提供的课程内容生成3-5道预备知识检测练习题。
-要求：
-1. 返回格式为JSON列表，每个题目包含以下字段：
+    system_prompt = """你是教学设计专家，请根据课程内容生成3-5道预备知识检测题。要求：
+1. 返回JSON格式，包含questions数组
+2. 每个题目包含:
    - type: 题目类型(choice/fill/short_answer)
-   - content: 题目内容
+   - content: 题目内容（选择题需包含question和options字段）
    - correct_answer: 正确答案
-   - difficulty: 难度等级(1-5)
-2. 题目类型要多样，包含选择题、填空题和简答题
-3. 题目要真正检测学生对预备知识的掌握程度
-4. 生成的选择题的题目内容中要包含选项，选择题正确答案应该是ABCD这样的形式"""
+   - difficulty: 难度(1-5)
+3. 选择题示例格式:
+   {
+     "type": "choice",
+     "content": {
+       "question": "问题文本",
+       "options": ["A.选项1", "B.选项2"]
+     },
+     "correct_answer": "A"
+   }
+4. 用中文回答"""
 
     try:
+        # 调用AI接口
         response = client.chat.completions.create(
             model="deepseek-chat",
             messages=[
-                {
-                    "role": "system",
-                    "content": system_prompt
-                },
-                {
-                    "role": "user",
-                    "content": f"请为以下课程内容生成课前预习题目:\n{course_content}\n\n请返回符合要求的JSON格式题目列表。"
-                }
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"课程内容:\n{course_content}"}
             ],
-            response_format={"type": "json_object"},  # 要求返回JSON格式
-            stream=False
+            response_format={"type": "json_object"},
+            temperature=0.7
         )
         
-        # 解析AI返回的JSON内容
-        ai_response = json.loads(response.choices[0].message.content)
+        # 解析响应
+        ai_data = json.loads(response.choices[0].message.content)
+        raw_questions = ai_data.get("questions", [])
         
-        # 确保返回的是列表格式
-        questions_data = ai_response.get('questions', []) if isinstance(ai_response, dict) else ai_response
-        
-        # 转换为符合Question模型的格式
-        questions = []
-        for i, q in enumerate(questions_data, start=1):
+        processed_questions = []
+        for i, q in enumerate(raw_questions, 1):
             question = {
-                "type": q.get("type", "choice"),  # 默认选择题
-                "content": q.get("content", f"课前预习题目{i}"),
-                "correct_answer": q.get("correct_answer", ""),
-                "difficulty": min(max(int(q.get("difficulty", 3)), 1), 5),  # 确保难度在1-5范围内
+                "type": validate_question_type(q.get("type")),
+                "difficulty": clamp_difficulty(q.get("difficulty", 3)),
                 "timing": "pre_class"
             }
-            questions.append(question)
+            
+            # 处理题目内容
+            if question["type"] == "choice":
+                content_data = parse_choice_content(q)
+                question["content"] = json.dumps(content_data, ensure_ascii=False)
+                question["correct_answer"] = validate_answer(
+                    q.get("correct_answer"), 
+                    content_data["options"]
+                )
+            else:
+                question["content"] = str(q.get("content", f"问题{i}"))[:1000]
+                question["correct_answer"] = str(q.get("correct_answer", ""))[:500]
+            
+            processed_questions.append(question)
         
-        return questions
-    
+        return processed_questions or [get_default_question(course_content)]
+
     except Exception as e:
-        print(f"生成题目时出错: {e}")
-        # 返回一个默认题目以防出错
-        return [{
-            "type": "choice",
-            "content": f"关于{course_content[:50]}...的基本概念是什么？",
-            "correct_answer": "默认正确答案",
-            "difficulty": 3,
-            "timing": "pre_class"
-        }]
+        print(f"题目生成失败: {str(e)}")
+        return [get_default_question(course_content)]
+
+# 辅助函数 --------------------------------------------------
+
+def validate_question_type(q_type: str) -> str:
+    """验证题目类型"""
+    valid_types = {"choice", "fill", "short_answer"}
+    return q_type.lower() if q_type.lower() in valid_types else "choice"
+
+def clamp_difficulty(diff: Union[int, float]) -> int:
+    """限制难度范围1-5"""
+    try:
+        return max(1, min(5, int(diff)))
+    except (TypeError, ValueError):
+        return 3
+
+def parse_choice_content(question_data: Dict) -> Dict:
+    """解析选择题内容"""
+    content = question_data.get("content", {})
+    
+    # 处理嵌套格式
+    if isinstance(content, dict):
+        question = content.get("question", "选择题")
+        options = content.get("options", [])
+    else:
+        question = str(content)
+        options = question_data.get("options", [])
+    
+    # 标准化选项
+    if not isinstance(options, list):
+        options = []
+    
+    # 确保每个选项有编号
+    formatted_options = []
+    for i, opt in enumerate(options[:10]):  # 最多10个选项
+        opt_str = str(opt)
+        if not opt_str.startswith(("A.", "B.", "C.", "D.", "E.", "F.")):
+            prefix = chr(65 + i) + "."  # A., B., etc.
+            opt_str = f"{prefix} {opt_str}"
+        formatted_options.append(opt_str[:200])  # 限制选项长度
+    
+    # 确保至少2个选项
+    if len(formatted_options) < 2:
+        formatted_options = ["A. 选项A", "B. 选项B"]
+    
+    return {
+        "question": str(question)[:500],
+        "options": formatted_options
+    }
+
+def validate_answer(answer: str, options: List[str]) -> str:
+    """验证选择题答案"""
+    if not options:
+        return "A"
+    
+    # 提取有效选项字母
+    valid_choices = [opt[0] for opt in options if len(opt) > 0]
+    if not valid_choices:
+        return "A"
+    
+    # 处理答案格式
+    answer_str = str(answer).strip().upper()
+    if len(answer_str) > 0 and answer_str[0] in valid_choices:
+        return answer_str[0]
+    return valid_choices[0]  # 默认返回第一个选项
+
+def get_default_question(course_content: str) -> Dict:
+    """生成默认问题（备用）"""
+    return {
+        "type": "choice",
+        "content": json.dumps({
+            "question": f"关于{course_content[:50]}...的基本概念是什么？",
+            "options": ["A. 基础概念", "B. 进阶内容", "C. 其他"]
+        }, ensure_ascii=False),
+        "correct_answer": "A",
+        "difficulty": 3,
+        "timing": "pre_class"
+    }
     
 
 
@@ -156,7 +250,7 @@ def generate_lesson_plans(course_content, student_feedback, student_level):
     return response.choices[0].message.content
 
 
-def generate_post_class_questions(lesson_plan_content):
+def generate_post_class_questions(lesson_plan_content: str) -> list:
     """
     调用 AI 接口根据教案内容生成课后习题，返回符合 Question 数据模型的题目列表
     :param lesson_plan_content: 教案内容文本
@@ -167,12 +261,23 @@ def generate_post_class_questions(lesson_plan_content):
 要求：
 1. 返回格式为JSON列表，每个题目包含以下字段：
    - type: 题目类型(choice/fill/short_answer)
-   - content: 题目内容
+   - content: 题目内容（选择题需包含question和options字段）
    - correct_answer: 正确答案
    - difficulty: 难度等级(1-5)
 2. 题目类型要多样，包含选择题、填空题和简答题
 3. 题目应检测学生对教案中涉及的关键知识点、互动环节以及实践环节的理解与掌握情况
-4. 对于选择题，题目内容中应包含选项，并且正确答案格式为ABCD这样的形式"""
+4. 对于选择题，题目内容中应包含选项，并且正确答案格式为ABCD这样的形式
+5. 选择题示例格式:
+   {
+     "type": "choice",
+     "content": {
+       "question": "问题文本",
+       "options": ["A.选项1", "B.选项2"]
+     },
+     "correct_answer": "A"
+   }
+6. 用中文回答
+"""
 
     try:
         response = client.chat.completions.create(
@@ -201,11 +306,29 @@ def generate_post_class_questions(lesson_plan_content):
         for i, q in enumerate(questions_data, start=1):
             question = {
                 "type": q.get("type", "choice"),  # 默认题型为选择题
-                "content": q.get("content", f"课后习题{i}"),
-                "correct_answer": q.get("correct_answer", ""),
                 "difficulty": min(max(int(q.get("difficulty", 3)), 1), 5),  # 难度限定在 1-5 之间
                 "timing": "post_class"  # 标记为课后习题
             }
+
+            if question["type"] == "choice":
+                # 如果是选择题，content字段存储题目和选项的JSON格式
+                content_data = q.get("content", {})
+                if isinstance(content_data, dict):
+                    question["content"] = json.dumps({
+                        "question": content_data.get("question", f"课后习题{i}"),
+                        "options": content_data.get("options", ["A. 选项A", "B. 选项B", "C. 选项C", "D. 选项D"])
+                    }, ensure_ascii=False)
+                else:
+                    question["content"] = json.dumps({
+                        "question": str(content_data),
+                        "options": q.get("options", ["A. 选项A", "B. 选项B", "C. 选项C", "D. 选项D"])
+                    }, ensure_ascii=False)
+                question["correct_answer"] = q.get("correct_answer", "A")
+            else:
+                # 其他题型直接存储题目内容
+                question["content"] = q.get("content", f"课后习题{i}")
+                question["correct_answer"] = q.get("correct_answer", "")
+
             questions.append(question)
 
         return questions
@@ -215,15 +338,18 @@ def generate_post_class_questions(lesson_plan_content):
         # 出错时返回一个默认的课后习题，确保格式一致
         return [{
             "type": "choice",
-            "content": f"根据教案内容，回答关键知识点是什么？",
-            "correct_answer": "默认正确答案",
+            "content": json.dumps({
+                "question": f"根据教案内容，回答关键知识点是什么？",
+                "options": ["A. 基础概念", "B. 进阶内容", "C. 其他"]
+            }, ensure_ascii=False),
+            "correct_answer": "A",
             "difficulty": 3,
             "timing": "post_class"
         }]
 
 
-
 # 推荐指数
+
 def evaluate_recommendation(student_feedback):
     """
     使用AI分析学生反馈，智能评估三套教案的适用性，返回推荐指数。
@@ -267,6 +393,14 @@ def evaluate_recommendation(student_feedback):
         })
         
         # 确保所有值都存在且总和约等于100
+        if not isinstance(recommendation, dict):
+            raise ValueError("recommendation 不是字典类型")
+        
+        # 确保所有值都是数字
+        for key, value in recommendation.items():
+            if not isinstance(value, (int, float)):
+                raise ValueError(f"recommendation 中的值 {key} 不是数字类型")
+        
         total = sum(recommendation.values())
         if total != 100:
             for key in recommendation:
