@@ -33,11 +33,32 @@ def generate_study_report(json_data):
     )
     return response.choices[0].message.content.strip()
 
-# def save_to_markdown(content, filename="答题结果分析报告.md"):
-#     """保存教案为 Markdown 文件"""
-#     with open(filename, "w", encoding="utf-8") as f:
-#         f.write(content)
-#     print(f"\n✅ 教案已保存为 Markdown 文件：{filename}")
+
+# 生成总体答题结果报告
+def generate_study_report_overall(data):
+    response = client.chat.completions.create(
+        model="deepseek-chat",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "你是一个教育数据分析专家，用户会输入一组整个班级的答题数据，"
+                    "请你生成一份**详细的学情分析报告**，内容包括：\n"
+                    "- 总体表现统计（正确率、错误数）\n"
+                    "- 错题分布和典型错误\n"
+                    "- 学习建议\n"
+                    "- 语言专业、有条理、使用 Markdown 格式\n"
+                )
+            },
+            {
+                "role": "user",
+                "content": f"以下是学生的答题数据：\n{data}"
+            }
+        ],
+        stream=False
+    )
+    return response.choices[0].message.content.strip()
+
 
 def save_to_markdown(content, filename="答题结果分析报告.md"):
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -56,7 +77,7 @@ def save_to_markdown(content, filename="答题结果分析报告.md"):
 # def save_to_pdf(content, filename="答题结果分析报告.pdf"):
 #     # 将 Markdown 转换为 HTML
 #     html_content = markdown.markdown(content)
-#
+
 #     # HTML 模板
 #     html_template = f"""
 #     <html>
@@ -75,10 +96,10 @@ def save_to_markdown(content, filename="答题结果分析报告.md"):
 #     </body>
 #     </html>
 #     """
-#
+
 #     # 手动指定 wkhtmltopdf 路径
 #     pdfkit_config = pdfkit.configuration(wkhtmltopdf=r"E:\Software\wkhtmltopdf\bin\wkhtmltopdf.exe")
-#
+
 #     # 生成 PDF
 #     pdfkit.from_string(html_template, filename, configuration=pdfkit_config)
 #     print(f"\nPDF 已保存为：{filename}")
