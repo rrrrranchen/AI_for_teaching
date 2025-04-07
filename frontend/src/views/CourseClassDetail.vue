@@ -118,12 +118,13 @@
                       :class="{
                         selected: selectedCourseIds.includes(course.id),
                       }"
+                      @click="handleCourseClick(course.id)"
                     >
                       <div class="course-card-header">
                         <a-checkbox
                           v-if="multiSelecting"
                           :checked="selectedCourseIds.includes(course.id)"
-                          @change="() => toggleCourseSelection(course.id)"
+                          @click.stop="() => toggleCourseSelection(course.id)"
                           class="course-checkbox"
                         />
                         <h3 class="course-title">{{ course.name }}</h3>
@@ -226,7 +227,7 @@
 <script lang="ts">
 import { defineComponent, ref, onMounted, computed } from "vue";
 import { message } from "ant-design-vue";
-import { useRoute } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
 import {
   getCourseclassDetail,
   getStudentsByCourseclass,
@@ -279,6 +280,16 @@ export default defineComponent({
     const createVisible = ref(false);
     const creating = ref(false);
     const newCourse = ref({ name: "", description: "" });
+    const router = useRouter();
+
+    const handleCourseClick = (courseId: number) => {
+      router.push({
+        path: `/home/t-course/${courseId}`,
+        query: {
+          className: courseclassDetail.value?.name || "未知班级",
+        },
+      });
+    };
 
     const filteredCourses = computed(() => {
       return courses.value.filter((c) =>
@@ -447,6 +458,7 @@ export default defineComponent({
       }
     };
     return {
+      handleCourseClick,
       courseclassId,
       courseclassDetail,
       courses,
@@ -665,75 +677,41 @@ export default defineComponent({
   border-radius: 8px;
 }
 
+/* 调整课程列表布局 */
 .course-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
-  margin-top: 16px;
+  grid-template-columns: 1fr;
+  gap: 8px;
 }
 
 .course-card {
-  background: #fff;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background-color: #ffffff;
   border-radius: 8px;
-  padding: 16px;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
-  border: 1px solid #f0f0f0;
-  transition: all 0.3s;
-  position: relative;
+  margin: 20px;
 }
 
 .course-card:hover {
-  box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.08);
   transform: translateY(-2px);
-  border-color: #d9d9d9;
-}
-
-.course-card.selected {
-  border-color: #1890ff;
-  background-color: #f0f8ff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .course-card-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.course-checkbox {
-  margin-right: 8px;
-}
-
-.course-title {
-  font-size: 16px;
-  font-weight: 500;
-  color: rgba(0, 0, 0, 0.85);
-  margin: 0;
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  margin-bottom: 8px;
 }
 
 .course-description {
-  color: rgba(0, 0, 0, 0.65);
   font-size: 14px;
-  line-height: 1.5;
-  margin-bottom: 16px;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  min-height: 42px;
+  line-height: 1.4;
+  margin-bottom: 12px;
+  -webkit-line-clamp: 2; /* 限制描述显示两行 */
 }
 
+/* 调整操作按钮位置 */
 .course-actions {
-  display: flex;
-  justify-content: flex-end;
-  border-top: 1px dashed #f0f0f0;
-  padding-top: 12px;
-}
-
-.edit-btn {
-  color: #1890ff;
+  padding-top: 8px;
+  border-top: 1px solid #f0f0f0;
 }
 
 /* 学生列表样式 */

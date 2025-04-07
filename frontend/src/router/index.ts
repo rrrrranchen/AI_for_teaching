@@ -58,6 +58,28 @@ const routes: Array<RouteRecordRaw> = [
         },
       },
       {
+        path: "course/:courseId",
+        name: "CourseDetail",
+        redirect: () => {
+          const authStore = useAuthStore();
+          return authStore.user?.role === "teacher"
+            ? "/home/t-course/:courseId"
+            : "/home/s-course/:courseId";
+        },
+      },
+      {
+        path: "t-course/:courseId",
+        name: "t-course",
+        component: () => import("../views/TeacherCourseDetail.vue"),
+        meta: { menuKey: 2 },
+      },
+      {
+        path: "s-course/:courseId",
+        name: "s-course",
+        component: () => import("../views/StudentCourseDetail.vue"),
+        meta: { menuKey: 2 },
+      },
+      {
         path: "smart-preparation",
         name: "smart-preparation",
         component: SmartPreparationView,
