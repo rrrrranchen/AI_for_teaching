@@ -1,5 +1,6 @@
 import json
 import os
+import uuid
 import markdown
 import pdfkit
 from openai import OpenAI
@@ -40,17 +41,30 @@ def generate_study_report(json_data):
 #     print(f"\n✅ 教案已保存为 Markdown 文件：{filename}")
 
 def save_to_markdown(content, filename="答题结果分析报告.md"):
+    """
+    保存内容为 Markdown 文件，并确保文件名具有唯一性
+    :param content: 要保存的内容
+    :param filename: 文件名，默认为 "答题结果分析报告.md"
+    :return: 保存的文件的相对路径
+    """
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     output_folder = os.path.join(project_root, 'static', 'analysis_report')
-
+    
     # 确保目录存在
     os.makedirs(output_folder, exist_ok=True)
-
-    filepath = os.path.join(output_folder, filename)
+    
+    # 生成唯一的文件名
+    unique_filename = f"{uuid.uuid4().hex}_{filename}"
+    filepath = os.path.join(output_folder, unique_filename)
+    
+    # 写入内容到文件
     with open(filepath, "w", encoding="utf-8") as f:
         f.write(content)
-
-    print(f"\n✅ 学情分析报告已保存为 Markdown 文件：{filepath}")
+    
+    # 返回以 'static' 开头的相对路径
+    relative_path = os.path.join('static', 'analysis_report', unique_filename)
+    print(f"\n✅ 学情分析报告已保存为 Markdown 文件：{relative_path}")
+    return relative_path
 
 
 # def save_to_pdf(content, filename="答题结果分析报告.pdf"):
@@ -197,10 +211,6 @@ json_data = [
     }
 ]
 
-content = generate_study_report(json_data)
-
-# 保存为markdown
-save_to_markdown(content)
 
 
 

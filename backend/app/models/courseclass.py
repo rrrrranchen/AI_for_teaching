@@ -13,6 +13,7 @@ class Courseclass(db.Model):
     teachers = db.relationship('User', secondary=teacher_class, back_populates='teacher_courseclasses', lazy='joined')
     students = db.relationship('User', secondary=student_class, back_populates='student_courseclasses', lazy='joined')
     courses = db.relationship('Course', secondary=course_courseclass, back_populates='courseclasses', lazy='joined')
-
+    student_reports = db.relationship('StudentAnalysisReport', back_populates='courseclass')
+    class_reports = db.relationship('ClassAnalysisReport', back_populates='courseclass')
     def __repr__(self):
         return f'<Courseclass {self.name}>'
