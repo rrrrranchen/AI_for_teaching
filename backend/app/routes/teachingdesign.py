@@ -92,6 +92,9 @@ def get_pre_class_questions_as_feedback(course_id):
     print(feedback_lines)
     return "\n".join(feedback_lines)
 
+
+
+
 def get_question_type_name(type_enum):
     """辅助函数：获取题型名称"""
     return {

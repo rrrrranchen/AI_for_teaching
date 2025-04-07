@@ -1,6 +1,8 @@
 from datetime import datetime
 from venv import logger
 from flask import Blueprint, render_template, request, jsonify, session
+from typing import List, Dict
+from sqlalchemy.orm import Session
 from sqlalchemy import func, select
 from werkzeug.security import check_password_hash
 from app.utils.database import db
@@ -13,7 +15,132 @@ from app.models.studentanswer import StudentAnswer
 from app.models.relationship import student_class
 from app.models import course
 from app.services.autogra_service import ChineseGrader
+from app.routes.teachingdesign import get_question_type_name
+
 studentanswer_bp=Blueprint('studentanswer',__name__)
+def get_post_class_questions_as_feedback(course_id):
+    """
+    提取指定课程的课后习题及学生答题情况，作为反馈信息
+    :param course_id: 课程ID
+    :return: 格式化后的学生反馈字符串，包含题目和答题情况
+    """
+    # 查询该课程的所有课后习题及相关学生答案（单次查询优化）
+    post_class_questions = (Question.query
+                            .filter_by(course_id=course_id, timing='post_class', is_public=True)
+                            .options(db.joinedload(Question.answers))
+                            .all())
+
+    if not post_class_questions:
+        return "该课程暂无课后习题"
+
+    feedback_lines = ["课后习题及学生答题情况汇总:"]
+    all_answers = []
+    question_stats = []
+
+    for question in post_class_questions:
+        answers = question.answers
+        all_answers.extend(answers)
+        
+        # 计算当前题目的统计
+        total_answers = len(answers)
+        correct_count = sum(1 for a in answers if a.correct_percentage >= 80)
+        correct_rate = (correct_count / total_answers * 100) if total_answers > 0 else 0
+        avg_correct = sum(a.correct_percentage for a in answers) / total_answers if total_answers > 0 else 0
+        
+        question_stats.append({
+            'question': question,
+            'total_answers': total_answers,
+            'correct_rate': correct_rate,
+            'avg_correct': avg_correct
+        })
+
+        # 添加题目信息到反馈
+        feedback_lines.append(f"\n题目ID: {question.id}")
+        feedback_lines.append(f"题型: {get_question_type_name(question.type)}")
+        feedback_lines.append(f"内容: {question.content[:50]}...")
+        feedback_lines.append(f"难度: {question.difficulty if question.difficulty else '未设置'}")
+
+        if total_answers > 0:
+            feedback_lines.append(f"答题情况: {correct_count}/{total_answers}人答对 (正确率: {correct_rate:.1f}%)")
+            
+            # 添加常见错误示例
+            wrong_answers = [a.answer for a in answers if a.correct_percentage < 80]
+            if wrong_answers:
+                common_wrong = max(set(wrong_answers), key=wrong_answers.count)
+                feedback_lines.append(f"常见错误答案示例: '{common_wrong[:50]}...'")  # 限制错误答案长度
+        else:
+            feedback_lines.append("暂无学生答题数据")
+
+    # 添加总体统计
+    if all_answers:
+        total_questions = len(post_class_questions)
+        total_attempts = len(all_answers)
+        overall_avg = sum(a.correct_percentage for a in all_answers) / total_attempts
+
+        feedback_lines.append("\n总体统计:")
+        feedback_lines.append(f"- 课后习题数量: {total_questions}题")
+        feedback_lines.append(f"- 学生答题人次: {total_attempts}次")
+        feedback_lines.append(f"- 平均正确率: {overall_avg:.1f}%")
+
+        # 找出最难和最易的题目
+        if len(question_stats) > 1:
+            hardest = min(question_stats, key=lambda x: x['avg_correct'])
+            easiest = max(question_stats, key=lambda x: x['avg_correct'])
+            
+            feedback_lines.append(f"- 最难题目: 题目ID {hardest['question'].id} (平均正确率: {hardest['avg_correct']:.1f}%)")
+            feedback_lines.append(f"- 最易题目: 题目ID {easiest['question'].id} (平均正确率: {easiest['avg_correct']:.1f}%)")
+
+    return "\n".join(feedback_lines)
+def get_student_answers_with_question_and_course_details(session: Session, student_id: int) -> List[Dict]:
+    """
+    获取单个学生的答题记录，并提取对应的题目内容、正确答案以及课程名称（仅限课后习题）
+
+    :param session: SQLAlchemy 的数据库会话
+    :param student_id: 学生的 ID
+    :return: 包含答题记录及其对应题目内容、正确答案和课程名称的字典列表
+    """
+    # 查询指定学生的答题记录，并关联题目表和课程表获取题目内容、正确答案和课程名称
+    # 仅选择课后习题（timing == 'post_class'）
+    student_answers = (
+        session.query(
+            StudentAnswer.id,
+            StudentAnswer.question_id,
+            StudentAnswer.class_id,
+            StudentAnswer.answer,
+            StudentAnswer.correct_percentage,
+            StudentAnswer.answered_at,
+            StudentAnswer.modified_by,
+            StudentAnswer.modified_at,
+            Question.content.label("question_content"),
+            Question.correct_answer,
+            Course.name.label("course_name")  # 添加课程名称字段
+        )
+        .join(Question, StudentAnswer.question_id == Question.id)
+        .join(Course, Question.course_id == Course.id)  # 关联课程表
+        .filter(StudentAnswer.student_id == student_id)
+        .filter(Question.timing == 'post_class')  # 仅选择课后习题
+        .all()
+    )
+
+    # 初始化一个列表，用于存储处理后的数据
+    processed_answers = []
+
+    # 遍历每个答题记录，提取关键信息并封装为字典
+    for answer in student_answers:
+        processed_answer = {
+            "id": answer.id,  # 答题记录的 ID
+            "question_id": answer.question_id,  # 对应的题目 ID
+            "class_id": answer.class_id,  # 对应的课程班级 ID
+            "answer": answer.answer,  # 学生的答案
+            "correct_percentage": answer.correct_percentage,  # 答题正确率
+            "question_content": answer.question_content,  # 题目内容
+            "correct_answer": answer.correct_answer,  # 正确答案
+            "course_name": answer.course_name  # 课程名称
+        }
+        processed_answers.append(processed_answer)
+
+    return processed_answers
+
 
 # 检查用户是否登录
 def is_logged_in():
@@ -325,3 +452,17 @@ def get_course_answers(course_id):
         logger.error(f"查询失败: {str(e)}")
         return jsonify({'error': f'服务器错误: {str(e)}'}), 500
     
+
+@studentanswer_bp.route('/getstudentanswer/<int:student_id>', methods=['POST'])
+def get_student_answer(student_id):
+    try:
+        # 获取当前的数据库会话
+        session = db.session
+        # 调用函数时传递 session 和 student_id
+        answers = get_student_answers_with_question_and_course_details(session=session, student_id=student_id)
+        # 返回处理后的数据
+        print(answers)
+        return jsonify(answers)
+    except Exception as e:
+        # 如果发生错误，返回错误信息
+        return jsonify({"error": str(e)}), 500
