@@ -2,7 +2,8 @@
 from app.utils.database import db
 from datetime import datetime
 from app.models.relationship import course_courseclass  # 导入关联表
-
+from app.models.classanalysisreport import ClassAnalysisReport
+from app.models.studentanalysisreport import StudentAnalysisReport
 class Course(db.Model):
     __tablename__ = 'course'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)

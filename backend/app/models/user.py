@@ -3,7 +3,8 @@ from app.utils.database import db
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 from app.models.relationship import teacher_class, student_class
-
+from app.models.classanalysisreport import ClassAnalysisReport
+from app.models.studentanalysisreport import StudentAnalysisReport
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
