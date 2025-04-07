@@ -25,17 +25,18 @@ export interface Question {
 }
 
 /**
- * 问题列表响应类型
- */
-// export interface QuestionsResponse {
-//   questions: Question[];
-// }
-
-/**
  * 创建课前问题参数
  */
 export interface CreatePreQuestionsParams {
   content: string; // 教师补充内容
+}
+
+/**
+ * 生成课后习题参数
+ */
+interface GeneratePostQuestionsParams {
+  design_id: number;
+  version_id: number;
 }
 
 /**
@@ -125,6 +126,39 @@ export const questionApi = {
     }> = await api.put(`/question/${questionId}/toggle_public`, {
       is_public: isPublic,
     });
+    return response.data;
+  },
+
+  /**
+   * 根据教学设计版本生成课后习题（带参数版本）
+   */
+  async generatePostQuestions(
+    params: GeneratePostQuestionsParams
+  ): Promise<Question[]> {
+    const { design_id, version_id } = params;
+    const response: AxiosResponse<Question[]> = await api.post(
+      `/design/${design_id}/version/${version_id}/generate_post_class_questions`
+    );
+    return response.data;
+  },
+
+  /**
+   * 获取课程课后习题列表
+   */
+  async getPostQuestions(courseId: number): Promise<Question[]> {
+    const response: AxiosResponse<Question[]> = await api.get(
+      `/postquestions/${courseId}`
+    );
+    return response.data;
+  },
+
+  /**
+   * 获取课程所有题目（含课前课后）
+   */
+  async getAllQuestions(courseId: number): Promise<Question[]> {
+    const response: AxiosResponse<Question[]> = await api.get(
+      `/allquestions/${courseId}`
+    );
     return response.data;
   },
 
