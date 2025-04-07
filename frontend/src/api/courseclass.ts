@@ -57,7 +57,7 @@ interface LeaveCourseclassParams {
 //
 //
 //
-// 获取老师创建的课程班列表
+// 获取用户的课程班列表
 export const getAllCourseclasses = async (): Promise<Courseclass[]> => {
   const response: AxiosResponse<Courseclass[]> = await api.get(
     "/courseclasses"
