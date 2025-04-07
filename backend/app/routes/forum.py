@@ -42,3 +42,4 @@ def create_post():
         db.session.commit()
 
     return jsonify({'message': 'Post created successfully', 'post_id': new_post.id}), 201
+
