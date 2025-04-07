@@ -16,6 +16,7 @@ from app.models.relationship import student_class
 from app.models import course
 from app.services.autogra_service import ChineseGrader
 from app.routes.teachingdesign import get_question_type_name
+from app.services.analysis_report import generate_study_report
 
 studentanswer_bp=Blueprint('studentanswer',__name__)
 def get_post_class_questions_as_feedback(course_id):
@@ -91,16 +92,16 @@ def get_post_class_questions_as_feedback(course_id):
             feedback_lines.append(f"- 最易题目: 题目ID {easiest['question'].id} (平均正确率: {easiest['avg_correct']:.1f}%)")
 
     return "\n".join(feedback_lines)
-def get_student_answers_with_question_and_course_details(session: Session, student_id: int) -> List[Dict]:
+def get_student_answers_with_question_and_course_details(session: Session, student_id: int, class_id: int) -> List[Dict]:
     """
-    获取单个学生的答题记录，并提取对应的题目内容、正确答案以及课程名称（仅限课后习题）
+    获取单个学生在指定课程班中的答题记录，并提取对应的题目内容、正确答案以及课程名称
 
     :param session: SQLAlchemy 的数据库会话
     :param student_id: 学生的 ID
+    :param class_id: 课程班的 ID
     :return: 包含答题记录及其对应题目内容、正确答案和课程名称的字典列表
     """
     # 查询指定学生的答题记录，并关联题目表和课程表获取题目内容、正确答案和课程名称
-    # 仅选择课后习题（timing == 'post_class'）
     student_answers = (
         session.query(
             StudentAnswer.id,
@@ -118,7 +119,7 @@ def get_student_answers_with_question_and_course_details(session: Session, stude
         .join(Question, StudentAnswer.question_id == Question.id)
         .join(Course, Question.course_id == Course.id)  # 关联课程表
         .filter(StudentAnswer.student_id == student_id)
-        .filter(Question.timing == 'post_class')  # 仅选择课后习题
+        .filter(StudentAnswer.class_id == class_id)  # 仅选择指定课程班的答题记录
         .all()
     )
 
@@ -140,7 +141,6 @@ def get_student_answers_with_question_and_course_details(session: Session, stude
         processed_answers.append(processed_answer)
 
     return processed_answers
-
 
 # 检查用户是否登录
 def is_logged_in():
@@ -453,16 +453,35 @@ def get_course_answers(course_id):
         return jsonify({'error': f'服务器错误: {str(e)}'}), 500
     
 
-@studentanswer_bp.route('/getstudentanswer/<int:student_id>', methods=['POST'])
-def get_student_answer(student_id):
+#获取单个课程班的某一个学生的markdown形式课后习题答题记录分析报告
+@studentanswer_bp.route('/getstudentanswer/<int:student_id>/<int:courseclass_id>', methods=['POST'])
+def get_student_answer(student_id, courseclass_id):
+    # 检查用户是否登录
+    if not is_logged_in():
+        return jsonify({'error': '未登录'}), 401
+
+    current_user = get_current_user()
+    if not current_user:
+        return jsonify({'error': '用户不存在'}), 404
+
+    # 检查权限：学生本人或课程班的老师
+    if not (current_user.id == student_id or is_teacher_of_courseclass(courseclass_id)):
+        return jsonify({'error': '无权查看此报告'}), 403
+
     try:
         # 获取当前的数据库会话
         session = db.session
-        # 调用函数时传递 session 和 student_id
-        answers = get_student_answers_with_question_and_course_details(session=session, student_id=student_id)
-        # 返回处理后的数据
-        print(answers)
-        return jsonify(answers)
+        # 调用函数时传递 session、student_id 和 class_id
+        answers = get_student_answers_with_question_and_course_details(session=session, student_id=student_id, class_id=courseclass_id)
+        
+        # 生成 Markdown 格式的分析报告
+        content = generate_study_report(answers)
+        
+        # 返回 Markdown 内容
+        return jsonify({'markdown_report': content}), 200
+
     except Exception as e:
         # 如果发生错误，返回错误信息
         return jsonify({"error": str(e)}), 500
+    
+
