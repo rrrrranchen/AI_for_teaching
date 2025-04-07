@@ -8,6 +8,7 @@ export interface Course {
   description: string;
   created_at: string;
   courseclass_id?: number;
+  has_public_questions?: boolean;
 }
 
 // 创建课程参数
