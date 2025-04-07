@@ -1,6 +1,6 @@
 from venv import logger
 from flask import Blueprint, json, render_template, request, jsonify, session
-from sqlalchemy import and_
+from sqlalchemy import and_, desc, func
 from werkzeug.security import check_password_hash
 from app.utils.database import db
 from app.models.question import Question
@@ -525,6 +525,232 @@ def get_all_questions_by_course(course_id):
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+
+@question_bp.route('/course/<int:course_id>/heatmap_data', methods=['GET'])
+def get_course_heatmap_data(course_id):
+    """
+    获取课程课后习题难度热力图数据
+    Parameters:
+        course_id (int): 课程ID
+    Returns:
+        {
+            "heatmap_data": [
+                {"x": 1, "y": 3, "value": 0.65, "original_id": 101},
+                {"x": 2, "y": 2, "value": 0.89, "original_id": 102},
+                ...
+            ],
+            "course_name": "Python基础"
+        }
+    """
+    try:
+        # 验证用户权限
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({'error': 'Unauthorized'}), 401
+
+        course = Course.query.get(course_id)
+        if not course:
+            return jsonify({'error': 'Course not found'}), 404
+
+        # 只允许课程教师访问分析数据
+        course_class = Courseclass.query.filter(Courseclass.courses.contains(course)).first()
+        if not course_class or current_user not in course_class.teachers:
+            return jsonify({'error': 'Forbidden'}), 403
+
+        # 查询课后习题数据（按题目ID排序）
+        raw_data = (
+            db.session.query(
+                Question.id.label('original_id'),
+                Question.difficulty,
+                func.avg(StudentAnswer.correct_percentage / 100.0).label('avg_correct')
+            )
+            .join(StudentAnswer, Question.id == StudentAnswer.question_id)
+            .filter(
+                Question.course_id == course_id,
+                Question.timing == 'post_class'
+            )
+            .group_by(Question.id)
+            .order_by(Question.id)
+            .all()
+        )
+
+        # 转换为热力图格式（X轴为顺序编号）
+        heatmap_data = [
+            {
+                "x": idx + 1,
+                "y": item.difficulty,
+                "value": round(item.avg_correct, 2),
+                "original_id": item.original_id
+            }
+            for idx, item in enumerate(raw_data)
+        ]
+
+        return jsonify({
+            "heatmap_data": heatmap_data,
+            "course_name": course.name
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error generating heatmap data: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+    
+@question_bp.route('/course/<int:course_id>/error_ranking', methods=['GET'])
+def get_course_error_ranking(course_id):
+    """
+    获取课程高频错误题目排行榜
+    Parameters:
+        course_id (int): 课程ID
+        top_n (int, optional): 返回的题目数量，默认为10
+    Returns:
+        {
+            "ranking": [
+                {
+                    "rank": 1,
+                    "question_id": 101,
+                    "content": "HTTP状态码500表示什么？",
+                    "error_rate": 0.65,
+                    "common_errors": ["权限不足", "页面未找到"]
+                },
+                ...
+            ],
+            "threshold": 0.5  # 错误率警戒线
+        }
+    """
+    try:
+        # 验证用户权限（同上接口，略）
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({'error': 'Unauthorized'}), 401
+
+        course = Course.query.get(course_id)
+        if not course:
+            return jsonify({'error': 'Course not found'}), 404
+
+        course_class = Courseclass.query.filter(Courseclass.courses.contains(course)).first()
+        if not course_class or current_user not in course_class.teachers:
+            return jsonify({'error': 'Forbidden'}), 403
+
+        # 获取参数
+        top_n = request.args.get('top_n', default=10, type=int)
+
+        # 1. 计算题目错误率（错误率 = 1 - 平均正确率）
+        error_rates = (
+            db.session.query(
+                Question.id,
+                Question.content,
+                (1 - func.avg(StudentAnswer.correct_percentage / 100.0)).label('error_rate')
+            )
+            .join(StudentAnswer, Question.id == StudentAnswer.question_id)
+            .filter(
+                Question.course_id == course_id,
+                Question.timing == 'post_class'
+            )
+            .group_by(Question.id)
+            .order_by(desc('error_rate'))
+            .limit(top_n)
+            .all()
+        )
+
+        # 2. 获取每个题目的常见错误答案
+        ranking_data = []
+        for rank, (q_id, content, error_rate) in enumerate(error_rates, start=1):
+            common_errors = (
+                db.session.query(StudentAnswer.answer)
+                .filter(
+                    StudentAnswer.question_id == q_id,
+                    StudentAnswer.correct_percentage < 100
+                )
+                .group_by(StudentAnswer.answer)
+                .order_by(func.count().desc())
+                .limit(3)
+                .all()
+            )
+            
+            ranking_data.append({
+                "rank": rank,
+                "question_id": q_id,
+                "content": content[:50] + "..." if len(content) > 50 else content,  # 截断长内容
+                "error_rate": round(error_rate, 2),
+                "common_errors": [err[0] for err in common_errors]
+            })
+
+        return jsonify({
+            "ranking": ranking_data,
+            "threshold": 0.5  # 前端可用此值标红高错误率题目
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error generating error ranking: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@question_bp.route('/createquestion/<int:course_id>', methods=['POST'])
+def create_question(course_id):
+    """
+    教师手动创建题目
+    """
+    if not is_logged_in():
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        # 获取当前登录用户
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({'error': 'User not found'}), 404
+
+        # 验证课程是否存在
+        course = Course.query.get(course_id)
+        if not course:
+            return jsonify({'error': 'Course not found'}), 404
+
+        # 获取课程所属的课程班
+        course_class = Courseclass.query.filter(Courseclass.courses.contains(course)).first()
+        if not course_class:
+            return jsonify({'error': 'Course class not found'}), 404
+
+        # 检查当前用户是否是课程班的老师
+        if current_user not in course_class.teachers:
+            return jsonify({'error': 'You do not have permission to create questions for this course'}), 403
+
+        # 获取请求中的 JSON 数据
+        data = request.json
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        # 提取题目信息
+        question_type = data.get('type')
+        content = data.get('content')
+        correct_answer = data.get('correct_answer')
+        difficulty = data.get('difficulty', 1)
+        timing = data.get('timing', 'pre_class')
+        is_public = data.get('is_public', False)
+
+        if not question_type or not content or not correct_answer:
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        # 创建新的题目记录
+        new_question = Question(
+            course_id=course_id,
+            type=question_type,
+            content=content,
+            correct_answer=correct_answer,
+            difficulty=difficulty,
+            timing=timing,
+            is_public=is_public
+        )
+        db.session.add(new_question)
+        db.session.commit()
+
+        return jsonify({
+            'message': 'Question created successfully',
+            'question_id': new_question.id
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating question: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @question_bp.route('/question-page')
 def questiontest():
     return render_template('question.html')

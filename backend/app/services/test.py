@@ -1,13 +1,420 @@
+import uuid
+from openai import OpenAI
+import time
+import os
 
 
+# 定义自己的 API Key
+key = 'sk-b7550aa67ed840ffacb5ca051733802c'
+api_url = "https://api.deepseek.com"  # DeepSeek 的 API 地址
+# OpenAI 参数设置：API Key + API Interface (这里访问接口为 DeepSeek 的 API 地址)
+
+
+# 逐字打印效果
+def printChar(text, delay=0.1):
+    for char in text:
+        print(char, end='', flush=True)  # 使用 end='' 防止自动换行，flush=True 确保立即打印
+        time.sleep(delay)
+    print()  # 最后打印一个换行符
+
+
+# 发送请求到 DeepSeek
+def sendToDeepSeek(say):
+    print('正在验证身份，请稍等....')
+    # 请求接口并验证身份，创建客户端对象
+    client = OpenAI(api_key=key, base_url=api_url)
+    print('正在思考，请耐心等待...')
+    # 发送请求数据并等待获取响应数据
+    response = client.chat.completions.create(
+        model="deepseek-chat",  # 使用的模型
+        messages=[
+            {"role": "system", "content": "你是一个专业的客服助手，请用正式的语气回答用户的问题。"},
+            # {"role": "system", "content": "你是风趣幽默的客服，请用轻松幽默的语气回答用户的问题。"},
+            {"role": "user", "content": say},
+        ],
+        stream=False  # 是否启用流式输出
+    )
+    # print(response)  # 如果需要调试，可以打印完整的响应
+    return response.choices[0].message.content  # 返回模型生成的回复内容
+
+
+# DeepSeek 问答环节
+def callDeepSeek():
+    # 主循环
+    while True:
+        myin = input('您请说：')  # 获取用户输入
+        if myin == 'bye':  # 如果用户输入 "bye"，退出循环
+            print('欢迎下次使用！再见！')
+            break
+        resp = sendToDeepSeek(myin)  # 发送用户输入到 DeepSeek 并获取回复
+        printChar(resp)  # 逐字打印回复内容
+        # print(resp)  # 如果需要直接打印完整回复，可以使用这行代码
+        print('-----------------------------------------------------------')
+
+
+# 测试接口
+# callDeepSeek()
+
+
+from pptx import Presentation, util
 from datetime import datetime
-from ai_service import parse_teaching_plan
+from openai import OpenAI
+from pptx import Presentation, util
+from pptx.dml.color import RGBColor
+import ast
 
 
-if __name__ == '__main__':
-    print('开始：', datetime.now())
+def set_text_font(shape, font_name=None, font_size=None, font_color=None, font_bold=None, font_italic=None):
+    text_frame = shape.text_frame
+
+    # 遍历所有段落和文本运行
+    for paragraph in text_frame.paragraphs:
+        for run in paragraph.runs:
+            # 设置字体名称
+            if font_name is not None:
+                run.font.name = font_name
+            # 设置字体大小（单位：磅）
+            if font_size is not None:
+                run.font.size = util.Pt(font_size)
+            # 设置颜色
+            if font_color is not None:  # NoneColor Type
+                run.font.color.rgb = font_color
+            # 设置加黑
+            if font_bold is not None:  # False强制取消粗体, None继承父版样式
+                run.font.bold = font_bold
+            # 设置斜体
+            if font_italic is not None:
+                run.font.italic = font_italic
+            # -> False显式取消加粗、斜体 -> if False... False & None 区别
+
+
+def keep_text_font(shape, new_text):
+    text_frame = shape.text_frame
+
+    for paragraph in text_frame.paragraphs:
+        # 创建新 Run 并继承格式（取第一个 Run 的格式）
+        if paragraph.runs:
+            # 清空所有 Run 的文本
+            for run in paragraph.runs:
+                run.text = ""
+
+            first_run = paragraph.runs[0]
+            new_run = paragraph.add_run()
+            new_run.text = new_text
+
+            # 复制字体属性
+            new_run.font.name = first_run.font.name
+            new_run.font.size = first_run.font.size
+            new_run.font.bold = first_run.font.bold
+            new_run.font.italic = first_run.font.italic
+            # new_run.font.color.rgb = first_run.font.color.rgb
+            # 检查颜色是否有效
+            # if first_run.font.color is not None:  # and first_run.font.color.rgb -> 存在NoneType No RGB
+            if (
+                first_run.font.color is not None
+                and hasattr(first_run.font.color, 'rgb')  # 关键检查
+            ):
+                new_run.font.color.rgb = first_run.font.color.rgb
+            else:
+                # 若颜色未设置，使用默认黑色或跳过
+                new_run.font.color.rgb = RGBColor(0, 0, 0)  # 显式设置为黑色
+
+
+def set_ppt_content(content, template, name, time, title, subtitle=None, keep_font=False,
+                    font_name=None, font_size=None, font_bold=None, font_italic=None, font_color=None):
+    prs = Presentation(template)
+
+    # PPT模板的shapes全为文本框，这里可以省去判断步骤
+    for slide in prs.slides:
+        for shape in slide.shapes:
+            if not (shape.has_text_frame and shape.text):
+                continue
+            text = shape.text
+            # 设置标题 -> 防止副标题、小标题字样干扰
+            if text == '标题':
+                keep_text_font(shape, title)
+                # if not keep_font: -> 设置字体样式... 这里保持为原格式
+                set_text_font(shape, font_name='标准粗黑')
+            # 设置副标题
+            if text == '副标题':
+                keep_text_font(shape, subtitle)
+                set_text_font(shape, font_name='标准粗黑')
+            # 设置老师姓名
+            if '姓名' in text:
+                keep_text_font(shape, f'主讲人：{name}')
+                set_text_font(shape, font_name='等线')
+            # 设置汇报日期
+            if '日期' in text or '年月日' in text:
+                keep_text_font(shape, f'时间：{time}')
+                set_text_font(shape, font_name='等线')
+            # 设置内容页
+            if '小标题' in text:
+                # shape.text = get_content(shape, content)
+                # keep_text_font(shape, get_content(shape, content))
+                sub_content, if_content = get_content(shape, content)
+                keep_text_font(shape, sub_content)
+                if not if_content:
+                    set_text_font(shape, font_name='等线', font_bold=True)
+            if not keep_font:
+                set_text_font(shape, font_name, font_size, font_color, font_bold, font_italic)
+    return prs
+
+
+def get_content(shape, content):
+    text = shape.text
+    text = text.replace('小标题', '')
+
+    if '概述' in text:
+        i = int(text.replace('概述', '')) - 1
+        return content[list(content.keys())[i]]['概述'], None  # False
+
+    if_content = False
+
+    if '内容' in text:
+        text = text.replace('内容', '')
+        if_content = True
+
+    num = int(text.replace('.', ''))
+    i, j, k = int(num / 100) - 1, int(num / 10) % 10 - 1, num % 10 - 1
+    if j < 0:
+        # return content.keys[k]
+        key_lst = [k for k in content.keys()]
+        return key_lst[k], if_content
+    elif i < 0:
+        # return content[content.keys[j]].keys[k]
+        key_lst1 = list(content.keys())
+        key_lst2 = [k for k in content[key_lst1[j]].keys() if k != '概述']  # list(content[key_lst1[j]].keys())
+        return key_lst2[k], if_content
+    # else:
+    key_lst1 = list(content.keys())
+    key_lst2 = [k for k in content[key_lst1[i]].keys() if k != '概述']
+    key_lst3 = list(content[key_lst1[i]][key_lst2[j]].keys())
+    # print(num, i+1, j+1, k+1, key_lst3)
+    if if_content:
+        return content[key_lst1[i]][key_lst2[j]][key_lst3[k]], if_content
+    return key_lst3[k], if_content  # 输出if_content->调节小标题字体
+    #     return content[content[content.keys[i]].keys[j]].values[k]
+    # return content[content[content.keys[i]].keys[j]].keys[k]
+
+
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PPTTEMPLATE_FOLDER = os.path.join(project_root, 'static', 'template')
+PPT_FOLDER=os.path.join(project_root,'static','uploads','ppts')
+filename='template.pptx'
+templatepath=os.path.join(PPTTEMPLATE_FOLDER, filename)
+print(templatepath)
+structure = {
+'template.pptx': [
+    [3, 3],
+    [3, 3, 3],
+    [3, 4, 3],
+    [3, 3, 3, 3],
+    [3, 3, 3]
+    ]
+}
+def parse_teaching_plan(teaching_plan):
+    """
+    通过 AI 接口解析教学计划，提取学科（subject）和章节总知识点（chapter）。
     
-    plan = {"objectives": "1. \u7406\u89e3TCP\u8fde\u63a5\u7684\u57fa\u672c\u6982\u5ff5\u548c\u5de5\u4f5c\u539f\u7406\n2. \u638c\u63e1TCP\u8fde\u63a5\u7684\u4e09\u6b21\u63e1\u624b\u548c\u56db\u6b21\u6325\u624b\u8fc7\u7a0b\n3. \u5b66\u4f1a\u4f7f\u7528\u7f51\u7edc\u5de5\u5177\u5206\u6790TCP\u8fde\u63a5\u7684\u6570\u636e\u5305", "plan_content": "# TCP\u8fde\u63a5\u539f\u7406\u4e0e\u5e94\u7528\u6559\u6848\n\n## \u6559\u5b66\u76ee\u6807\n1. **\u7406\u89e3TCP\u534f\u8bae\u7684\u57fa\u672c\u6982\u5ff5**\uff1a\u80fd\u591f\u51c6\u786e\u63cf\u8ff0TCP\u534f\u8bae\u7684\u5b9a\u4e49\u3001\u4f5c\u7528\u53ca\u4e3b\u8981\u7279\u6027\uff08\u53ef\u9760\u6027\u3001\u6709\u5e8f\u6027\u7b49\uff09\uff0c\u6b63\u786e\u7387\u8fbe\u523090%\u4ee5\u4e0a\u3002\n2. **\u638c\u63e1TCP\u8fde\u63a5\u5efa\u7acb\u4e0e\u65ad\u5f00\u8fc7\u7a0b**\uff1a\u80fd\u591f\u5b8c\u6574\u89e3\u91ca\u4e09\u6b21\u63e1\u624b\u548c\u56db\u6b21\u6325\u624b\u7684\u8fc7\u7a0b\u53ca\u6bcf\u4e2a\u6b65\u9aa4\u7684\u610f\u4e49\uff0c\u6b63\u786e\u7387\u8fbe\u523085%\u4ee5\u4e0a\u3002\n3. **\u7406\u89e3TCP\u6d41\u91cf\u63a7\u5236\u4e0e\u62e5\u585e\u63a7\u5236\u673a\u5236**\uff1a\u80fd\u591f\u533a\u5206\u6d41\u91cf\u63a7\u5236\u548c\u62e5\u585e\u63a7\u5236\u7684\u6982\u5ff5\uff0c\u5e76\u8bf4\u660e\u5176\u5de5\u4f5c\u539f\u7406\uff0c\u6b63\u786e\u7387\u8fbe\u523080%\u4ee5\u4e0a\u3002\n4. **\u5e94\u7528TCP\u77e5\u8bc6\u5206\u6790\u5b9e\u9645\u95ee\u9898**\uff1a\u80fd\u591f\u8fd0\u7528\u6240\u5b66\u77e5\u8bc6\u89e3\u91ca\u5e38\u89c1\u7f51\u7edc\u95ee\u9898\uff08\u5982\u8fde\u63a5\u5931\u8d25\u3001\u4f20\u8f93\u6162\u7b49\uff09\uff0c\u6b63\u786e\u7387\u8fbe\u523075%\u4ee5\u4e0a\u3002\n5. **\u638c\u63e1\u7f51\u7edc\u534f\u8bae\u5c42\u6b21\u5173\u7cfb**\uff1a\u80fd\u591f\u6b63\u786e\u56de\u7b54\u5173\u4e8eOSI\u6a21\u578b\u548cTCP/IP\u534f\u8bae\u6808\u7684\u57fa\u7840\u95ee\u9898\uff0c\u6b63\u786e\u7387\u8fbe\u523090%\u4ee5\u4e0a\u3002\n\n## \u6559\u5b66\u91cd\u96be\u70b9\n**\u91cd\u70b9**\uff1a\n- TCP\u4e09\u6b21\u63e1\u624b\u548c\u56db\u6b21\u6325\u624b\u7684\u8fc7\u7a0b\u53ca\u610f\u4e49\n- TCP\u7684\u53ef\u9760\u6027\u673a\u5236\uff08\u786e\u8ba4\u5e94\u7b54\u3001\u8d85\u65f6\u91cd\u4f20\u7b49\uff09\n- \u6d41\u91cf\u63a7\u5236\uff08\u6ed1\u52a8\u7a97\u53e3\uff09\u548c\u62e5\u585e\u63a7\u5236\uff08\u6162\u542f\u52a8\u3001\u62e5\u585e\u907f\u514d\u7b49\uff09\u7684\u57fa\u672c\u539f\u7406\n\n**\u96be\u70b9**\uff1a\n- \u4e09\u6b21\u63e1\u624b\u548c\u56db\u6b21\u6325\u624b\u7684\u72b6\u6001\u8f6c\u6362\u7406\u89e3\n- \u6d41\u91cf\u63a7\u5236\u4e0e\u62e5\u585e\u63a7\u5236\u7684\u533a\u522b\u4e0e\u5e94\u7528\u573a\u666f\n- TCP\u62a5\u6587\u4e2d\u5173\u952e\u5b57\u6bb5\u7684\u4f5c\u7528\uff08\u5982\u5e8f\u5217\u53f7\u3001\u786e\u8ba4\u53f7\u3001\u7a97\u53e3\u5927\u5c0f\u7b49\uff09\n\n**\u7a81\u7834\u7b56\u7565**\uff1a\n1. \u4f7f\u7528\u751f\u6d3b\u5316\u7c7b\u6bd4\uff08\u5982\u6253\u7535\u8bdd\u5efa\u7acb/\u7ed3\u675f\u901a\u8bdd\uff09\u5e2e\u52a9\u5b66\u751f\u7406\u89e3\u62bd\u8c61\u6982\u5ff5\n2. \u901a\u8fc7\u52a8\u753b\u6f14\u793a\u548c\u4ea4\u4e92\u5f0f\u6a21\u62df\u5de5\u5177\u76f4\u89c2\u5c55\u793aTCP\u5de5\u4f5c\u8fc7\u7a0b\n3. \u8bbe\u8ba1\u5206\u5c42\u6b21\u7684\u7ec3\u4e60\u9898\u76ee\uff0c\u4ece\u57fa\u7840\u6982\u5ff5\u5230\u590d\u6742\u573a\u666f\u9010\u6b65\u6df1\u5165\n4. \u5229\u7528Wireshark\u6293\u5305\u5b9e\u4f8b\u5206\u6790\u771f\u5b9eTCP\u901a\u4fe1\u8fc7\u7a0b\n\n## \u6559\u5b66\u5185\u5bb9\n\n### 1. TCP\u534f\u8bae\u57fa\u7840\uff0815\u5206\u949f\uff09\n- **TCP\u5b9a\u4e49\u4e0e\u7279\u6027**\uff1a\u9762\u5411\u8fde\u63a5\u3001\u53ef\u9760\u4f20\u8f93\u3001\u6d41\u91cf\u63a7\u5236\u3001\u62e5\u585e\u63a7\u5236\n- **TCP\u4e0eUDP\u5bf9\u6bd4**\uff1a\u53ef\u9760\u6027vs\u6548\u7387\u3001\u8fde\u63a5vs\u65e0\u8fde\u63a5\u3001\u6709\u5e8f\u6027vs\u65e0\u5e8f\u6027\n- **TCP\u5728\u534f\u8bae\u6808\u4e2d\u7684\u4f4d\u7f6e**\uff1a\u4f20\u8f93\u5c42\u534f\u8bae\uff0c\u4e0eIP\u534f\u8bae\u7684\u5173\u7cfb\n\n### 2. TCP\u8fde\u63a5\u7ba1\u7406\uff0820\u5206\u949f\uff09\n- **\u4e09\u6b21\u63e1\u624b\u5efa\u7acb\u8fde\u63a5**\uff1a\n  - SYN\u3001SYN-ACK\u3001ACK\u62a5\u6587\u4ea4\u6362\u8fc7\u7a0b\n  - \u5e8f\u5217\u53f7\u548c\u786e\u8ba4\u53f7\u7684\u4f5c\u7528\n  - \u534a\u8fde\u63a5\u548c\u5168\u8fde\u63a5\u72b6\u6001\n- **\u56db\u6b21\u6325\u624b\u65ad\u5f00\u8fde\u63a5**\uff1a\n  - FIN\u62a5\u6587\u4ea4\u6362\u8fc7\u7a0b\n  - TIME_WAIT\u72b6\u6001\u7684\u610f\u4e49\n  - \u5f02\u5e38\u65ad\u5f00\u5904\u7406\n\n### 3. TCP\u6570\u636e\u4f20\u8f93\u673a\u5236\uff0815\u5206\u949f\uff09\n- **\u53ef\u9760\u6027\u4fdd\u8bc1\u673a\u5236**\uff1a\n  - \u786e\u8ba4\u5e94\u7b54\uff08ACK\uff09\n  - \u8d85\u65f6\u91cd\u4f20\n  - \u6570\u636e\u6392\u5e8f\n- **\u6d41\u91cf\u63a7\u5236**\uff1a\n  - \u6ed1\u52a8\u7a97\u53e3\u539f\u7406\n  - \u63a5\u6536\u7a97\u53e3\u4e0e\u53d1\u9001\u7a97\u53e3\n- **\u62e5\u585e\u63a7\u5236**\uff1a\n  - \u6162\u542f\u52a8\u7b97\u6cd5\n  - \u62e5\u585e\u907f\u514d\u7b97\u6cd5\n  - \u5feb\u901f\u91cd\u4f20\u4e0e\u5feb\u901f\u6062\u590d\n\n### 4. \u5b9e\u9645\u5e94\u7528\u5206\u6790\uff0810\u5206\u949f\uff09\n- Wireshark\u6293\u5305\u5206\u6790TCP\u901a\u4fe1\n- \u5e38\u89c1\u7f51\u7edc\u95ee\u9898\u8bca\u65ad\uff08\u8fde\u63a5\u8d85\u65f6\u3001\u4f20\u8f93\u6162\u7b49\uff09\n- TCP\u4f18\u5316\u5b9e\u8df5\uff08\u5982\u8c03\u6574\u7a97\u53e3\u5927\u5c0f\uff09\n\n## \u6559\u5b66\u65f6\u95f4\u5b89\u6392\n1. \u5bfc\u5165\u73af\u8282\uff1a5\u5206\u949f\n2. TCP\u534f\u8bae\u57fa\u7840\u8bb2\u89e3\uff1a15\u5206\u949f\n3. \u4e09\u6b21\u63e1\u624b\u4e0e\u56db\u6b21\u6325\u624b\u8bb2\u89e3\uff1a20\u5206\u949f\n4. \u6570\u636e\u4f20\u8f93\u673a\u5236\u8bb2\u89e3\uff1a15\u5206\u949f\n5. \u4e92\u52a8\u4e0e\u7ec3\u4e60\u73af\u8282\uff1a15\u5206\u949f\n6. \u5c0f\u7ed3\u4e0e\u4f5c\u4e1a\u5e03\u7f6e\uff1a5\u5206\u949f\n\n## \u6559\u5b66\u8fc7\u7a0b\n\n### 1. \u5bfc\u5165\u73af\u8282\uff085\u5206\u949f\uff09\n**\u6559\u5b66\u65b9\u6cd5**\uff1a\u95ee\u9898\u5f15\u5bfc+\u751f\u6d3b\u7c7b\u6bd4  \n**\u6d3b\u52a8\u5b89\u6392**\uff1a\n- \u5c55\u793a\u5b66\u751f\u9884\u4e60\u7b54\u9898\u6570\u636e\uff0c\u7a81\u51fa\u8584\u5f31\u70b9\n- \u63d0\u95ee\uff1a\"\u5f53\u4f60\u6253\u7535\u8bdd\u65f6\uff0c\u5982\u4f55\u77e5\u9053\u5bf9\u65b9\u5df2\u7ecf\u51c6\u5907\u597d\u901a\u8bdd\uff1f\u6302\u65ad\u65f6\u53c8\u5982\u4f55\u786e\u8ba4\uff1f\"\n  \n**\u5e08\u751f\u884c\u4e3a**\uff1a\n- \u6559\u5e08\uff1a\u63d0\u51fa\u5f15\u5bfc\u6027\u95ee\u9898\uff0c\u5c55\u793a\u7535\u8bdd\u901a\u8bdd\u5efa\u7acb/\u7ed3\u675f\u7684\u7c7b\u6bd4\n- \u5b66\u751f\uff1a\u601d\u8003\u5e76\u56de\u7b54\u5173\u4e8e\u901a\u4fe1\u5efa\u7acb\u548c\u7ed3\u675f\u7684\u95ee\u9898\n\n**\u5de5\u5177\u6750\u6599**\uff1a\u7535\u8bdd\u901a\u8bdd\u6d41\u7a0b\u56fe  \n**\u9884\u671f\u6210\u679c**\uff1a\u5b66\u751f\u80fd\u5c06\u65e5\u5e38\u901a\u4fe1\u7ecf\u9a8c\u4e0eTCP\u8fde\u63a5\u5efa\u7acb/\u65ad\u5f00\u5efa\u7acb\u521d\u6b65\u8054\u7cfb\n\n### 2. TCP\u534f\u8bae\u57fa\u7840\u8bb2\u89e3\uff0815\u5206\u949f\uff09\n**\u6559\u5b66\u65b9\u6cd5**\uff1a\u8bb2\u89e3+\u5bf9\u6bd4\u5206\u6790  \n**\u4e92\u52a8\u73af\u82821**\uff1aTCP vs UDP\u89d2\u8272\u626e\u6f14  \n**\u6d3b\u52a8\u5b89\u6392**\uff1a\n- \u5c06\u5b66\u751f\u5206\u4e3a\u4e24\u7ec4\uff0c\u5206\u522b\u626e\u6f14TCP\u548cUDP\u534f\u8bae\n- \u6bcf\u7ec4\u5217\u4e3e\u81ea\u5df1\u534f\u8bae\u7684\u7279\u70b9\u5e76\"\u8fa9\u8bba\"\u9002\u7528\u573a\u666f\n\n**\u5e08\u751f\u884c\u4e3a**\uff1a\n- \u6559\u5e08\uff1a\u8bb2\u89e3TCP\u57fa\u672c\u6982\u5ff5\uff0c\u7ec4\u7ec7\u89d2\u8272\u626e\u6f14\u6d3b\u52a8\n- \u5b66\u751f\uff1a\u53c2\u4e0e\u89d2\u8272\u626e\u6f14\uff0c\u4e3b\u52a8\u5217\u4e3e\u534f\u8bae\u7279\u70b9\n\n**\u5de5\u5177\u6750\u6599**\uff1a\u534f\u8bae\u7279\u6027\u5bf9\u6bd4\u8868  \n**\u9884\u671f\u6210\u679c**\uff1a\u5b66\u751f\u80fd\u51c6\u786e\u63cf\u8ff0TCP\u7684\u6838\u5fc3\u7279\u6027\u53ca\u5176\u4e0eUDP\u7684\u533a\u522b\n\n### 3. \u4e09\u6b21\u63e1\u624b\u4e0e\u56db\u6b21\u6325\u624b\u8bb2\u89e3\uff0820\u5206\u949f\uff09\n**\u6559\u5b66\u65b9\u6cd5**\uff1a\u52a8\u753b\u6f14\u793a+\u5206\u6b65\u8bb2\u89e3  \n**\u4e92\u52a8\u73af\u82822**\uff1a\u4e09\u6b21\u63e1\u624b\u6a21\u62df\u6e38\u620f  \n**\u6d3b\u52a8\u5b89\u6392**\uff1a\n- \u4e09\u4f4d\u5b66\u751f\u5206\u522b\u626e\u6f14\u5ba2\u6237\u7aef\u3001\u670d\u52a1\u5668\u548c\u7f51\u7edc\n- \u4f7f\u7528\u7279\u5236\u5361\u7247\u6a21\u62dfSYN\u3001SYN-ACK\u3001ACK\u4ea4\u6362\u8fc7\u7a0b\n\n**\u5e08\u751f\u884c\u4e3a**\uff1a\n- \u6559\u5e08\uff1a\u6f14\u793a\u52a8\u753b\uff0c\u89e3\u91ca\u6bcf\u4e2a\u62a5\u6587\u7684\u610f\u4e49\uff0c\u6307\u5bfc\u6a21\u62df\u6d3b\u52a8\n- \u5b66\u751f\uff1a\u53c2\u4e0e\u6a21\u62df\u6d3b\u52a8\uff0c\u89c2\u5bdf\u5e76\u8bb0\u5f55\u72b6\u6001\u53d8\u5316\n\n**\u5de5\u5177\u6750\u6599**\uff1aTCP\u8fde\u63a5\u5efa\u7acb\u52a8\u753b\u3001\u62a5\u6587\u5361\u7247  \n**\u9884\u671f\u6210\u679c**\uff1a\u5b66\u751f\u80fd\u6309\u987a\u5e8f\u63cf\u8ff0\u4e09\u6b21\u63e1\u624b\u8fc7\u7a0b\u5e76\u7406\u89e3\u6bcf\u4e2a\u6b65\u9aa4\u7684\u5fc5\u8981\u6027\n\n### 4. \u6570\u636e\u4f20\u8f93\u673a\u5236\u8bb2\u89e3\uff0815\u5206\u949f\uff09\n**\u6559\u5b66\u65b9\u6cd5**\uff1a\u5b9e\u4f8b\u5206\u6790+\u53ef\u89c6\u5316\u6f14\u793a  \n**\u4e92\u52a8\u73af\u82823**\uff1a\u6ed1\u52a8\u7a97\u53e3\u5b9e\u7269\u6f14\u793a  \n**\u6d3b\u52a8\u5b89\u6392**\uff1a\n- \u4f7f\u7528\u5e26\u7a97\u53e3\u7684\u7eb8\u677f\u6a21\u62df\u53d1\u9001\u548c\u63a5\u6536\u7f13\u51b2\u533a\n- \u5b66\u751f\u5206\u7ec4\u64cd\u4f5c\u7a97\u53e3\u6ed1\u52a8\u8fc7\u7a0b\uff0c\u89c2\u5bdf\u4f20\u8f93\u6548\u7387\u53d8\u5316\n\n**\u5e08\u751f\u884c\u4e3a**\uff1a\n- \u6559\u5e08\uff1a\u6f14\u793a\u6d41\u91cf\u63a7\u5236\u548c\u62e5\u585e\u63a7\u5236\u5b9e\u4f8b\uff0c\u6307\u5bfc\u5b9e\u7269\u64cd\u4f5c\n- \u5b66\u751f\uff1a\u52a8\u624b\u64cd\u4f5c\u6ed1\u52a8\u7a97\u53e3\u6a21\u578b\uff0c\u8c03\u6574\u7a97\u53e3\u5927\u5c0f\u89c2\u5bdf\u6548\u679c\n\n**\u5de5\u5177\u6750\u6599**\uff1a\u6ed1\u52a8\u7a97\u53e3\u6f14\u793a\u6a21\u578b\u3001\u7f51\u7edc\u62e5\u585e\u6a21\u62df\u8f6f\u4ef6  \n**\u9884\u671f\u6210\u679c**\uff1a\u5b66\u751f\u80fd\u533a\u5206\u6d41\u91cf\u63a7\u5236\u548c\u62e5\u585e\u63a7\u5236\uff0c\u7406\u89e3\u7a97\u53e3\u8c03\u6574\u5bf9\u4f20\u8f93\u7684\u5f71\u54cd\n\n### 5. \u5c0f\u7ed3\u4e0e\u4f5c\u4e1a\u5e03\u7f6e\uff085\u5206\u949f\uff09\n**\u6559\u5b66\u65b9\u6cd5**\uff1a\u603b\u7ed3\u5f52\u7eb3+\u4efb\u52a1\u5e03\u7f6e  \n**\u6d3b\u52a8\u5b89\u6392**\uff1a\n- \u901a\u8fc7\u601d\u7ef4\u5bfc\u56fe\u56de\u987e\u5173\u952e\u77e5\u8bc6\u70b9\n- \u89e3\u91ca\u4f5c\u4e1a\u8981\u6c42\u5e76\u63d0\u4f9b\u53c2\u8003\u8d44\u6599\n\n**\u5e08\u751f\u884c\u4e3a**\uff1a\n- \u6559\u5e08\uff1a\u68b3\u7406\u77e5\u8bc6\u6846\u67b6\uff0c\u89e3\u7b54\u7591\u95ee\n- \u5b66\u751f\uff1a\u53c2\u4e0e\u603b\u7ed3\uff0c\u8bb0\u5f55\u4f5c\u4e1a\u8981\u6c42\n\n**\u5de5\u5177\u6750\u6599**\uff1a\u77e5\u8bc6\u70b9\u601d\u7ef4\u5bfc\u56fe  \n**\u9884\u671f\u6210\u679c**\uff1a\u5b66\u751f\u80fd\u628a\u63e1TCP\u77e5\u8bc6\u4f53\u7cfb\u6846\u67b6\uff0c\u660e\u786e\u8bfe\u540e\u5b66\u4e60\u65b9\u5411\n\n## \u8bfe\u540e\u4f5c\u4e1a\n**\u57fa\u7840\u9898**\uff1a\n1. \u7ed8\u5236\u4e09\u6b21\u63e1\u624b\u548c\u56db\u6b21\u6325\u624b\u7684\u6d41\u7a0b\u56fe\uff0c\u5e76\u6807\u6ce8\u6bcf\u4e2a\u6b65\u9aa4\u4ea4\u6362\u7684\u62a5\u6587\u7c7b\u578b\n2. \u89e3\u91caTCP\u7684\u53ef\u9760\u6027\u662f\u5982\u4f55\u901a\u8fc7\u786e\u8ba4\u5e94\u7b54\u548c\u8d85\u65f6\u91cd\u4f20\u673a\u5236\u5b9e\u73b0\u7684\n3. \u8ba1\u7b97\uff1a\u5047\u8bbe\u521d\u59cb\u62e5\u585e\u7a97\u53e3\u4e3a1MSS\uff0c\u7ecf\u8fc73\u8f6e\u4f20\u8f93\u540e\u7a97\u53e3\u5927\u5c0f\u662f\u591a\u5c11\uff1f\uff08\u4f7f\u7528\u6162\u542f\u52a8\u7b97\u6cd5\uff09\n\n**\u62d3\u5c55\u9898**\uff1a\n1. \u4f7f\u7528Wireshark\u6293\u53d6\u4e00\u6b21HTTP\u8bbf\u95ee\u7684TCP\u8fde\u63a5\u8fc7\u7a0b\uff0c\u5206\u6790\u5176\u4e2d\u7684\u4e09\u6b21\u63e1\u624b\u548c\u56db\u6b21\u6325\u624b\n2. \u7814\u7a76TCP Tahoe\u548cTCP Reno\u5728\u62e5\u585e\u63a7\u5236\u5904\u7406\u4e0a\u7684\u533a\u522b\uff0c\u5e76\u6bd4\u8f83\u5176\u4f18\u7f3a\u70b9\n3. \u601d\u8003\uff1a\u4e3a\u4ec0\u4e48TIME_WAIT\u72b6\u6001\u9700\u8981\u7b49\u5f852MSL\u65f6\u95f4\uff1f\u5982\u679c\u7f29\u77ed\u8fd9\u4e2a\u65f6\u95f4\u4f1a\u6709\u4ec0\u4e48\u5f71\u54cd\uff1f\n\n**\u5b9e\u8df5\u4efb\u52a1**\uff1a\n\u5206\u7ec4\u8bbe\u8ba1\u5b9e\u9a8c\uff0c\u901a\u8fc7\u8c03\u6574TCP\u7a97\u53e3\u5927\u5c0f\u53c2\u6570\uff0c\u89c2\u5bdf\u5bf9\u6587\u4ef6\u4f20\u8f93\u901f\u5ea6\u7684\u5f71\u54cd\uff0c\u5e76\u64b0\u5199\u7b80\u8981\u5b9e\u9a8c\u62a5\u544a", "analysis": "\u5b66\u751f\u9884\u4e60\u7b54\u9898\u53cd\u9988\u663e\u793a\uff0c\u5b66\u751f\u5728\u57fa\u7840\u77e5\u8bc6\u70b9\uff08\u5982OSI\u6a21\u578b\u5c42\u6570\u548c\u5e94\u7528\u5c42\u534f\u8bae\uff09\u4e0a\u8868\u73b0\u826f\u597d\uff0c\u4f46\u5728\u8f83\u4e3a\u590d\u6742\u6216\u9700\u8981\u6df1\u5165\u7406\u89e3\u7684\u6982\u5ff5\uff08\u5982TCP\u548cUDP\u7684\u533a\u522b\u3001\u7f51\u7edc\u5c42\u8bbe\u5907\u3001IPv4\u5730\u5740\u957f\u5ea6\uff09\u4e0a\u8868\u73b0\u8584\u5f31\u3002\u6574\u4f53\u5e73\u5747\u6b63\u786e\u7387\u4e3a47.2%\uff0c\u8868\u660e\u5b66\u751f\u5bf9\u9884\u4e60\u5185\u5bb9\u7684\u638c\u63e1\u7a0b\u5ea6\u4e00\u822c\uff0c\u5b58\u5728\u660e\u663e\u7684\u77e5\u8bc6\u76f2\u533a\u548c\u8bef\u89e3\u3002"}
-    subject, chapter = parse_teaching_plan(plan['plan_content'])
-    print(plan["plan_content"])
-    print('结束：', datetime.now())
+    Args:
+        teaching_plan (str): 教学计划的文本内容。
+    
+    Returns:
+        tuple: (subject, chapter)，其中 subject 是学科，chapter 是章节总知识点。
+    """
+    print("正在通过 AI 接口解析教学计划...")
+    
+    # 更明确的提示词，要求AI返回特定格式
+    prompt = f"""请从以下教学计划中提取信息并以严格的JSON格式返回：
+    - "subject": 课程主题或学科名称
+    - "chapter": 主要知识点（一个总的知识点）
+    
+    教学计划内容：
+    {teaching_plan}
+    
+    返回格式示例：
+    {{
+        "subject": "计算机网络",
+        "chapter": "网络分类、拓扑结构、TCP/IP协议"
+    }}
+    """
+    
+    try:
+        # 调用 AI 接口解析教学计划
+        ai_response = sendToDeepSeek(prompt)
+        
+        # 预处理响应：替换中文标点为英文标点
+        ai_response = ai_response.replace('：', ':').replace('，', ',').replace('“', '"').replace('”', '"')
+        
+        # 尝试提取JSON部分（有时AI会在JSON前后添加解释文本）
+        start_idx = ai_response.find('{')
+        end_idx = ai_response.rfind('}') + 1
+        json_str = ai_response[start_idx:end_idx]
+        
+        # 解析JSON
+        ai_result = ast.literal_eval(json_str)
+        subject = ai_result.get('subject', '默认学科')
+        chapter = ai_result.get('chapter', '默认知识点')
+        
+        print(f"AI 解析结果：学科 = {subject}，知识点 = {chapter}")
+        return subject, chapter
+        
+    except Exception as e:
+        print(f"解析 AI 响应时出错：{e}。使用默认值。原始响应：\n{ai_response}")
+        # 尝试从教学计划中提取前两行作为备选
+        lines = teaching_plan.split('\n')
+        subject = lines[0].strip() if len(lines) > 0 else "默认学科"
+        chapter = lines[1].strip() if len(lines) > 1 else "默认知识点"
+        return subject, chapter
+def generate_PPT(subject=None, chapter=None, teaching_plan=None, teacher_name='AI', time=None, title=None, subtitle=None,
+                 template=templatepath, ppt_filename=None, select='template'):  # 'ppts/template.pptx'
+    if select == 'ai':
+        pass
+        # 连接AI PPT助手生成--尚未开发
+    elif select == 'plan' and teaching_plan:
+        if not subject or not chapter:
+            # 调用解析函数
+            subject, chapter = parse_teaching_plan(teaching_plan)
+        
+        content = get_template(subject, chapter, structure[filename], teaching_plan)
+        if not isinstance(content, dict):
+            raise ValueError('AI返回内容不可使用!')
+        if title is None:
+            title = subject
+        if subtitle is None:
+            subtitle = chapter[0] if chapter else '默认知识点'
+        if time is None:
+            time = datetime.now().strftime("%Y/%m/%d")
+
+        prs = set_ppt_content(content, template, teacher_name, time, title, subtitle)
+
+        if ppt_filename is None:
+            unique_id = uuid.uuid4()  # 生成一个唯一的UUID
+            ppt_filename = os.path.join(PPT_FOLDER, f"{subject}-{chapter[0]}教学PPT-{unique_id}.pptx")
+        else:
+            ppt_filename = os.path.join(PPT_FOLDER, ppt_filename if '.pptx' in ppt_filename else f'{ppt_filename}.pptx')
+
+        # 保存PPT文件到本地
+        prs.save(ppt_filename)
+        print(f"PPT已保存为: {ppt_filename}")
+    else:
+        content = get_template(subject, chapter, structure[filename])
+        if not isinstance(content, dict):
+            raise ValueError('AI返回内容不可使用!')
+        if title is None:
+            title = subject
+        if subtitle is None:
+            subtitle = chapter[0] if chapter else '默认知识点'
+        if time is None:
+            time = datetime.now().strftime("%Y/%m/%d")
+
+        prs = set_ppt_content(content, template, teacher_name, time, title, subtitle)
+
+        if ppt_filename is None:
+            unique_id = uuid.uuid4()  # 生成一个唯一的UUID
+            ppt_filename = os.path.join(PPT_FOLDER, f"{subject}-{chapter[0]}教学PPT-{unique_id}.pptx")
+        else:
+            ppt_filename = os.path.join(PPT_FOLDER, ppt_filename if '.pptx' in ppt_filename else f'{ppt_filename}.pptx')
+
+        # 保存PPT文件到本地
+        prs.save(ppt_filename)
+        print(f"PPT已保存为: {ppt_filename}")
+
+    # 返回文件的存储路径
+    return ppt_filename
+
+
+def get_AI_content(template):
+    client = OpenAI(api_key=key, base_url=api_url)
+    response = client.chat.completions.create(
+        model="deepseek-chat",  # 使用的模型
+        messages=[
+            {"role": "system", "content": "你是一个资深的教学设计专家，请用正式的语气回答用户的问题。"},
+            {"role": "user", "content": template},
+        ],
+        stream=False  # 是否启用流式输出
+    )
+    # print(response)  # 如果需要调试，可以打印完整的响应
+    content = response.choices[0].message.content  # 返回模型生成的回复内容
+
+    return clean_content(content)
+
+
+def clean_content(content):
+    if 'json' in content:
+        content = content.replace('json', '')
+    while '`' in content:  # 或者if, replace完全匹配
+        content = content.replace('`', '')
+    if 'python' in content:
+        content = content.replace('python', '')
+    while '*' in content:
+        content = content.replace('*', '')
+    while '#' in content:
+        content = content.replace('#', '')
+
+    return content
+
+
+def get_template(subject, chapter, structure, teaching_plan=None):
+    template1 = lambda topic, number, type: (
+        f"请围绕“{subject} {chapter} {topic}”设计 {number} 个教学{type}，"
+        f"并以列表的形式返回各{type}名称，不需要序号，字数控制在10字以内，例如："
+        f"[str1, str2, ...]") if type != '知识点' or teaching_plan is None else (
+        f"请围绕“{subject} {chapter} {topic}”设计 {number} 个教学环节，必要时请包含一个互动环节，"
+        f"并以列表的形式返回各环节名称，不需要序号，字数控制在10字以内，例如："
+        f"[str1, str2, ...]"
+        )
+    # (f'请根据{theme}的内容设计{number}个教学{type}，并以Python列表的形式返回{type}名称')
+    template2 = lambda theme, type: (f'请总结{subject} {chapter} {theme}，提取它的相关知识点，'
+                                     f'并返回它的{type}，字数控制在30字左右，不可太多或太少；不需要返回标题和字数，仅返回内容')
+    content = {}
+    parts = []
+
+    num1 = len(structure)
+    if teaching_plan:
+        parts = get_AI_content(f"请围绕以下教案内容，按序提取 {num1} 个关键教学环节：{teaching_plan}，"
+                               f"并以列表的形式返回各环节名称，不需要序号，例如："
+                               f"[str1, str2, ...]")
+        print(parts)
+    else:
+        parts = get_AI_content(template1(f'', num1, '环节'))
+        print(parts)
+    
+    text = parts.replace('，', ',').replace("'", '').replace('"', '')
+    text = text.strip('[]').strip()
+    parts = [item.strip() for item in text.split(',')]
+    for i in range(num1):
+        content[parts[i]] = {}
+
+    for i in range(num1):
+        # 生成概述
+        summary = get_AI_content(template2(f'{parts[i]}的内容', '概述'))
+        content[parts[i]]['概述'] = summary
+
+        # 生成小标题
+        part = structure[i]
+        num2 = len(part)
+        titles = get_AI_content(template1(parts[i], num2, '内容'))
+        print(titles)
+        
+        text = titles.replace('，', ',').replace("'", '').replace('"', '')
+        text = text.strip('[]').strip()
+        titles = [item.strip() for item in text.split(',')]
+
+        for j in range(num2):
+            content[parts[i]][titles[j]] = {}
+
+        for j in range(num2):
+            subtitles = get_AI_content(template1(f'{parts[i]} {titles[j]}', part[j], '知识点'))
+            print(subtitles)
+            
+            text = subtitles.replace('，', ',').replace("'", '').replace('"', '')
+            text = text.strip('[]').strip()
+            subtitles = [item.strip() for item in text.split(',')]
+            for subtitle in subtitles:
+                sub_content = get_AI_content(template2(f'{parts[i]} {titles[j]} {subtitle}的内容' if teaching_plan is None else
+                                                       f'{parts[i]} {titles[j]}的{subtitle}环节', '教学内容'))  # 是否需要 {titles[j]}
+                print(sub_content)
+                content[parts[i]][titles[j]][subtitle] = sub_content
+
+    return content
