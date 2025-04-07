@@ -1,7 +1,8 @@
 from app.utils.database import db
 from datetime import datetime
 from app.models.relationship import teacher_class, student_class, course_courseclass
-
+from app.models.classanalysisreport import ClassAnalysisReport
+from app.models.studentanalysisreport import StudentAnalysisReport
 class Courseclass(db.Model):
     __tablename__ = 'courseclass'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
