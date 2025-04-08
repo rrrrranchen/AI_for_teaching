@@ -284,11 +284,11 @@ def get_design_versions(design_id):
         return jsonify(code=500, message="服务器内部错误"), 500
 
 
-#查询所属当前用户的所有教学设计版本，返回的数据包括教学设计id与所有教学设计版本
+#查询所属当前用户的所有教学设计
 @teachingdesign_bp.route('/mydesigns', methods=['GET'])
 def get_my_designs():
     """
-    查询当前登录教师的所有教学设计及其版本
+    查询当前登录教师的所有教学设计及其生成时间与更新时间
     """
     try:
         # 1. 验证用户是否登录且为教师
@@ -306,22 +306,9 @@ def get_my_designs():
                 "design_id": design.id,
                 "title": design.title,
                 "course_id": design.course_id,
-                "current_version_id": design.current_version_id,
-                "versions": []
+                "created_at": design.created_at.isoformat() if design.created_at else None,
+                "updated_at": design.updated_at.isoformat() if design.updated_at else None
             }
-
-            # 查询每个教学设计的所有版本
-            versions = TeachingDesignVersion.query.filter_by(design_id=design.id).all()
-            for version in versions:
-                version_data = {
-                    "id": version.id,
-                    "version": version.version,
-                    "recommendation_score": version.recommendation_score,
-                    "created_at": version.created_at.isoformat() if version.created_at else None,
-                    "updated_at": version.updated_at.isoformat() if version.updated_at else None
-                }
-                design_data["versions"].append(version_data)
-
             designs_data.append(design_data)
 
         return jsonify(code=200, message="查询成功", data=designs_data), 200

@@ -88,35 +88,35 @@ def save_to_markdown(content, filename="答题结果分析报告.md"):
     return relative_path
 
 
-# def save_to_pdf(content, filename="答题结果分析报告.pdf"):
-#     # 将 Markdown 转换为 HTML
-#     html_content = markdown.markdown(content)
+def save_to_pdf(content, filename="答题结果分析报告.pdf"):
+     # 将 Markdown 转换为 HTML
+     html_content = markdown.markdown(content)
 
-#     # HTML 模板
-#     html_template = f"""
-#     <html>
-#     <head>
-#         <meta charset="utf-8">
-#         <style>
-#             body {{ font-family: "SimSun", serif; line-height: 1.6; margin: 40px; }}
-#             h1 {{ text-align: center; color: #2c3e50; }}
-#             h2 {{ color: #2c3e50; margin-top: 25px; }}
-#             .section {{ margin-bottom: 20px; }}
-#         </style>
-#     </head>
-#     <body>
-#         <h1>教案设计</h1>
-#         <div class="section">{html_content}</div>
-#     </body>
-#     </html>
-#     """
+     # HTML 模板
+     html_template = f"""
+     <html>
+     <head>
+         <meta charset="utf-8">
+         <style>
+             body {{ font-family: "SimSun", serif; line-height: 1.6; margin: 40px; }}
+             h1 {{ text-align: center; color: #2c3e50; }}
+             h2 {{ color: #2c3e50; margin-top: 25px; }}
+             .section {{ margin-bottom: 20px; }}
+         </style>
+     </head>
+     <body>
+         <h1>教案设计</h1>
+         <div class="section">{html_content}</div>
+     </body>
+     </html>
+     """
 
-#     # 手动指定 wkhtmltopdf 路径
-#     pdfkit_config = pdfkit.configuration(wkhtmltopdf=r"E:\Software\wkhtmltopdf\bin\wkhtmltopdf.exe")
+     # 手动指定 wkhtmltopdf 路径
+     pdfkit_config = pdfkit.configuration(wkhtmltopdf=r"E:\Software\wkhtmltopdf\bin\wkhtmltopdf.exe")
 
-#     # 生成 PDF
-#     pdfkit.from_string(html_template, filename, configuration=pdfkit_config)
-#     print(f"\nPDF 已保存为：{filename}")
+     # 生成 PDF
+     pdfkit.from_string(html_template, filename, configuration=pdfkit_config)
+     print(f"\nPDF 已保存为：{filename}")
 
 
 json_data = [
