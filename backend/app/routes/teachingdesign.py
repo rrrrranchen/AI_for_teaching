@@ -369,7 +369,6 @@ def get_teaching_design_version(version_id):
             "id": version.id,
             "design_id": version.design_id,
             "version": version.version,
-            "objectives": objectives,
             "plan_content": plan_content,
             "analysis": analysis,
             "recommendation_score": version.recommendation_score,
