@@ -19,13 +19,13 @@ from app.utils.preview_generator import generate_preview
 from werkzeug.utils import safe_join  
 from mongoengine.errors import DoesNotExist, ValidationError
 
-from app.services.test import generate_PPT
+from app.services.plan2ppt import generate_PPT
 from app.models.ppttemplate import PPTTemplate
 from app.models.teachingdesignversion import TeachingDesignVersion
 resource_bp=Blueprint('resource',__name__)
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-UPLOAD_FOLDER = os.path.join(project_root, 'static', 'uploads','techingresources')
+UPLOAD_FOLDER = os.path.join('static', 'uploads','techingresources')
 
 # 检查用户是否登录
 def is_logged_in():
@@ -50,7 +50,7 @@ def is_teacher_of_courseclass(courseclass_id):
     )
     return association > 0
 
-def async_generate_ppt(app, course_id, teachingdesignversion_id, ppttemplate_id, title):
+def async_generate_ppt(app, course_id, teachingdesignversion_id, ppttemplate_id, title, username, user_id):
     with app.app_context():
         try:
             # 查询教学设计版本
@@ -75,14 +75,8 @@ def async_generate_ppt(app, course_id, teachingdesignversion_id, ppttemplate_id,
             template_path = ppt_template.url
 
             # 生成 PPT
-            storage_path = generate_PPT(
-                teaching_plan=teaching_plan,
-                teacher_name="AI",
-                time=datetime.utcnow().strftime("%Y/%m/%d"),
-                template=template_path,  
-                ppt_filename=None,
-                select='plan'
-            )
+            storage_path = generate_PPT(teaching_plan, template_path, username)
+            
             current_app.logger.info(f"PPT 生成成功，临时存储路径: {storage_path}")
 
             # 生成唯一的文件名
@@ -124,7 +118,7 @@ def async_generate_ppt(app, course_id, teachingdesignversion_id, ppttemplate_id,
                 description="自动生成的教学设计 PPT",
                 course_id=course_id,
                 designversion_id=teachingdesignversion_id,
-                uploader_id=get_current_user().id,
+                uploader_id=user_id,  # 使用传递的 user_id
                 storage_path=final_storage_path,
                 preview_urls=previews,
                 metadata=Metadata(**{
@@ -143,9 +137,15 @@ def async_generate_ppt(app, course_id, teachingdesignversion_id, ppttemplate_id,
 def generatePPT(course_id, teachingdesignversion_id, ppttemplate_id):
     # 从请求中获取标题
     title = request.args.get('title', default="教学设计 PPT", type=str)  # 从 URL 查询参数获取
+    current_user = get_current_user()
+    if not current_user:
+        return jsonify({'message': '用户未登录'}), 401
+
+    username = current_user.username
+    user_id = current_user.id
 
     # 启动异步任务
-    thread = threading.Thread(target=async_generate_ppt, args=(current_app._get_current_object(), course_id, teachingdesignversion_id, ppttemplate_id, title))
+    thread = threading.Thread(target=async_generate_ppt, args=(current_app._get_current_object(), course_id, teachingdesignversion_id, ppttemplate_id, title, username, user_id))
     thread.start()
 
     return jsonify({'message': 'PPT generation started'}), 202

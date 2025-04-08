@@ -684,6 +684,7 @@ def get_course_error_ranking(course_id):
         logger.error(f"Error generating error ranking: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+#创建新题目
 @question_bp.route('/createquestion/<int:course_id>', methods=['POST'])
 def create_question(course_id):
     """
