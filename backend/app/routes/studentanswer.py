@@ -810,3 +810,196 @@ def get_student_in_course_answerreport(student_id, course_id):
         # 如果发生错误，回滚数据库会话并返回错误信息
         session.rollback()
         return jsonify({"error": str(e)}), 500
+
+
+#更新单个课程班的某一个学生的 Markdown 形式课后习题答题记录分析报告
+@studentanswer_bp.route('/updatestudentanswerreport/<int:student_id>/<int:courseclass_id>', methods=['POST'])
+def update_student_answerreport(student_id, courseclass_id):
+    # 检查用户是否登录
+    if not is_logged_in():
+        return jsonify({'error': '未登录'}), 401
+
+    current_user = get_current_user()
+    if not current_user:
+        return jsonify({'error': '用户不存在'}), 404
+
+    # 检查权限：学生本人或课程班的老师
+    if not (current_user.id == student_id or is_teacher_of_courseclass(courseclass_id)):
+        return jsonify({'error': '无权查看此报告'}), 403
+
+    try:
+        # 获取当前的数据库会话
+        session = db.session
+
+        # 检查是否存在报告
+        report = session.query(StudentAnalysisReport).filter_by(student_id=student_id, courseclass_id=courseclass_id).first()
+        if report:
+            # 如果报告存在，更新报告内容
+            answers = get_student_answers_with_question_and_course_details(session=session, student_id=student_id, class_id=courseclass_id)
+            content = generate_study_report(answers)
+            report.report_content = content
+        else:
+            # 如果报告不存在，生成新的报告
+            answers = get_student_answers_with_question_and_course_details(session=session, student_id=student_id, class_id=courseclass_id)
+            content = generate_study_report(answers)
+            report = StudentAnalysisReport(
+                student_id=student_id,
+                courseclass_id=courseclass_id,
+                report_content=content
+            )
+            session.add(report)
+
+        # 提交更改
+        session.commit()
+
+        # 返回 Markdown 内容
+        return jsonify({'markdown_report': content}), 200
+
+    except Exception as e:
+        # 如果发生错误，回滚数据库会话并返回错误信息
+        session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+
+#更新单个教学班的答题分析报告
+@studentanswer_bp.route('/updateclassanswerreport/<int:courseclass_id>', methods=['POST'])
+def update_class_answerreport(courseclass_id):
+    # 检查用户是否登录
+    if not is_logged_in():
+        return jsonify({'error': '未登录'}), 401
+
+    current_user = get_current_user()
+    if not current_user:
+        return jsonify({'error': '用户不存在'}), 404
+
+    # 检查权限：课程班的老师
+    if not is_teacher_of_courseclass(courseclass_id):
+        return jsonify({'error': '无权查看此报告'}), 403
+
+    try:
+        # 获取当前的数据库会话
+        session = db.session
+
+        # 检查是否存在报告
+        report = session.query(ClassAnalysisReport).filter_by(courseclass_id=courseclass_id).first()
+        if report:
+            # 如果报告存在，更新报告内容
+            answers = get_class_student_answers(session=session, class_id=courseclass_id)
+            content = generate_study_report_overall(answers)
+            report.report_content = content
+        else:
+            # 如果报告不存在，生成新的报告
+            answers = get_class_student_answers(session=session, class_id=courseclass_id)
+            content = generate_study_report_overall(answers)
+            report = ClassAnalysisReport(
+                courseclass_id=courseclass_id,
+                report_content=content
+            )
+            session.add(report)
+
+        # 提交更改
+        session.commit()
+
+        # 返回 Markdown 内容
+        return jsonify({'markdown_report': content}), 200
+
+    except Exception as e:
+        # 如果发生错误，回滚数据库会话并返回错误信息
+        session.rollback()
+        return jsonify({"error": str(e)}), 500
+    
+#更新单个课程的答题分析报告
+@studentanswer_bp.route('/updatecourseanswersreport/<int:course_id>', methods=['POST'])
+def update_course_answersreport(course_id):
+    # 检查用户是否登录
+    if not is_logged_in():
+        return jsonify({'error': '未登录'}), 401
+
+    current_user = get_current_user()
+    if not current_user:
+        return jsonify({'error': '用户不存在'}), 404
+
+    # 检查权限：课程的老师
+    if not is_teacher_of_course(course_id):
+        return jsonify({'error': '无权查看此报告'}), 403
+
+    try:
+        # 获取当前的数据库会话
+        session = db.session
+
+        # 检查是否存在报告
+        report = session.query(ClassAnalysisReport).filter_by(course_id=course_id).first()
+        if report:
+            # 如果报告存在，更新报告内容
+            answers = get_course_student_answers(session=session, course_id=course_id)
+            content = generate_study_report_overall(answers)
+            report.report_content = content
+        else:
+            # 如果报告不存在，生成新的报告
+            answers = get_course_student_answers(session=session, course_id=course_id)
+            content = generate_study_report_overall(answers)
+            report = ClassAnalysisReport(
+                course_id=course_id,
+                report_content=content
+            )
+            session.add(report)
+
+        # 提交更改
+        session.commit()
+
+        # 返回 Markdown 内容
+        return jsonify({'markdown_report': content}), 200
+
+    except Exception as e:
+        # 如果发生错误，回滚数据库会话并返回错误信息
+        session.rollback()
+        return jsonify({"error": str(e)}), 500
+    
+#更新单个学生的有关单个课程的答题分析报告
+@studentanswer_bp.route('/updatestudentincourseanswerreport/<int:student_id>/<int:course_id>', methods=['POST'])
+def update_student_in_course_answerreport(student_id, course_id):
+    # 检查用户是否登录
+    if not is_logged_in():
+        return jsonify({'error': '未登录'}), 401
+
+    current_user = get_current_user()
+    if not current_user:
+        return jsonify({'error': '用户不存在'}), 404
+
+    # 检查权限：学生本人或课程的老师
+    if not (current_user.id == student_id or is_teacher_of_course(course_id)):
+        return jsonify({'error': '无权查看此报告'}), 403
+
+    try:
+        # 获取当前的数据库会话
+        session = db.session
+
+        # 检查是否存在报告
+        report = session.query(StudentAnalysisReport).filter_by(student_id=student_id, course_id=course_id).first()
+        if report:
+            # 如果报告存在，更新报告内容
+            answers = get_student_answers_in_course(session=session, student_id=student_id, course_id=course_id)
+            content = generate_study_report(answers)
+            report.report_content = content
+        else:
+            # 如果报告不存在，生成新的报告
+            answers = get_student_answers_in_course(session=session, student_id=student_id, course_id=course_id)
+            content = generate_study_report(answers)
+            report = StudentAnalysisReport(
+                student_id=student_id,
+                course_id=course_id,
+                report_content=content
+            )
+            session.add(report)
+
+        # 提交更改
+        session.commit()
+
+        # 返回 Markdown 内容
+        return jsonify({'markdown_report': content}), 200
+
+    except Exception as e:
+        # 如果发生错误，回滚数据库会话并返回错误信息
+        session.rollback()
+        return jsonify({"error": str(e)}), 500

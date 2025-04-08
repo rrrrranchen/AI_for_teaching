@@ -266,206 +266,127 @@ def _map_file_type(ext):
     }
     return type_map.get(ext.lstrip('.'), 'other')
 
-#查询资源
-@resource_bp.route('/resources', methods=['GET'])
-def list_resources():
-    """分页查询资源"""
-    # 1. 获取查询参数
-    page = int(request.args.get('page', 1))
-    per_page = min(int(request.args.get('per_page', 10)), 100)
-    course_id = request.args.get('course_id')
-    class_id = request.args.get('class_id')
-    resource_type = request.args.get('type')
+@resource_bp.route('/resources/teachingdesignversion/<int:designversion_id>', methods=['GET'])
+def get_resources_by_designversion(designversion_id):
+    # 检查用户是否登录
+    if not is_logged_in():
+        return jsonify({'error': '未登录'}), 401
 
-    # 2. 构建查询条件
-    query = {}
-    if course_id:
-        query['course_id'] = int(course_id)
-    if class_id:
-        query['class_ids'] = int(class_id)
-    if resource_type:
-        query['type'] = resource_type
+    current_user = get_current_user()
+    if not current_user:
+        return jsonify({'error': '用户不存在'}), 404
 
-    print("Query:", query)
-
-    # 3. 执行分页查询
-    total = MultimediaResource.objects(**query).count()  # 总记录数
-    print("Total records:", total)
-    items = MultimediaResource.objects(**query).skip((page - 1) * per_page).limit(per_page)  # 分页数据
-    print("Items:", items)
-
-    # 构造分页结果
-    pagination = {
-        'items': [_format_resource(r) for r in items if _format_resource(r) is not None],
-        'total': total,
-        'pages': (total + per_page - 1) // per_page,  # 总页数
-        'page': page,
-        'per_page': per_page
-    }
-
-    if page > pagination['pages']:
-        pagination['items'] = []
-        print(f"Warning: Requested page {page} exceeds the total number of pages ({pagination['pages']}).")
-
-    print("Pagination:", pagination)
-    return jsonify(pagination)
-
-def _format_resource(resource):
     try:
-        return {
-            'id': str(resource.id),
-            'title': resource.title,
-            'type': resource.type,
-            'preview_url': resource.preview_urls.get('thumbnail'),
-            'course_id': resource.course_id,
-            'uploader_id': resource.uploader_id,
-            'created_at': resource.created_at.isoformat(),
-            'metadata': {
-                'duration': getattr(resource.metadata, 'duration', None),
-                'page_count': getattr(resource.metadata, 'page_count', None),
-                'file_size': getattr(resource.metadata, 'file_size', None)
+        # 查询指定教学设计版本的相关资源
+        resources = MultimediaResource.objects(designversion_id=designversion_id, uploader_id=current_user.id)
+
+        # 构建响应数据
+        resources_data = []
+        for resource in resources:
+            resource_data = {
+                "id": str(resource.id),
+                "title": resource.title,
+                "description": resource.description,
+                "type": resource.type,
+                "storage_path": resource.storage_path,
+                "preview_urls": resource.preview_urls,
+                "metadata": {
+                    "file_size": resource.metadata.file_size,
+                    "format": resource.metadata.format,
+                    "mime_type": resource.metadata.mime_type,
+                    "page_count": resource.metadata.page_count,
+                    "word_count": resource.metadata.word_count,
+                    "author": resource.metadata.author,
+                    "color_mode": resource.metadata.color_mode,
+                    "dpi": resource.metadata.dpi,
+                    "extra": resource.metadata.extra
+                },
+                "created_at": resource.created_at.isoformat() if resource.created_at else None,
+                "updated_at": resource.updated_at.isoformat() if resource.updated_at else None
             }
-        }
-    except Exception as e:
-        print(f"Error formatting resource {resource.id}: {e}")
-        return None
+            resources_data.append(resource_data)
 
-@resource_bp.route('/resources/<resource_id>', methods=['GET'])
-def get_resource(resource_id):
-    """获取资源详情（修正版）"""
-    # 生成唯一请求ID
-    request_id = str(uuid.uuid4())
-    logger.info(f"[{request_id}] 资源详情请求: {resource_id}")
+        return jsonify({"resources": resources_data}), 200
+
+    except Exception as e:
+        current_app.logger.error(f"查询资源失败: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+    
+@resource_bp.route('/resources', methods=['GET'])
+def get_all_resources():
+    # 检查用户是否登录
+    if not is_logged_in():
+        return jsonify({'error': '未登录'}), 401
+
+    current_user = get_current_user()
+    if not current_user:
+        return jsonify({'error': '用户不存在'}), 404
 
     try:
-        # 验证ObjectID格式
-        obj_id = ObjectId(resource_id)
+        # 查询当前用户的所有资源
+        resources = MultimediaResource.objects(uploader_id=current_user.id)
+
+        # 构建响应数据
+        resources_data = []
+        for resource in resources:
+            resource_data = {
+                "id": str(resource.id),
+                "title": resource.title,
+                "description": resource.description,
+                "type": resource.type,
+                "storage_path": resource.storage_path,
+                "preview_urls": resource.preview_urls,
+                "metadata": {
+                    "file_size": resource.metadata.file_size,
+                    "format": resource.metadata.format,
+                    "mime_type": resource.metadata.mime_type,
+                    "page_count": resource.metadata.page_count,
+                    "word_count": resource.metadata.word_count,
+                    "author": resource.metadata.author,
+                    "color_mode": resource.metadata.color_mode,
+                    "dpi": resource.metadata.dpi,
+                    "extra": resource.metadata.extra
+                },
+                "created_at": resource.created_at.isoformat() if resource.created_at else None,
+                "updated_at": resource.updated_at.isoformat() if resource.updated_at else None
+            }
+            resources_data.append(resource_data)
+
+        return jsonify({"resources": resources_data}), 200
+
     except Exception as e:
-        logger.warning(f"[{request_id}] 无效的ObjectID: {resource_id} - {str(e)}")
-        return jsonify({
-            'error': '资源ID格式错误',
-            'valid_example': '507f1f77bcf86cd799439011',
-            'request_id': request_id
-        }), 400
+        current_app.logger.error(f"查询资源失败: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+    
+@resource_bp.route('/resources/<resource_id>', methods=['DELETE'])
+def delete_resource(resource_id):
+    # 检查用户是否登录
+    if not is_logged_in():
+        return jsonify({'error': '未登录'}), 401
+
+    current_user = get_current_user()
+    if not current_user:
+        return jsonify({'error': '用户不存在'}), 404
 
     try:
-        # 修正查询字段：使用 _id 替代 id
-        resource = MultimediaResource.objects.get(_id=obj_id)
-        
-        # 权限验证
-        if not _check_resource_access(resource):
-            logger.info(f"[{request_id}] 访问被拒绝: {resource_id}")
-            return jsonify({
-                'error': '无访问权限',
-                'required_conditions': [
-                    '资源已公开 或',
-                    '您是上传者 或',
-                    '属于关联班级'
-                ],
-                'request_id': request_id
-            }), 403
+        # 查询指定资源
+        resource = MultimediaResource.objects(id=resource_id, uploader_id=current_user.id).first()
+        if not resource:
+            return jsonify({'error': '资源不存在'}), 404
 
-        logger.debug(f"[{request_id}] 资源查询成功: {resource_id}")
-        return jsonify(_format_resource_detail(resource))
+        # 删除资源文件
+        storage_path = os.path.join(project_root, resource.storage_path)
+        if os.path.exists(storage_path):
+            os.remove(storage_path)
 
-    except DoesNotExist:
-        logger.warning(f"[{request_id}] 资源不存在: {resource_id}")
-        return jsonify({
-            'error': '资源不存在',
-            'check_suggestion': [
-                '确认资源ID是否正确',
-                '检查资源是否已被删除'
-            ],
-            'request_id': request_id
-        }), 404
-        
-    except (ValidationError, InvalidKeyError) as e:
-        logger.error(f"[{request_id}] 查询错误: {str(e)}")
-        return jsonify({
-            'error': '查询参数验证失败',
-            'technical_info': '请检查资源ID格式',
-            'request_id': request_id
-        }), 400
-        
+        # 删除资源文档
+        resource.delete()
+
+        return jsonify({"message": "资源删除成功"}), 200
+
     except Exception as e:
-        logger.error(f"[{request_id}] 服务器错误: {str(e)}", exc_info=True)
-        return jsonify({
-            'error': '服务器内部错误',
-            'request_id': request_id
-        }), 500
-
-def _check_resource_access(resource):
-    """增强版权限验证"""
-    user = get_current_user()
-    
-    # 公开资源允许访问
-    if resource.is_public:
-        return True
-    
-    # 未登录用户拒绝访问
-    if not user:
-        return False
-    
-    # 上传者允许访问
-    if hasattr(user, 'id') and user.id == resource.uploader_id:
-        return True
-    
-    # 检查用户是否在关联班级中
-    if (hasattr(user, 'class_ids') and 
-        set(user.class_ids) & set(resource.class_ids)):
-        return True
-    
-    return False
-def _format_resource_detail(resource):
-    """格式化详情输出"""
-    base = _format_resource(resource)
-    base.update({
-        'description': resource.description,
-        'download_url': resource.get_download_url(),
-        'is_public': resource.is_public,
-        'class_ids': resource.class_ids,
-        'metadata': {
-            **base['metadata'],
-            'resolution': resource.metadata.resolution,
-            'author': resource.metadata.author,
-            'format': resource.metadata.format
-        }
-    })
-    return base
-
-
-
-
-
-@resource_bp.route('/resources/<resource_id>/download', methods=['GET'])
-def download_resource(resource_id):
-    """文件下载接口"""
-    try:
-        resource = MultimediaResource.objects.get(id=resource_id)
-        if not _check_resource_access(resource):
-            return jsonify({'error': '无权下载该资源'}), 403
-
-        if resource.storage_service == 'local':
-            # 使用 werkzeug 的 safe_join 确保路径安全
-            file_path = safe_join(
-                UPLOAD_FOLDER, 
-                os.path.basename(resource.storage_path)  # 防止路径遍历
-            )
-            
-            if not os.path.exists(file_path):
-                return jsonify({'error': '文件不存在'}), 404
-                
-            return send_file(
-                file_path,
-                as_attachment=True,
-                mimetype=resource.metadata.mime_type,
-                download_name=secure_filename(resource.title) + f".{resource.metadata.format}"
-            )
-        else:
-            return redirect(resource.get_download_url())
-    except Exception as e:
-        current_app.logger.error(f"下载失败: {str(e)}")
-        return jsonify({'error': '文件下载出错'}), 500
+        current_app.logger.error(f"删除资源失败: {str(e)}")
+        return jsonify({"error": str(e)}), 500
     
 @resource_bp.route('/re')
 def resourcetemplate():
