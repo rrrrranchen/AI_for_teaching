@@ -1,5 +1,6 @@
 import json
 import os
+import uuid
 import markdown
 import pdfkit
 from openai import OpenAI
@@ -61,48 +62,75 @@ def generate_study_report_overall(data):
 
 
 def save_to_markdown(content, filename="答题结果分析报告.md"):
+    """
+    保存内容为 Markdown 文件，并确保文件名具有唯一性
+    :param content: 要保存的内容
+    :param filename: 文件名，默认为 "答题结果分析报告.md"
+    :return: 保存的文件的相对路径
+    """
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     output_folder = os.path.join(project_root, 'static', 'analysis_report')
-
+    
     # 确保目录存在
     os.makedirs(output_folder, exist_ok=True)
-
-    filepath = os.path.join(output_folder, filename)
+    
+    # 生成唯一的文件名
+    unique_filename = f"{uuid.uuid4().hex}_{filename}"
+    filepath = os.path.join(output_folder, unique_filename)
+    
+    # 写入内容到文件
     with open(filepath, "w", encoding="utf-8") as f:
         f.write(content)
+    
+    # 返回以 'static' 开头的相对路径
+    relative_path = os.path.join('static', 'analysis_report', unique_filename)
+    print(f"\n✅ 学情分析报告已保存为 Markdown 文件：{relative_path}")
+    return relative_path
 
-    print(f"\n✅ 学情分析报告已保存为 Markdown 文件：{filepath}")
 
+def save_to_pdf(content, filename="答题结果分析报告.pdf"):
+    # ========= 1. 构建 wkhtmltopdf.exe 路径 =========
+    current_dir = os.path.dirname(__file__)
+    wkhtmltopdf_path = os.path.abspath(
+        os.path.join(current_dir, '..', 'tools', 'wkhtmltopdf', 'bin', 'wkhtmltopdf.exe')
+    )
+    config = pdfkit.configuration(wkhtmltopdf=wkhtmltopdf_path)
 
-# def save_to_pdf(content, filename="答题结果分析报告.pdf"):
-#     # 将 Markdown 转换为 HTML
-#     html_content = markdown.markdown(content)
+    # ========= 2. Markdown -> HTML =========
+    html_content = markdown.markdown(content)
+    html_template = f"""
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            body {{ font-family: "SimSun", serif; line-height: 1.6; margin: 40px; }}
+            h1 {{ text-align: center; color: #2c3e50; }}
+            h2 {{ color: #2c3e50; margin-top: 25px; }}
+            .section {{ margin-bottom: 20px; }}
+        </style>
+    </head>
+    <body>
+        <h1>教案设计</h1>
+        <div class="section">{html_content}</div>
+    </body>
+    </html>
+    """
 
-#     # HTML 模板
-#     html_template = f"""
-#     <html>
-#     <head>
-#         <meta charset="utf-8">
-#         <style>
-#             body {{ font-family: "SimSun", serif; line-height: 1.6; margin: 40px; }}
-#             h1 {{ text-align: center; color: #2c3e50; }}
-#             h2 {{ color: #2c3e50; margin-top: 25px; }}
-#             .section {{ margin-bottom: 20px; }}
-#         </style>
-#     </head>
-#     <body>
-#         <h1>教案设计</h1>
-#         <div class="section">{html_content}</div>
-#     </body>
-#     </html>
-#     """
+    # ========= 3. 构建输出路径 =========
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    output_folder = os.path.join(project_root, 'static', 'analysis_report')
+    os.makedirs(output_folder, exist_ok=True)
 
-#     # 手动指定 wkhtmltopdf 路径
-#     pdfkit_config = pdfkit.configuration(wkhtmltopdf=r"E:\Software\wkhtmltopdf\bin\wkhtmltopdf.exe")
+    unique_filename = f"{uuid.uuid4().hex}_{filename}"
+    filepath = os.path.join(output_folder, unique_filename)
 
-#     # 生成 PDF
-#     pdfkit.from_string(html_template, filename, configuration=pdfkit_config)
-#     print(f"\nPDF 已保存为：{filename}")
+    # ========= 4. 写入 PDF =========
+    pdfkit.from_string(html_template, filepath, configuration=config)
+
+    # ========= 5. 打印并返回相对路径 =========
+    relative_path = os.path.join('static', 'analysis_report', unique_filename)
+    print(f"\n学情分析报告已保存为 PDF 文件：{relative_path}")
+    return relative_path
 
 
 json_data = [
@@ -217,13 +245,3 @@ json_data = [
         "course_name": "操作系统第一章"
     }
 ]
-
-content = generate_study_report(json_data)
-
-# 保存为markdown
-save_to_markdown(content)
-
-
-
-
-

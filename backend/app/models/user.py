@@ -3,7 +3,8 @@ from app.utils.database import db
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 from app.models.relationship import teacher_class, student_class
-
+from app.models.classanalysisreport import ClassAnalysisReport
+from app.models.studentanalysisreport import StudentAnalysisReport
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -36,7 +37,7 @@ class User(db.Model):
 
     # 添加 teaching_designs 属性，表示用户创建的教学设计
     teaching_designs = db.relationship('TeachingDesign', back_populates='creator')
-
+    analysis_reports = db.relationship('StudentAnalysisReport', back_populates='student')
     def set_password(self, password):
         self.password_hash = generate_password_hash(password, method="pbkdf2:sha256")
 
