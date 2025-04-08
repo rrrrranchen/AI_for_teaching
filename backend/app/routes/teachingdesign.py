@@ -153,7 +153,6 @@ async def save_teaching_design_versions_async(new_design, teaching_plans):
             design_id=new_design.id,
             version=f'{i}',
             content=json.dumps({
-                'objectives': plan.get('objectives', ''),
                 'plan_content': plan['content'],
                 'analysis': plan.get('analysis', '')
             }),
