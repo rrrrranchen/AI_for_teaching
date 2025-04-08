@@ -89,7 +89,6 @@ def save_to_markdown(content, filename="答题结果分析报告.md"):
 
 
 def save_to_pdf(content, filename="答题结果分析报告.pdf"):
-<<<<<<< HEAD
     # ========= 1. 构建 wkhtmltopdf.exe 路径 =========
     current_dir = os.path.dirname(__file__)
     wkhtmltopdf_path = os.path.abspath(
@@ -132,36 +131,6 @@ def save_to_pdf(content, filename="答题结果分析报告.pdf"):
     relative_path = os.path.join('static', 'analysis_report', unique_filename)
     print(f"\n学情分析报告已保存为 PDF 文件：{relative_path}")
     return relative_path
-=======
-     # 将 Markdown 转换为 HTML
-     html_content = markdown.markdown(content)
-
-     # HTML 模板
-     html_template = f"""
-     <html>
-     <head>
-         <meta charset="utf-8">
-         <style>
-             body {{ font-family: "SimSun", serif; line-height: 1.6; margin: 40px; }}
-             h1 {{ text-align: center; color: #2c3e50; }}
-             h2 {{ color: #2c3e50; margin-top: 25px; }}
-             .section {{ margin-bottom: 20px; }}
-         </style>
-     </head>
-     <body>
-         <h1>教案设计</h1>
-         <div class="section">{html_content}</div>
-     </body>
-     </html>
-     """
-
-     # 手动指定 wkhtmltopdf 路径
-     pdfkit_config = pdfkit.configuration(wkhtmltopdf=r"E:\Software\wkhtmltopdf\bin\wkhtmltopdf.exe")
-
-     # 生成 PDF
-     pdfkit.from_string(html_template, filename, configuration=pdfkit_config)
-     print(f"\nPDF 已保存为：{filename}")
->>>>>>> 86e9fbdab3de7a9d2ea918f57a768e03b3405f0a
 
 
 json_data = [
