@@ -118,12 +118,13 @@
                       :class="{
                         selected: selectedCourseIds.includes(course.id),
                       }"
+                      @click="handleCourseClick(course.id)"
                     >
                       <div class="course-card-header">
                         <a-checkbox
                           v-if="multiSelecting"
                           :checked="selectedCourseIds.includes(course.id)"
-                          @change="() => toggleCourseSelection(course.id)"
+                          @click.stop="() => toggleCourseSelection(course.id)"
                           class="course-checkbox"
                         />
                         <h3 class="course-title">{{ course.name }}</h3>
@@ -132,13 +133,6 @@
                       <p class="course-description">
                         {{ course.description || "暂无课程描述" }}
                       </p>
-
-                      <div class="course-actions">
-                        <a-button type="text" size="small" class="edit-btn">
-                          <template #icon><edit-outlined /></template>
-                          编辑
-                        </a-button>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -226,7 +220,7 @@
 <script lang="ts">
 import { defineComponent, ref, onMounted, computed } from "vue";
 import { message } from "ant-design-vue";
-import { useRoute } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
 import {
   getCourseclassDetail,
   getStudentsByCourseclass,
@@ -245,7 +239,6 @@ import {
   SelectOutlined,
   CalendarOutlined,
   BookOutlined,
-  EditOutlined,
   DeleteOutlined,
 } from "@ant-design/icons-vue";
 
@@ -258,7 +251,6 @@ export default defineComponent({
     SelectOutlined,
     CalendarOutlined,
     BookOutlined,
-    EditOutlined,
     DeleteOutlined,
   },
   setup() {
@@ -279,6 +271,17 @@ export default defineComponent({
     const createVisible = ref(false);
     const creating = ref(false);
     const newCourse = ref({ name: "", description: "" });
+    const router = useRouter();
+
+    const handleCourseClick = (courseId: number) => {
+      router.push({
+        path: `/home/t-course/${courseId}`,
+        query: {
+          courseclassName: courseclassDetail.value?.name || "未知班级",
+          courseclassId: courseclassId.value,
+        },
+      });
+    };
 
     const filteredCourses = computed(() => {
       return courses.value.filter((c) =>
@@ -447,6 +450,7 @@ export default defineComponent({
       }
     };
     return {
+      handleCourseClick,
       courseclassId,
       courseclassDetail,
       courses,
@@ -665,75 +669,41 @@ export default defineComponent({
   border-radius: 8px;
 }
 
+/* 调整课程列表布局 */
 .course-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
-  margin-top: 16px;
+  grid-template-columns: 1fr;
+  gap: 8px;
 }
 
 .course-card {
-  background: #fff;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background-color: #ffffff;
   border-radius: 8px;
-  padding: 16px;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
-  border: 1px solid #f0f0f0;
-  transition: all 0.3s;
-  position: relative;
+  margin: 20px;
 }
 
 .course-card:hover {
-  box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.08);
   transform: translateY(-2px);
-  border-color: #d9d9d9;
-}
-
-.course-card.selected {
-  border-color: #1890ff;
-  background-color: #f0f8ff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .course-card-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.course-checkbox {
-  margin-right: 8px;
-}
-
-.course-title {
-  font-size: 16px;
-  font-weight: 500;
-  color: rgba(0, 0, 0, 0.85);
-  margin: 0;
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  margin-bottom: 8px;
 }
 
 .course-description {
-  color: rgba(0, 0, 0, 0.65);
   font-size: 14px;
-  line-height: 1.5;
-  margin-bottom: 16px;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  min-height: 42px;
+  line-height: 1.4;
+  margin-bottom: 12px;
+  -webkit-line-clamp: 2; /* 限制描述显示两行 */
 }
 
+/* 调整操作按钮位置 */
 .course-actions {
-  display: flex;
-  justify-content: flex-end;
-  border-top: 1px dashed #f0f0f0;
-  padding-top: 12px;
-}
-
-.edit-btn {
-  color: #1890ff;
+  padding-top: 8px;
+  border-top: 1px solid #f0f0f0;
 }
 
 /* 学生列表样式 */
@@ -843,5 +813,62 @@ export default defineComponent({
   .student-cell[style*="flex: 1"]::before {
     content: none;
   }
+}
+
+/* 课程列表容器 - 单列布局 */
+.course-list-container {
+  margin-top: 16px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+/* 课程卡片 - 单列布局 */
+.course-card {
+  padding: 16px;
+  margin-bottom: 12px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.course-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.course-card.selected {
+  background-color: #f0f9ff;
+  border-left: 3px solid #1890ff;
+}
+
+/* 学生列表容器 - 单列布局 */
+.student-list-container {
+  margin-top: 16px;
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+/* 学生表格 - 单列布局 */
+.student-table {
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  border: 1px solid #f0f0f0;
+}
+
+.student-table-row {
+  display: flex;
+  padding: 12px 16px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.student-table-row:last-child {
+  border-bottom: none;
 }
 </style>

@@ -153,7 +153,6 @@ async def save_teaching_design_versions_async(new_design, teaching_plans):
             design_id=new_design.id,
             version=f'{i}',
             content=json.dumps({
-                'objectives': plan.get('objectives', ''),
                 'plan_content': plan['content'],
                 'analysis': plan.get('analysis', '')
             }),
@@ -285,11 +284,11 @@ def get_design_versions(design_id):
         return jsonify(code=500, message="服务器内部错误"), 500
 
 
-#查询所属当前用户的所有教学设计版本，返回的数据包括教学设计id与所有教学设计版本
+#查询所属当前用户的所有教学设计
 @teachingdesign_bp.route('/mydesigns', methods=['GET'])
 def get_my_designs():
     """
-    查询当前登录教师的所有教学设计及其版本
+    查询当前登录教师的所有教学设计及其生成时间与更新时间
     """
     try:
         # 1. 验证用户是否登录且为教师
@@ -307,22 +306,9 @@ def get_my_designs():
                 "design_id": design.id,
                 "title": design.title,
                 "course_id": design.course_id,
-                "current_version_id": design.current_version_id,
-                "versions": []
+                "created_at": design.created_at.isoformat() if design.created_at else None,
+                "updated_at": design.updated_at.isoformat() if design.updated_at else None
             }
-
-            # 查询每个教学设计的所有版本
-            versions = TeachingDesignVersion.query.filter_by(design_id=design.id).all()
-            for version in versions:
-                version_data = {
-                    "id": version.id,
-                    "version": version.version,
-                    "recommendation_score": version.recommendation_score,
-                    "created_at": version.created_at.isoformat() if version.created_at else None,
-                    "updated_at": version.updated_at.isoformat() if version.updated_at else None
-                }
-                design_data["versions"].append(version_data)
-
             designs_data.append(design_data)
 
         return jsonify(code=200, message="查询成功", data=designs_data), 200
@@ -359,9 +345,6 @@ def get_teaching_design_version(version_id):
         except json.JSONDecodeError:
             # 如果 content 不是有效的 JSON 格式，则返回原始内容
             content = {"error": "内容格式错误", "raw_content": version.content}
-
-        # 提取 objectives、plan_content 和 analysis
-        objectives = content.get("objectives", "未设置教学目标")
         plan_content = content.get("plan_content", "未设置教学设计内容")
         analysis = content.get("analysis", "未设置教学分析")
 
@@ -369,7 +352,6 @@ def get_teaching_design_version(version_id):
             "id": version.id,
             "design_id": version.design_id,
             "version": version.version,
-            "objectives": objectives,
             "plan_content": plan_content,
             "analysis": analysis,
             "recommendation_score": version.recommendation_score,
@@ -505,8 +487,24 @@ def update_teaching_design_version(design_id, version_id):
         if not data:
             return jsonify(code=400, message="缺少必要参数"), 400
 
-        if 'content' in data:
-            version.content = json.dumps(data['content'])
+        # 尝试解析当前版本的 content 为 JSON
+        try:
+            current_content = json.loads(version.content) if version.content else {}
+        except json.JSONDecodeError:
+            current_content = {}
+
+        # 如果传入了 plan_content 数据，更新其中的 plan_content 部分
+        if 'plan_content' in data:
+            current_content['plan_content'] = data['plan_content']
+
+        # 如果传入了 analysis 数据，更新其中的 analysis 部分
+        if 'analysis' in data:
+            current_content['analysis'] = data['analysis']
+
+        # 将更新后的 content 重新序列化为 JSON
+        version.content = json.dumps(current_content)
+
+        # 如果传入了其他字段，直接更新
         if 'recommendation_score' in data:
             version.recommendation_score = data['recommendation_score']
         if 'level' in data:
@@ -514,7 +512,14 @@ def update_teaching_design_version(design_id, version_id):
 
         db.session.commit()
 
-        return jsonify(code=200, message="更新成功", data={"version_id": version.id, "content": version.content, "recommendation_score": version.recommendation_score, "level": version.level}), 200
+        # 返回更新后的版本信息
+        return jsonify(code=200, message="更新成功", data={
+            "version_id": version.id,
+            "plan_content": current_content.get("plan_content", "未设置教学设计内容"),
+            "analysis": current_content.get("analysis", "未设置教学分析"),
+            "recommendation_score": version.recommendation_score,
+            "level": version.level
+        }), 200
 
     except Exception as e:
         db.session.rollback()
