@@ -218,15 +218,45 @@ def get_content(shape, content):
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PPTTEMPLATE_FOLDER = os.path.join(project_root, 'static', 'template')
 PPT_FOLDER=os.path.join(project_root,'static','uploads','ppts')
-filename='template.pptx'
-templatepath=os.path.join(PPTTEMPLATE_FOLDER, filename)
+filename = 'template1.pptx'
+templatepath = os.path.join(PPTTEMPLATE_FOLDER, filename)
 structure = {
-'template.pptx': [
-    [3, 3],
-    [3, 3, 3],
-    [3, 4, 3],
-    [3, 3, 3, 3],
-    [3, 3, 3]
+    'template1.pptx': [
+        [3, 3],
+        [3, 3, 3],
+        [3, 4, 3],
+        [3, 3, 3, 3],
+        [3, 3, 3]
+    ],
+    'template2.pptx': [
+        [3],
+        [3],
+        [3, 3],
+        [3, 3, 3]
+    ],
+    'template3.pptx': [
+        [3, 4],
+        [4],
+        [4, 3],
+        [4]
+    ],
+    'template4.pptx': [
+        [5, 4, 4, 4],
+        [4, 5, 3],
+        [4, 4, 4, 6],
+        [3, 4, 3, 3]
+    ],
+    'template5.pptx': [
+        [3, 4, 4, 5],
+        [4, 5, 4, 4],
+        [3, 5, 4],
+        [3, 6, 3]
+    ],
+    'template6.pptx': [
+        [5, 4, 4, 4],
+        [4, 3, 3],
+        [3, 4],
+        [4, 4, 4, 4]
     ]
 }
 def generate_PPT(subject, chapter, teaching_plan=None, teacher_name='AI', time=None, title=None, subtitle=None,
