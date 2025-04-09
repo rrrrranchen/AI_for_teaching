@@ -24,7 +24,8 @@
     "src/**/*.vue",
     "tests/**/*.ts",
     "tests/**/*.tsx",
-    "src/**/*.d.ts"
+    "src/**/*.d.ts",
+    "frontend/src/types/vue3-markdown-it.d.ts"
   ],
   "exclude": ["node_modules"]
 }

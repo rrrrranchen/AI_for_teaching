@@ -87,7 +87,22 @@
           margin: '0 16px 16px 8px',
         }"
       >
-        <div class="g-card"><router-view /></div>
+        <div class="g-card">
+          <router-view v-slot="{ Component }">
+            <keep-alive :include="['t-class', 's-class', 'CourseClassDetail']">
+              <component
+                :is="Component"
+                v-if="$route.meta.keepAlive"
+                :key="$route.fullPath"
+              />
+            </keep-alive>
+            <component
+              :is="Component"
+              v-if="!$route.meta.keepAlive"
+              :key="$route.fullPath"
+            />
+          </router-view>
+        </div>
       </a-layout-content>
     </a-layout>
   </a-layout>

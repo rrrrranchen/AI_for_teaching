@@ -7,6 +7,7 @@ class TeachingDesign(db.Model):
     course_id = db.Column(db.Integer, db.ForeignKey('course.id'), nullable=False)
     creator_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # 添加外键关联用户ID
     title = db.Column(db.String(200), nullable=False)
+    input = db.Column(db.Text, nullable=False)
     current_version_id = db.Column(db.Integer)  # 当前生效版本ID
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)

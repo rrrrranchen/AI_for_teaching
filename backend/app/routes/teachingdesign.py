@@ -171,6 +171,7 @@ async def set_current_version_async(new_design, versions):
     await asyncio.to_thread(db.session.commit)
 
 # 异步创建教学设计
+# 异步创建教学设计
 @teachingdesign_bp.route('/createteachingdesign', methods=['POST'])
 async def create_teaching_design():
     try:
@@ -196,7 +197,8 @@ async def create_teaching_design():
         new_design = TeachingDesign(
             course_id=data['course_id'],
             creator_id=current_user.id,
-            title=data.get('title', '未命名设计')
+            title=data.get('title', '未命名设计'),
+            input=data.get('course_content', '')  # 将 course_content 记录到 input 字段
         )
         db.session.add(new_design)
         db.session.flush()
@@ -213,11 +215,11 @@ async def create_teaching_design():
             "data": {
                 "design_id": new_design.id,
                 "feedback_used": student_feedback[:200] + "..." if len(student_feedback) > 200 else student_feedback,
-                "versions": [{
+                "versions": [ {
                     "id": v.id,
                     "level": v.level,
                     "recommendation": v.recommendation_score
-                } for v in versions]
+                } for v in versions ]
             }
         })
 
@@ -367,11 +369,11 @@ def get_teaching_design_version(version_id):
         logger.error(f"查询教学设计版本失败: {str(e)}")
         return jsonify(code=500, message="服务器内部错误"), 500
 
-#查询单个课程的所有教学设计及其版本ID
+#查询单个课程的所有教学设计
 @teachingdesign_bp.route('/course/<int:course_id>/designs', methods=['GET'])
 def get_course_designs(course_id):
     """
-    查询单个课程的所有教学设计及其版本ID
+    查询单个课程的所有教学设计
     """
     try:
         # 1. 基础验证
@@ -394,20 +396,8 @@ def get_course_designs(course_id):
                 "design_id": design.id,
                 "title": design.title,
                 "creator_id": design.creator_id,
-                "current_version_id": design.current_version_id,
-                "versions": []
+                "created_at": design.created_at.isoformat() if design.created_at else None
             }
-
-            # 查询每个教学设计的所有版本ID
-            versions = TeachingDesignVersion.query.filter_by(design_id=design.id).all()
-            for version in versions:
-                version_data = {
-                    "version_id": version.id,
-                    "version": version.version,
-                    "recommendation_score": version.recommendation_score
-                }
-                design_data["versions"].append(version_data)
-
             designs_data.append(design_data)
 
         return jsonify(code=200, message="查询成功", data=designs_data), 200
@@ -442,14 +432,15 @@ def update_teaching_design(design_id):
         if not data:
             return jsonify(code=400, message="缺少必要参数"), 400
 
+        # 只允许修改 title 和 current_version_id
         if 'title' in data:
             design.title = data['title']
-        if 'course_id' in data:
-            design.course_id = data['course_id']
+        if 'default_version_id' in data:
+            design.current_version_id = data['default_version_id']
 
         db.session.commit()
 
-        return jsonify(code=200, message="更新成功", data={"design_id": design.id, "title": design.title, "course_id": design.course_id}), 200
+        return jsonify(code=200, message="更新成功", data={"design_id": design.id, "title": design.title, "default_version_id": design.current_version_id}), 200
 
     except Exception as e:
         db.session.rollback()
@@ -457,7 +448,6 @@ def update_teaching_design(design_id):
         return jsonify(code=500, message="服务器内部错误"), 500
 
 #修改单个教学设计版本的基本信息
-
 @teachingdesign_bp.route('/design/<int:design_id>/version/<int:version_id>', methods=['PUT'])
 def update_teaching_design_version(design_id, version_id):
     """
@@ -526,6 +516,44 @@ def update_teaching_design_version(design_id, version_id):
         logger.error(f"更新教学设计版本失败: {str(e)}")
         return jsonify(code=500, message="服务器内部错误"), 500
 
+
+@teachingdesign_bp.route('/design/<int:design_id>', methods=['GET'])
+def get_teaching_design(design_id):
+    """
+    查询单个教学设计的详细信息
+    """
+    try:
+        # 1. 基础验证
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify(code=401, message="请先登录"), 401
+
+        # 2. 查询教学设计
+        design = TeachingDesign.query.get(design_id)
+        if not design:
+            return jsonify(code=404, message="教学设计不存在"), 404
+
+        # 3. 权限验证（教师只能查询自己创建的教学设计，管理员可以查询所有）
+        if current_user.role == 'teacher' and design.creator_id != current_user.id:
+            return jsonify(code=403, message="无操作权限"), 403
+
+        # 4. 构造返回数据
+        design_data = {
+            "design_id": design.id,
+            "title": design.title,
+            "course_id": design.course_id,
+            "creator_id": design.creator_id,
+            "default_version_id": design.current_version_id,
+            "created_at": design.created_at.isoformat() if design.created_at else None,
+            "updated_at": design.updated_at.isoformat() if design.updated_at else None
+        }
+
+        return jsonify(code=200, message="查询成功", data=design_data), 200
+
+    except Exception as e:
+        logger.error(f"查询教学设计失败: {str(e)}")
+        return jsonify(code=500, message="服务器内部错误"), 500
+    
 
 #将一个课程中的教学设计及其所有版本迁移到另一个课程
 @teachingdesign_bp.route('/course/<int:source_course_id>/migrate/<int:target_course_id>', methods=['POST'])
