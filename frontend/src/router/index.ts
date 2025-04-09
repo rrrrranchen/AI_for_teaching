@@ -55,6 +55,7 @@ const routes: Array<RouteRecordRaw> = [
         component: () => import("../views/CourseClassDetail.vue"),
         meta: {
           menuKey: 2, // 保持在同一菜单项下
+          keepAlive: true, // 添加缓存标识
         },
       },
       {
@@ -71,18 +72,24 @@ const routes: Array<RouteRecordRaw> = [
         path: "t-course/:courseId",
         name: "t-course",
         component: () => import("../views/TeacherCourseDetail.vue"),
-        meta: { menuKey: 2 },
+        meta: { menuKey: 2, keepAlive: true },
       },
       {
         path: "s-course/:courseId",
         name: "s-course",
         component: () => import("../views/StudentCourseDetail.vue"),
-        meta: { menuKey: 2 },
+        meta: { menuKey: 2, keepAlive: true },
       },
       {
         path: "smart-preparation",
         name: "smart-preparation",
         component: SmartPreparationView,
+        meta: { menuKey: 3 },
+      },
+      {
+        path: "teaching-design/:designId",
+        name: "teaching-design",
+        component: () => import("../views/TeachingDesignEdit.vue"),
         meta: { menuKey: 3 },
       },
       {
