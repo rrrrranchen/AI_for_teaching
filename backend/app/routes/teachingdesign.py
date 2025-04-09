@@ -171,6 +171,7 @@ async def set_current_version_async(new_design, versions):
     await asyncio.to_thread(db.session.commit)
 
 # 异步创建教学设计
+# 异步创建教学设计
 @teachingdesign_bp.route('/createteachingdesign', methods=['POST'])
 async def create_teaching_design():
     try:
@@ -196,7 +197,8 @@ async def create_teaching_design():
         new_design = TeachingDesign(
             course_id=data['course_id'],
             creator_id=current_user.id,
-            title=data.get('title', '未命名设计')
+            title=data.get('title', '未命名设计'),
+            input=data.get('course_content', '')  # 将 course_content 记录到 input 字段
         )
         db.session.add(new_design)
         db.session.flush()
@@ -213,11 +215,11 @@ async def create_teaching_design():
             "data": {
                 "design_id": new_design.id,
                 "feedback_used": student_feedback[:200] + "..." if len(student_feedback) > 200 else student_feedback,
-                "versions": [{
+                "versions": [ {
                     "id": v.id,
                     "level": v.level,
                     "recommendation": v.recommendation_score
-                } for v in versions]
+                } for v in versions ]
             }
         })
 
