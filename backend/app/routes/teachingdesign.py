@@ -369,11 +369,11 @@ def get_teaching_design_version(version_id):
         logger.error(f"查询教学设计版本失败: {str(e)}")
         return jsonify(code=500, message="服务器内部错误"), 500
 
-#查询单个课程的所有教学设计及其版本ID
+#查询单个课程的所有教学设计
 @teachingdesign_bp.route('/course/<int:course_id>/designs', methods=['GET'])
 def get_course_designs(course_id):
     """
-    查询单个课程的所有教学设计及其版本ID
+    查询单个课程的所有教学设计
     """
     try:
         # 1. 基础验证
@@ -396,20 +396,8 @@ def get_course_designs(course_id):
                 "design_id": design.id,
                 "title": design.title,
                 "creator_id": design.creator_id,
-                "created_at": design.created_at.isoformat() if design.created_at else None,
-                "updated_at": design.updated_at.isoformat() if design.updated_at else None
+                "created_at": design.created_at.isoformat() if design.created_at else None
             }
-
-            # 查询每个教学设计的所有版本ID
-            versions = TeachingDesignVersion.query.filter_by(design_id=design.id).all()
-            for version in versions:
-                version_data = {
-                    "version_id": version.id,
-                    "version": version.version,
-                    "recommendation_score": version.recommendation_score
-                }
-                design_data["versions"].append(version_data)
-
             designs_data.append(design_data)
 
         return jsonify(code=200, message="查询成功", data=designs_data), 200
