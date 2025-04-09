@@ -81,8 +81,19 @@
       </a-table>
     </a-card>
 
-    <a-card :title="`教学设计`" style="margin-bottom: 20px"></a-card>
+    <!-- 教学设计列表 -->
+    <a-card :title="`教学设计`" style="margin-bottom: 20px">
+      <div class="teaching-design-cards" v-if="teachingDesigns.length > 0">
+        <TeachingDesignItem
+          v-for="design in teachingDesigns"
+          :key="design.design_id"
+          :design="design"
+          class="teaching-design-item"
+        />
+      </div>
+    </a-card>
 
+    <!-- 课后练习题目 -->
     <a-card
       :title="`课后练习题目 (${postQuestions.length})`"
       style="margin-bottom: 20px"
@@ -194,10 +205,18 @@ import {
   type QuestionType,
   type QuestionDifficulty,
 } from "@/api/questions";
+import { getCourseDesigns, type TeachingDesign } from "@/api/teachingdesign";
+import TeachingDesignItem from "@/components/TeachingDesignItem.vue";
 
 export default defineComponent({
   name: "TeacherCourseDetail",
-  components: { DeleteOutlined, EditOutlined, UpOutlined, DownOutlined },
+  components: {
+    DeleteOutlined,
+    EditOutlined,
+    UpOutlined,
+    DownOutlined,
+    TeachingDesignItem,
+  },
   setup() {
     const route = useRoute();
     const courseclassName = ref<string>("");
@@ -205,10 +224,14 @@ export default defineComponent({
     const courseId = ref<number>(0);
     const loading = ref(false);
     const preQuestions = ref<Question[]>([]);
-    const currentQuestion = ref<Question | null>(null);
     const postQuestions = ref<Question[]>([]);
+    const teachingDesigns = ref<TeachingDesign[]>([]);
+    const currentQuestion = ref<Question | null>(null);
+    const isCollapsed = ref(false);
     const isCollapsedPost = ref(true);
-
+    const toggleCollapse = () => {
+      isCollapsed.value = !isCollapsed.value;
+    };
     // 新增折叠方法
     const toggleCollapsePost = () => {
       isCollapsedPost.value = !isCollapsedPost.value;
@@ -228,9 +251,17 @@ export default defineComponent({
       }
     };
 
-    const isCollapsed = ref(false);
-    const toggleCollapse = () => {
-      isCollapsed.value = !isCollapsed.value;
+    // 获取教学设计列表
+    const fetchTeachingDesigns = async () => {
+      try {
+        loading.value = true;
+        teachingDesigns.value = await getCourseDesigns(courseId.value);
+      } catch (error) {
+        message.error("获取教学设计失败");
+        console.error("获取教学设计错误:", error);
+      } finally {
+        loading.value = false;
+      }
     };
 
     // 模态框状态
@@ -284,7 +315,11 @@ export default defineComponent({
         courseclassId.value = Number(route.query.courseclassId);
         courseclassName.value = route.query.courseclassName as string;
         console.log("课程班信息：", courseclassId.value, courseclassName.value);
-        await Promise.all([fetchPreQuestions(), fetchPostQuestions()]); // 并行请求
+        await Promise.all([
+          fetchPreQuestions(),
+          fetchPostQuestions(),
+          fetchTeachingDesigns(),
+        ]);
       } catch (err) {
         message.error("初始化失败");
         console.error("初始化错误:", err);
@@ -296,10 +331,7 @@ export default defineComponent({
       try {
         loading.value = true;
         const response = await questionApi.getPreQuestions(courseId.value);
-        console.log("获取到的题目数据:", response); // 添加这行
-
         preQuestions.value = response;
-        console.log("赋值后的preQuestions:", preQuestions.value); // 3. 检查赋值结果
       } catch (error) {
         message.error("获取题目列表失败");
         console.error("获取题目列表错误:", error);
@@ -413,6 +445,7 @@ export default defineComponent({
         };
       }
     };
+
     return {
       courseclassId,
       courseclassName,
@@ -420,6 +453,7 @@ export default defineComponent({
       loading,
       preQuestions,
       postQuestions,
+      teachingDesigns,
       currentQuestion,
       questionColumns,
       addModalVisible,
@@ -444,9 +478,8 @@ export default defineComponent({
 </script>
 
 <style scoped>
-/* 外层滚动容器样式 */
 .course-container {
-  height: 100vh; /* 根据实际布局调整 */
+  height: 100vh;
   overflow-y: auto;
   padding: 20px;
   display: flex;
@@ -459,17 +492,23 @@ export default defineComponent({
   border-bottom: 1px solid #f0f0f0;
 }
 
-/* 卡片包裹层 */
-.card-wrapper {
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s;
+/* 教学设计卡片样式 */
+.teaching-design-cards {
+  display: flex;
+  overflow-x: auto;
+  gap: 16px;
+  padding: 10px 0;
 }
 
-/* 卡片样式 */
-.course-card {
-  border-radius: 8px;
+.teaching-design-item {
+  flex: 0 0 auto;
+  width: 280px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  color: #999;
 }
 
 /* 滚动条美化 */
@@ -506,14 +545,5 @@ export default defineComponent({
   position: absolute;
   left: 0;
   color: #666;
-}
-/* 优化折叠按钮样式 */
-:deep(.ant-card-head-title) {
-  font-weight: 500;
-  font-size: 16px;
-}
-
-:deep(.ant-card-extra) {
-  padding: 12px 0;
 }
 </style>

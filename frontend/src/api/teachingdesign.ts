@@ -3,7 +3,7 @@ import type { AxiosResponse } from "axios";
 
 // 教学设计基础类型
 export interface TeachingDesign {
-  id: number;
+  design_id: number;
   title: string;
   course_id: number;
   creator_id: number;
@@ -16,12 +16,8 @@ export interface TeachingDesignVersion {
   id: number;
   design_id: number;
   version: string;
-  content: {
-    objectives?: string;
-    plan_content?: string;
-    analysis?: string;
-    [key: string]: any;
-  };
+  plan_content?: string;
+  analysis?: string;
   recommendation_score: number;
   level: string;
   created_at: string;
@@ -42,9 +38,10 @@ interface UpdateTeachingDesignParams {
   course_id?: number;
 }
 
-// 更新版本参数
+// 更新版本参数（根据后端接口调整）
 interface UpdateVersionParams {
-  content?: Record<string, any>;
+  plan_content?: string; // 改为顶层字段
+  analysis?: string; // 改为顶层字段
   recommendation_score?: number;
   level?: string;
 }
@@ -113,6 +110,7 @@ export const updateDesignVersion = async (
   versionId: number,
   params: UpdateVersionParams
 ): Promise<TeachingDesignVersion> => {
+  // 请求体直接使用顶层参数
   const response: AxiosResponse = await api.put(
     `/design/${designId}/version/${versionId}`,
     params
