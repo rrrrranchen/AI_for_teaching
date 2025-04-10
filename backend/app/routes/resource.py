@@ -109,7 +109,7 @@ def async_generate_ppt(app, course_id, teachingdesignversion_id, ppttemplate_id,
                 previews = generate_preview(final_storage_path1, unique_filename)
             except Exception as e:
                 current_app.logger.error(f"预览图生成失败: {str(e)}")
-                previews = {"thumbnail": "/static/default_preview.jpg"}
+                previews = {"thumbnail": "static/default_preview.jpg"}
 
             # 创建资源文档
             resource = MultimediaResource(
@@ -286,6 +286,8 @@ def get_resources_by_designversion(designversion_id):
             resource_data = {
                 "id": str(resource.id),
                 "title": resource.title,
+                "designversion_id":resource.designversion_id,
+                "description": resource.description,
                 "description": resource.description,
                 "type": resource.type,
                 "storage_path": resource.storage_path,
@@ -332,6 +334,8 @@ def get_all_resources():
             resource_data = {
                 "id": str(resource.id),
                 "title": resource.title,
+                "course_id":resource.course_id,
+                "designversion_id":resource.designversion_id,
                 "description": resource.description,
                 "type": resource.type,
                 "storage_path": resource.storage_path,
@@ -387,7 +391,88 @@ def delete_resource(resource_id):
     except Exception as e:
         current_app.logger.error(f"删除资源失败: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+
+@resource_bp.route('/resources/course/<int:course_id>', methods=['GET'])
+def get_resources_by_course(course_id):
+    try:
+        # 查询指定课程的所有资源
+        resources = MultimediaResource.objects(course_id=course_id)
+
+        # 构建响应数据
+        resources_data = []
+        for resource in resources:
+            resource_data = {
+                "id": str(resource.id),
+                "title": resource.title,
+                "course_id":resource.course_id,
+                "designversion_id":resource.designversion_id,
+                "description": resource.description,
+                "type": resource.type,
+                "storage_path": resource.storage_path,
+                "preview_urls": resource.preview_urls,
+                "metadata": {
+                    "file_size": resource.metadata.file_size,
+                    "format": resource.metadata.format,
+                    "mime_type": resource.metadata.mime_type,
+                    "page_count": resource.metadata.page_count,
+                    "word_count": resource.metadata.word_count,
+                    "author": resource.metadata.author,
+                    "color_mode": resource.metadata.color_mode,
+                    "dpi": resource.metadata.dpi,
+                    "extra": resource.metadata.extra
+                },
+                "created_at": resource.created_at.isoformat() if resource.created_at else None,
+                "updated_at": resource.updated_at.isoformat() if resource.updated_at else None
+            }
+            resources_data.append(resource_data)
+
+        return jsonify({"resources": resources_data}), 200
+
+    except Exception as e:
+        current_app.logger.error(f"查询课程资源失败: {str(e)}")
+        return jsonify({"error": str(e)}), 500
     
+@resource_bp.route('/resources/<resource_id>', methods=['GET'])
+def get_resource_by_id(resource_id):
+    try:
+        # 查询指定资源
+        resource = MultimediaResource.objects(id=resource_id).first()
+        if not resource:
+            return jsonify({'error': '资源不存在'}), 404
+
+        # 构建响应数据
+        resource_data = {
+            "id": str(resource.id),
+            "title": resource.title,
+            "course_id":resource.course_id,
+            "designversion_id":resource.designversion_id,
+            "description": resource.description,
+            "type": resource.type,
+            "storage_path": resource.storage_path,
+            "preview_urls": resource.preview_urls,
+            "metadata": {
+                "file_size": resource.metadata.file_size,
+                "format": resource.metadata.format,
+                "mime_type": resource.metadata.mime_type,
+                "page_count": resource.metadata.page_count,
+                "word_count": resource.metadata.word_count,
+                "author": resource.metadata.author,
+                "color_mode": resource.metadata.color_mode,
+                "dpi": resource.metadata.dpi,
+                "extra": resource.metadata.extra
+            },
+            "created_at": resource.created_at.isoformat() if resource.created_at else None,
+            "updated_at": resource.updated_at.isoformat() if resource.updated_at else None
+        }
+
+        return jsonify({"resource": resource_data}), 200
+
+    except Exception as e:
+        current_app.logger.error(f"查询单个资源失败: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+    
+
 @resource_bp.route('/re')
 def resourcetemplate():
     return render_template('resource.html')
