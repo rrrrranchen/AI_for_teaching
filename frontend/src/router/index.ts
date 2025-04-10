@@ -59,6 +59,15 @@ const routes: Array<RouteRecordRaw> = [
         },
       },
       {
+        path: "s-courseclass/:id",
+        name: "StuCourseClassDetail",
+        component: () => import("../views/StuCourseClassDetail.vue"),
+        meta: {
+          menuKey: 2, // 保持在同一菜单项下
+          keepAlive: true, // 添加缓存标识
+        },
+      },
+      {
         path: "course/:courseId",
         name: "CourseDetail",
         redirect: () => {

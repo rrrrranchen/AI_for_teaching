@@ -61,7 +61,7 @@
                 <div class="flex justify-between items-center flex-wrap gap-2">
                   <router-link
                     :to="{
-                      path: `/home/courseclass/${item.id}`,
+                      path: `/home/s-courseclass/${item.id}`,
                       query: { className: item.name },
                     }"
                     class="text-base font-semibold hover:text-blue-600 transition-colors"
@@ -76,9 +76,25 @@
                 </div>
               </template>
 
-              <a-card-meta :description="item.description || '暂无描述'">
+              <a-card-meta
+                v-if="item.teachers && item.teachers.length > 0"
+                :description="item.teachers[0].username || '暂无描述'"
+              >
                 <template #avatar>
-                  <user-outlined class="text-lg bg-blue-100 p-2 rounded-full" />
+                  <!-- 如果有老师信息，展示第一个老师的头像 -->
+                  <a-avatar
+                    v-if="item.teachers && item.teachers.length > 0"
+                    :src="
+                      'http://localhost:5000/' + item.teachers[0].avatar ||
+                      '/default-avatar.png'
+                    "
+                    class="text-lg bg-blue-100 p-2 rounded-full"
+                  />
+                  <!-- 如果没有老师信息，展示默认头像 -->
+                  <user-outlined
+                    v-else
+                    class="text-lg bg-blue-100 p-2 rounded-full"
+                  />
                 </template>
               </a-card-meta>
             </a-card>
@@ -201,7 +217,7 @@ export default defineComponent({
   },
 });
 </script>
-<style>
+<style scoped>
 .student-class {
   margin: 0 auto;
   min-height: 100vh;
@@ -250,7 +266,7 @@ export default defineComponent({
 
 /* 响应式调整 */
 @media (max-width: 768px) {
-  .teacher-class {
+  .student-class {
     padding: 1.5rem !important;
   }
 

@@ -23,12 +23,14 @@ export interface Courseclass {
 export interface Teacher {
   id: number;
   username: string;
+  avatar?: string;
 }
 
 // 学生类型
 export interface Student {
   id: number;
   username: string;
+  avatar?: string;
 }
 
 // 获取课程班学生列表的返回类型
