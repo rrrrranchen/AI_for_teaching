@@ -85,11 +85,13 @@
                 </div>
               </template>
 
-              <a-card-meta :description="item.description || '暂无描述'">
+              <a-card-meta
+                v-if="item.teachers && item.teachers.length > 0"
+                :description="item.teachers[0].username || '暂无描述'"
+              >
                 <template #avatar>
                   <a-avatar
                     v-if="authStore.user?.avatar"
-                    size="small"
                     :src="'http://localhost:5000/' + authStore.user?.avatar"
                     class="nav-avatar"
                   >
