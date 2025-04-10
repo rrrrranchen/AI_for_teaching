@@ -6,27 +6,20 @@ key = 'sk-b7550aa67ed840ffacb5ca051733802c'
 client = OpenAI(api_key=key, base_url="https://api.deepseek.com")
 
 
-# 通用的 JSON 清洗函数
-def clean_json_response(text):
-    # 去掉 markdown 代码块包裹符（如果模型输出中仍包含）
-    return text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-
-
 # 根据预备知识检测答题推荐预习资源
 def generate_pre_resources_to_students(content):
-    try:
         response = client.chat.completions.create(
             model="deepseek-chat",
             messages=[
                 {
                     "role": "system",
                     "content": """你是教学设计专家，请根据学生的预备知识检测答题分析报告推荐至少三类预习性学习资源。
-                    请返回一个合法的 JSON 数组，每个资源包含如下字段：
-                    - content（字符串）：资源标题
-                    - description（字符串）：简要描述该资源适用场景与学习方式
-                    - url（字符串）：相关的推荐链接（链接要真实可访问）
-                    请严格返回 JSON 格式（不要添加注释、解释或多余内容）。
-                    返回时不要添加 Markdown 的代码块标记（例如 ```json 或 ```），只输出纯 JSON。"""
+                    请以 Markdown 格式返回，每个资源包含如下字段：
+                    - 资源推荐（字符串）：资源标题
+                    - 资源简介（字符串）：简要描述该资源适用场景与学习方式
+                    - 相关链接（字符串）：相关的推荐链接（链接要真实可访问）
+                    返回时不要添加 Markdown 的代码块标记（例如 ```markdown 或 ```），只输出纯 Markdown。
+                    """
                 },
                 {
                     "role": "user",
@@ -35,29 +28,22 @@ def generate_pre_resources_to_students(content):
             ],
             stream=False
         )
-        raw_output = response.choices[0].message.content
-        cleaned = clean_json_response(raw_output)
-        return json.loads(cleaned)
-    except Exception as e:
-        print(f"[预习资源推荐失败] 原因：{e}")
-        return []
+        return response.choices[0].message.content.strip()
 
 
 # 根据课后习题答题推荐补充学习资源
 def generate_post_resources_to_students(content):
-    try:
         response = client.chat.completions.create(
             model="deepseek-chat",
             messages=[
                 {
                     "role": "system",
                     "content": """你是教学设计专家，请根据学生的课后习题答题分析报告推荐至少三类补充学习资源。
-                    请返回一个合法的 JSON 数组，每个资源包含如下字段：
-                    - content（字符串）：资源标题
-                    - description（字符串）：简要描述该资源适用场景与学习方式
-                    - url（字符串）：相关的推荐链接（链接要真实可访问）
-                    请严格返回 JSON 格式（不要添加注释、解释或多余内容）。
-                    返回时不要添加 Markdown 的代码块标记（例如 ```json 或 ```），只输出纯 JSON。"""
+                    请以 Markdown 格式返回，每个资源包含如下字段：
+                    - 资源推荐（字符串）：资源标题
+                    - 资源简介（字符串）：简要描述该资源适用场景与学习方式
+                    - 相关链接（字符串）：相关的推荐链接（链接要真实可访问）
+                    返回时不要添加 Markdown 的代码块标记（例如 ```markdown 或 ```），只输出纯 Markdown。"""
                 },
                 {
                     "role": "user",
@@ -66,12 +52,7 @@ def generate_post_resources_to_students(content):
             ],
             stream=False
         )
-        raw_output = response.choices[0].message.content
-        cleaned = clean_json_response(raw_output)
-        return json.loads(cleaned)
-    except Exception as e:
-        print(f"[课后资源推荐失败] 原因：{e}")
-        return []
+        return response.choices[0].message.content.strip()
 
 
 # 调用实例
@@ -155,10 +136,5 @@ report = """# 学情分析报告 - 操作系统第一章
 pre_results = generate_pre_resources_to_students(report)
 post_results = generate_post_resources_to_students(report)
 
-print("📘【预习推荐资源】：")
-for res in pre_results:
-    print(f"- {res['content']}：{res['description']}（{res['url']}）")
-
-print("\n📘【课后推荐资源】：")
-for res in post_results:
-    print(f"- {res['content']}：{res['description']}（{res['url']}）")
+print(pre_results)
+print(post_results)
