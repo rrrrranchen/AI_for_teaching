@@ -7,7 +7,7 @@ class StudentAnswer(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     student_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     question_id = db.Column(db.Integer, db.ForeignKey('question.id'), nullable=False)
-    class_id = db.Column(db.Integer, db.ForeignKey('courseclass.id'), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey('course.id'), nullable=False)
     answer = db.Column(db.Text, nullable=False)
     correct_percentage = db.Column(db.Integer, nullable=False)  
     answered_at = db.Column(db.DateTime, default=datetime.utcnow)

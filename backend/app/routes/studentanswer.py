@@ -21,6 +21,31 @@ from app.models.studentanalysisreport import StudentAnalysisReport
 from app.models.classanalysisreport import ClassAnalysisReport
 
 studentanswer_bp=Blueprint('studentanswer',__name__)
+def is_teacher_of_course(course_id):
+
+    """检查当前用户是否是课程的任课老师"""
+    current_user = get_current_user()
+    if not current_user or current_user.role != 'teacher':
+        return False
+    
+    # 获取课程所属的课程班
+    course = Course.query.get(course_id)
+    if not course:
+        return False
+    
+    course_class = Courseclass.query.filter(Courseclass.courses.contains(course)).first()
+    if not course_class:
+        return False
+    
+    # 检查用户是否是课程班的老师
+    association = db.session.scalar(
+        select(func.count()).where(
+            teacher_class.c.teacher_id == current_user.id,
+            teacher_class.c.class_id == course_class.id
+        )
+    )
+    return association > 0
+
 def get_post_class_questions_as_feedback(course_id):
     """
     提取指定课程的课后习题及学生答题情况，作为反馈信息
@@ -317,6 +342,7 @@ def get_student_answers_with_question_and_course_details(session: Session, stude
 # 检查用户是否登录
 def is_logged_in():
     return 'user_id' in session
+
 def get_current_user():
     user_id = session.get('user_id')
     if user_id:
@@ -353,8 +379,8 @@ def is_student_of_courseclass(courseclass_id):
     return association > 0
 
 #学生作答
-@studentanswer_bp.route('/add_answer', methods=['POST'])
-def add_answer():
+@studentanswer_bp.route('/add_answers', methods=['POST'])
+def add_answers():
     if not is_logged_in():
         return jsonify({'error': '未登录'}), 401
 
@@ -366,74 +392,86 @@ def add_answer():
     if not data:
         return jsonify({'error': '缺少数据'}), 400
 
-    question_id = data.get('question_id')
-    class_id = data.get('class_id')
-    answer = data.get('answer')
-
-    if not all([question_id, class_id, answer]):
-        return jsonify({'error': '缺少必要参数'}), 400
-
-    # 检查是否为该班学生
-    if not is_student_of_courseclass(class_id):
-        return jsonify({'error': 'You are not authorized to access this course'}), 403
+    answers_data = data.get('answers')
+    if not answers_data:
+        return jsonify({'error': '缺少作答记录数组'}), 400
 
     try:
-        # 获取题目信息
-        question = Question.query.get(question_id)
-        if not question:
-            return jsonify({'error': 'Question not found'}), 404
+        results = []
+        for answer_data in answers_data:
+            question_id = answer_data.get('question_id')
+            answer = answer_data.get('answer')
 
-        # 检查是否已经存在该学生的答题记录
-        existing_answer = StudentAnswer.query.filter_by(
-            student_id=current_user.id,
-            question_id=question_id
-        ).first()
+            if not all([question_id, answer]):
+                results.append({
+                    'question_id': question_id,
+                    'error': '缺少必要参数'
+                })
+                continue
 
-        # 根据题目类型评分
-        if question.type in ['choice', 'fill']:
-            # 选择题和填空题：直接对比答案
-            correct_percentage = 100 if answer.strip() == question.correct_answer.strip() else 0
-        elif question.type == 'short_answer':
-            # 简答题：使用 ChineseGrader 评估
-            grader = ChineseGrader()
-            grading_result = grader.grade(question.correct_answer, answer, max_score=10)
-            correct_percentage = grading_result['score'] * 10  # 转换为百分比
-        else:
-            return jsonify({'error': 'Unsupported question type'}), 400
+            # 获取题目信息
+            question = Question.query.get(question_id)
+            if not question:
+                results.append({
+                    'question_id': question_id,
+                    'error': 'Question not found'
+                })
+                continue
 
-        # 如果已经存在答题记录，更新记录
-        if existing_answer:
-            existing_answer.answer = answer
-            existing_answer.correct_percentage = correct_percentage
-            existing_answer.answered_at = datetime.utcnow()
-            db.session.commit()
-            return jsonify({
-                'message': '答题记录更新成功',
-                'answer_id': existing_answer.id,
-                'correct_percentage': correct_percentage
-            }), 200
-        else:
-            # 添加新的答题记录
-            new_answer = StudentAnswer(
+            # 根据题目类型评分
+            if question.type in ['choice', 'fill']:
+                # 选择题和填空题：直接对比答案
+                correct_percentage = 100 if answer.strip() == question.correct_answer.strip() else 0
+            elif question.type == 'short_answer':
+                # 简答题：使用 ChineseGrader 评估
+                grader = ChineseGrader()
+                grading_result = grader.grade(question.correct_answer, answer, max_score=10)
+                correct_percentage = grading_result['score'] * 10  # 转换为百分比
+            else:
+                results.append({
+                    'question_id': question_id,
+                    'error': 'Unsupported question type'
+                })
+                continue
+
+            # 检查是否已经存在该学生的答题记录
+            existing_answer = StudentAnswer.query.filter_by(
                 student_id=current_user.id,
-                question_id=question_id,
-                class_id=class_id,
-                answer=answer,
-                correct_percentage=correct_percentage
-            )
-            db.session.add(new_answer)
+                question_id=question_id
+            ).first()
+
+            if existing_answer:
+                existing_answer.answer = answer
+                existing_answer.correct_percentage = correct_percentage
+                existing_answer.answered_at = datetime.utcnow()
+            else:
+                new_answer = StudentAnswer(
+                    student_id=current_user.id,
+                    question_id=question_id,
+                    course_id=question.course_id,
+                    answer=answer,
+                    correct_percentage=correct_percentage
+                )
+                db.session.add(new_answer)
+
             db.session.commit()
-            return jsonify({
-                'message': '答题记录添加成功',
-                'answer_id': new_answer.id,
-            }), 201
+
+            results.append({
+                'question_id': question_id,
+                'message': '答题记录处理成功',
+                'answer_id': existing_answer.id if existing_answer else new_answer.id,
+                'correct_percentage': correct_percentage
+            })
+
+        return jsonify(results), 200
+
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': f'添加失败：{str(e)}'}), 500
 
 #教师更新作答成绩
-@studentanswer_bp.route('/update_score', methods=['POST'])
-def update_score():
+@studentanswer_bp.route('/update_score/<int:studentanswer_id>', methods=['POST'])
+def update_score(studentanswer_id):
     # 身份验证
     if not is_logged_in():
         return jsonify({'error': '未登录'}), 401
@@ -447,26 +485,20 @@ def update_score():
     if not data:
         return jsonify({'error': '缺少数据'}), 400
 
-    answer_id = data.get('answer_id')
-    class_id = data.get('class_id')
     new_score = data.get('new_score')
 
-    if None in [answer_id, class_id, new_score]:
+    if new_score is None:
         return jsonify({'error': '缺少必要参数'}), 400
 
     try:
-        # 权限验证
-        if not is_teacher_of_courseclass(class_id):
-            return jsonify({'error': '您不是该课程班的老师'}), 403
-
         # 获取答题记录
-        student_answer = StudentAnswer.query.filter_by(
-            id=answer_id,
-            class_id=class_id
-        ).first()
-
+        student_answer = StudentAnswer.query.get(studentanswer_id)
         if not student_answer:
-            return jsonify({'error': '答题记录不存在或不属于该班级'}), 404
+            return jsonify({'error': '答题记录不存在'}), 404
+
+        # 权限验证
+        if not is_teacher_of_course(student_answer.course_id):
+            return jsonify({'error': '您不是该课程的老师'}), 403
 
         # 分数范围验证
         if not 0 <= new_score <= 100:
@@ -492,7 +524,7 @@ def update_score():
         db.session.rollback()
         return jsonify({'error': f'服务器错误: {str(e)}'}), 500
     
-#查询单个题目
+#查询单个作答记录
 @studentanswer_bp.route('/<int:answer_id>', methods=['GET'])
 def get_answer(answer_id):
     if not is_logged_in():
@@ -557,9 +589,6 @@ def get_course_answers(course_id):
         if not course:
             return jsonify({'error': '课程不存在'}), 404
 
-        # 获取课程关联的所有课程班ID
-        class_ids = [c.id for c in course.courseclasses]
-
         # 构建基础查询
         query = db.session.query(
             StudentAnswer,
@@ -570,15 +599,15 @@ def get_course_answers(course_id):
         ).join(
             User, StudentAnswer.student_id == User.id
         ).filter(
-            StudentAnswer.class_id.in_(class_ids)
+            StudentAnswer.course_id == course_id
         )
 
         # 权限过滤
         if current_user.role == 'student':
             query = query.filter(StudentAnswer.student_id == current_user.id)
         elif current_user.role == 'teacher':
-            # 验证是否是课程关联班级的老师
-            if not any(is_teacher_of_courseclass(cid) for cid in class_ids):
+            # 验证是否是课程的老师
+            if not is_teacher_of_course(course_id):
                 return jsonify({'error': '无权限访问该课程数据'}), 403
         else:
             return jsonify({'error': '无效的用户角色'}), 403
@@ -591,15 +620,22 @@ def get_course_answers(course_id):
         pagination = query.paginate(page=page, per_page=per_page, error_out=False)
         answers = pagination.items
 
-        # 构建响应数据
-        result = []
+        # 构建按题目分类的响应数据
+        result = {}
         for answer, question, student_name in answers:
+            question_id = question.id
+            if question_id not in result:
+                result[question_id] = {
+                    'question_id': question_id,
+                    'question_content': question.content,
+                    'answers': [],
+                    'average_score': 0  # 初始化平均正确率
+                }
+
             answer_data = {
                 'answer_id': answer.id,
                 'student_id': answer.student_id,
                 'student_name': student_name,
-                'question_id': question.id,
-                'question_content': question.content,
                 'answer_content': answer.answer,
                 'score': answer.correct_percentage,
                 'answered_at': answer.answered_at.isoformat(),
@@ -611,14 +647,95 @@ def get_course_answers(course_id):
                     'modified_at': answer.modified_at.isoformat(),
                     'modified_by': modifier.username if modifier else None
                 })
-            result.append(answer_data)
+            result[question_id]['answers'].append(answer_data)
+
+        # 计算每个题目的平均正确率
+        for question_id, question_data in result.items():
+            scores = [answer['score'] for answer in question_data['answers']]
+            if scores:
+                question_data['average_score'] = sum(scores) / len(scores)
+
+        # 将结果转换为列表
+        result_list = list(result.values())
 
         return jsonify({
-            'items': result,
+            'items': result_list,
             'total': pagination.total,
             'pages': pagination.pages,
             'current_page': page
         }), 200
+
+    except Exception as e:
+        logger.error(f"查询失败: {str(e)}")
+        return jsonify({'error': f'服务器错误: {str(e)}'}), 500
+
+#查询单个题目的所有学生作答记录
+@studentanswer_bp.route('/question/<int:question_id>/answers', methods=['GET'])
+def get_question_answers(question_id):
+    # 验证登录状态
+    if not is_logged_in():
+        return jsonify({'error': '未登录'}), 401
+
+    current_user = get_current_user()
+    if not current_user:
+        return jsonify({'error': '用户不存在'}), 404
+
+    try:
+        # 验证题目是否存在
+        question = Question.query.get(question_id)
+        if not question:
+            return jsonify({'error': '题目不存在'}), 404
+
+        # 验证教师是否是该题目所属课程的老师
+        if current_user.role == 'teacher' and not is_teacher_of_course(question.course_id):
+            return jsonify({'error': '无权限访问该题目数据'}), 403
+
+        # 构建基础查询
+        query = db.session.query(
+            StudentAnswer,
+            User.username.label('student_name')
+        ).join(
+            User, StudentAnswer.student_id == User.id
+        ).filter(
+            StudentAnswer.question_id == question_id
+        )
+
+        # 执行查询
+        answers = query.all()
+
+        # 构建响应数据
+        result = {
+            'question_id': question_id,
+            'question_content': question.content,
+            'answers': []
+        }
+
+        total_score = 0
+        for answer, student_name in answers:
+            answer_data = {
+                'answer_id': answer.id,
+                'student_id': answer.student_id,
+                'student_name': student_name,
+                'answer_content': answer.answer,
+                'score': answer.correct_percentage,
+                'answered_at': answer.answered_at.isoformat(),
+                'is_modified': answer.modified_at is not None
+            }
+            if answer_data['is_modified']:
+                modifier = User.query.get(answer.modified_by)
+                answer_data.update({
+                    'modified_at': answer.modified_at.isoformat(),
+                    'modified_by': modifier.username if modifier else None
+                })
+            result['answers'].append(answer_data)
+            total_score += answer.correct_percentage
+
+        if answers:
+            result['average_score'] = total_score / len(answers)
+        else:
+            result['average_score'] = 0
+
+        return jsonify(result), 200
 
     except Exception as e:
         logger.error(f"查询失败: {str(e)}")
@@ -859,7 +976,6 @@ def update_student_answerreport(student_id, courseclass_id):
         # 如果发生错误，回滚数据库会话并返回错误信息
         session.rollback()
         return jsonify({"error": str(e)}), 500
-
 
 
 #更新单个教学班的答题分析报告
