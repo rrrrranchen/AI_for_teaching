@@ -257,6 +257,12 @@ structure = {
         [4, 3, 3],
         [3, 4],
         [4, 4, 4, 4]
+    ],
+    'template7.pptx': [
+        [4, 6, 6, 6],
+        [5, 4, 4, 4],
+        [4, 4, 4, 4],
+        [4, 3, 3, 3]
     ]
 }
 def generate_PPT(subject, chapter, teaching_plan=None, teacher_name='AI', time=None, title=None, subtitle=None,
