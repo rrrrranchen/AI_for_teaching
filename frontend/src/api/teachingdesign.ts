@@ -7,8 +7,9 @@ export interface TeachingDesign {
   title: string;
   course_id: number;
   creator_id: number;
-  current_version_id?: number;
+  default_version_id?: number;
   created_at: string;
+  updated_at?: string;
 }
 
 // 教学设计版本类型
@@ -35,7 +36,7 @@ export interface CreateTeachingDesignParams {
 // 更新教学设计参数
 interface UpdateTeachingDesignParams {
   title?: string;
-  course_id?: number;
+  default_version_id?: number;
 }
 
 // 更新版本参数（根据后端接口调整）
@@ -55,6 +56,14 @@ export const getDesignVersions = async (
   designId: number
 ): Promise<{ design: TeachingDesign; versions: TeachingDesignVersion[] }> => {
   const response: AxiosResponse = await api.get(`/${designId}/versions`);
+  return response.data.data;
+};
+
+//获取单个教学设计详情
+export const getDesignDetail = async (
+  designId: number
+): Promise<TeachingDesign> => {
+  const response: AxiosResponse = await api.get(`/design/${designId}`);
   return response.data.data;
 };
 

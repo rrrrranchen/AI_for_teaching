@@ -1,22 +1,25 @@
 <template>
-  <div class="course-container">
-    <!-- 面包屑导航 -->
-    <div class="breadcrumb-section">
-      <a-breadcrumb separator=">">
-        <a-breadcrumb-item>
-          <router-link to="/home/my-class">我的班级</router-link>
-        </a-breadcrumb-item>
-        <a-breadcrumb-item>
-          <router-link
-            :to="{
-              path: `/home/courseclass/${courseclassId}`,
-            }"
-            >{{ courseclassName }}</router-link
-          >
-        </a-breadcrumb-item>
-      </a-breadcrumb>
-    </div>
+  <!-- 面包屑导航 -->
+  <div class="breadcrumb-section">
+    <a-breadcrumb separator=">">
+      <a-breadcrumb-item>
+        <router-link to="/home/my-class">我的班级</router-link>
+      </a-breadcrumb-item>
+      <a-breadcrumb-item>
+        <router-link
+          :to="{
+            path: `/home/courseclass/${courseclassId}`,
+          }"
+          >{{ courseclassName }}</router-link
+        >
+      </a-breadcrumb-item>
+      <a-breadcrumb-item>
+        {{ courseName }}
+      </a-breadcrumb-item>
+    </a-breadcrumb>
+  </div>
 
+  <div class="course-container">
     <!-- 题目列表 -->
     <a-card
       :title="`课前预习题目 (${preQuestions.length})`"
@@ -38,7 +41,9 @@
         :dataSource="preQuestions"
         :loading="loading"
         rowKey="id"
+        :pagination="{ pageSize: 5 }"
       >
+        >
         <template #bodyCell="{ column, record }">
           <!-- 新增选择题内容解析 -->
           <template v-if="column.key === 'content'">
@@ -114,6 +119,7 @@
         :dataSource="postQuestions"
         :loading="loading"
         rowKey="id"
+        :pagination="{ pageSize: 5 }"
       >
         <template #bodyCell="{ column, record }">
           <!-- 复用相同的内容解析逻辑 -->
@@ -222,6 +228,7 @@ export default defineComponent({
     const courseclassName = ref<string>("");
     const courseclassId = ref<number>(0);
     const courseId = ref<number>(0);
+    const courseName = ref<string>("");
     const loading = ref(false);
     const preQuestions = ref<Question[]>([]);
     const postQuestions = ref<Question[]>([]);
@@ -314,6 +321,7 @@ export default defineComponent({
         courseId.value = id;
         courseclassId.value = Number(route.query.courseclassId);
         courseclassName.value = route.query.courseclassName as string;
+        courseName.value = route.query.courseName as string;
         console.log("课程班信息：", courseclassId.value, courseclassName.value);
         await Promise.all([
           fetchPreQuestions(),
@@ -450,6 +458,7 @@ export default defineComponent({
       courseclassId,
       courseclassName,
       courseId,
+      courseName,
       loading,
       preQuestions,
       postQuestions,
@@ -479,17 +488,35 @@ export default defineComponent({
 
 <style scoped>
 .course-container {
-  height: 100vh;
+  height: 88vh;
   overflow-y: auto;
-  padding: 20px;
+  padding-left: 20px;
+  padding-right: 20px;
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
 
-.breadcrumb-section {
-  padding: 16px 24px;
-  border-bottom: 1px solid #f0f0f0;
+/* 面包屑导航样式 */
+.ant-breadcrumb {
+  padding: 16px 24px; /* 上下间距和左间距 */
+  font-size: 16px; /* 字体大小 */
+  line-height: 1.5;
+  margin-bottom: 10px; /* 下间距 */
+}
+
+.ant-breadcrumb a {
+  transition: color 0.3s;
+  color: #1890ff; /* 链接颜色 */
+}
+
+.ant-breadcrumb a:hover {
+  color: #40a9ff !important; /* 鼠标悬停时的颜色 */
+}
+
+.ant-breadcrumb > span:last-child {
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.85); /* 当前页面颜色 */
 }
 
 /* 教学设计卡片样式 */

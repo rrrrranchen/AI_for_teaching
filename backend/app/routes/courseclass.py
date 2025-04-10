@@ -119,7 +119,7 @@ def get_courseclass(courseclass_id):
             'created_at': courseclass.created_at,
             'invite_code': courseclass.invite_code,  # 返回邀请码
             'teachers': [
-                    {'id': teacher.id, 'username': teacher.username}
+                    {'id': teacher.id, 'username': teacher.username, 'avatar': teacher.avatar}
                     for teacher in courseclass.teachers
                 ],
             'courses': [{'id': course.id, 'name': course.name} for course in courseclass.courses]

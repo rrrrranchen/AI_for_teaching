@@ -30,13 +30,13 @@
     <div class="content-container">
       <!-- 左侧教学计划内容 -->
       <div class="plan-editor">
-        <h3>教学计划内容</h3>
+        <h3>教学设计内容</h3>
         <div id="vditor" class="vditor-container"></div>
       </div>
 
       <!-- 右侧分析内容 -->
       <div class="analysis-section">
-        <h3>分析</h3>
+        <h3>课前预习水平分析</h3>
         <a-textarea
           v-model:value="currentVersion.analysis"
           :rows="21"
@@ -255,7 +255,7 @@ export default defineComponent({
 <style scoped>
 .teaching-design-edit {
   padding: 24px;
-  background: #fff;
+  background: inherit;
   height: 100%;
   display: flex;
   flex-direction: column;
