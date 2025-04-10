@@ -21,4 +21,13 @@ class StudentAnalysisReport(db.Model):
 
     def __repr__(self):
         return f'<StudentAnalysisReport {self.student_id} for Courseclass {self.courseclass_id} / Course {self.course_id}>'
-
+    
+    def serialize(self):
+        return {
+            'id': self.id,
+            'student_id': self.student_id,
+            'courseclass_id': self.courseclass_id,
+            'course_id': self.course_id,
+            'report_content': self.report_content,
+            'created_at': self.created_at.isoformat()  # 将 datetime 转换为 ISO 8601 格式的字符串
+        }

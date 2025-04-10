@@ -4,7 +4,7 @@ class ClassAnalysisReport(db.Model):
     __tablename__ = 'class_analysis_report'
     
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    courseclass_id = db.Column(db.Integer, db.ForeignKey('courseclass.id'), nullable=False)
+    courseclass_id = db.Column(db.Integer, db.ForeignKey('courseclass.id'), nullable=True)
     course_id = db.Column(db.Integer, db.ForeignKey('course.id'), nullable=True)
     report_content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

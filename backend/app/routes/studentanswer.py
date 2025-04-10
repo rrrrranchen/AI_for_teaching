@@ -253,7 +253,6 @@ def get_student_answers_in_course(session: Session, student_id: int, course_id: 
             StudentAnswer.correct_percentage,
             StudentAnswer.answered_at,
             StudentAnswer.modified_by,
-            StudentAnswer.modified_at,
             Question.content.label("question_content"),
             Question.correct_answer,
             Course.name.label("course_name")  # 添加课程名称字段
@@ -277,9 +276,8 @@ def get_student_answers_in_course(session: Session, student_id: int, course_id: 
             "class_id": answer.class_id,  # 对应的课程班级 ID
             "answer": answer.answer,  # 学生的答案
             "correct_percentage": answer.correct_percentage,  # 答题正确率
-            "answered_at": answer.answered_at,  # 答题时间
+            "answered_at": answer.answered_at.isoformat() if answer.answered_at else None,  # 将 datetime 转换为 ISO 8601 格式的字符串
             "modified_by": answer.modified_by,  # 修改人
-            "modified_at": answer.modified_at,  # 修改时间
             "question_content": answer.question_content,  # 题目内容
             "correct_answer": answer.correct_answer,  # 正确答案
             "course_name": answer.course_name  # 课程名称
@@ -336,7 +334,7 @@ def get_student_answers_with_question_and_course_details(session: Session, stude
             "course_name": answer.course_name  # 课程名称
         }
         processed_answers.append(processed_answer)
-
+    print(processed_answers)
     return processed_answers
 
 # 检查用户是否登录
@@ -389,8 +387,9 @@ def add_answers():
         return jsonify({'error': '用户不存在'}), 404
 
     data = request.get_json()
-    if not data:
-        return jsonify({'error': '缺少数据'}), 400
+    courseclass_id = data.get('courseclass_id')
+    if not data or not courseclass_id:
+        return jsonify({'error': '缺少数据或课程班级 ID'}), 400
 
     answers_data = data.get('answers')
     if not answers_data:
@@ -444,11 +443,13 @@ def add_answers():
                 existing_answer.answer = answer
                 existing_answer.correct_percentage = correct_percentage
                 existing_answer.answered_at = datetime.utcnow()
+                existing_answer.class_id = courseclass_id  # 更新 courseclass_id
             else:
                 new_answer = StudentAnswer(
                     student_id=current_user.id,
                     question_id=question_id,
                     course_id=question.course_id,
+                    class_id=courseclass_id,  # 添加 courseclass_id
                     answer=answer,
                     correct_percentage=correct_percentage
                 )
@@ -468,7 +469,6 @@ def add_answers():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': f'添加失败：{str(e)}'}), 500
-
 #教师更新作答成绩
 @studentanswer_bp.route('/update_score/<int:studentanswer_id>', methods=['POST'])
 def update_score(studentanswer_id):
@@ -884,7 +884,6 @@ def get_course_answersreport(course_id):
 #获取单个学生的有关单个课程的答题分析报告
 @studentanswer_bp.route('/getstudentincourseanswerreport/<int:student_id>/<int:course_id>', methods=['GET'])
 def get_student_in_course_answerreport(student_id, course_id):
-    # 检查用户是否登录
     if not is_logged_in():
         return jsonify({'error': '未登录'}), 401
 
@@ -892,42 +891,42 @@ def get_student_in_course_answerreport(student_id, course_id):
     if not current_user:
         return jsonify({'error': '用户不存在'}), 404
 
-    # 检查权限：学生本人或课程的老师
     if not (current_user.id == student_id or is_teacher_of_course(course_id)):
         return jsonify({'error': '无权查看此报告'}), 403
 
     try:
-        # 获取当前的数据库会话
         session = db.session
 
-        # 检查是否存在报告
-        report = session.query(StudentAnalysisReport).filter_by(student_id=student_id, course_id=course_id).first()
-        if report:
-            return jsonify({'markdown_report': report.report_content}), 200
+        # 检查是否存在报告（修正 exists() 的使用）
+        report_exists = session.query(
+            session.query(StudentAnalysisReport)
+            .filter_by(student_id=student_id, course_id=course_id)
+            .exists()
+        ).scalar()
+
+        if report_exists:
+            report = session.query(StudentAnalysisReport).filter_by(
+                student_id=student_id, course_id=course_id
+            ).first()
+            return jsonify({'markdown_report': str(report.report_content)}), 200
 
         # 如果没有报告，生成报告
         answers = get_student_answers_in_course(session=session, student_id=student_id, course_id=course_id)
-        content = generate_study_report(answers)
+        content = str(generate_study_report(answers))  # 确保内容可序列化
 
-        # 创建一个新的 StudentAnalysisReport 实例
         report = StudentAnalysisReport(
             student_id=student_id,
             course_id=course_id,
             report_content=content
         )
-
-        # 将报告保存到数据库
         session.add(report)
         session.commit()
 
-        # 返回 Markdown 内容
         return jsonify({'markdown_report': content}), 200
 
     except Exception as e:
-        # 如果发生错误，回滚数据库会话并返回错误信息
         session.rollback()
-        return jsonify({"error": str(e)}), 500
-
+        return jsonify({"error": f"错误: {str(e)}"}), 500
 
 #更新单个课程班的某一个学生的 Markdown 形式课后习题答题记录分析报告
 @studentanswer_bp.route('/updatestudentanswerreport/<int:student_id>/<int:courseclass_id>', methods=['POST'])
@@ -948,17 +947,19 @@ def update_student_answerreport(student_id, courseclass_id):
         # 获取当前的数据库会话
         session = db.session
 
+        # 获取学生的答题记录及其相关题目和课程信息
+        answers = get_student_answers_with_question_and_course_details(session=session, student_id=student_id, class_id=courseclass_id)
+
+        # 生成报告内容
+        content = generate_study_report(answers)
+
         # 检查是否存在报告
         report = session.query(StudentAnalysisReport).filter_by(student_id=student_id, courseclass_id=courseclass_id).first()
         if report:
             # 如果报告存在，更新报告内容
-            answers = get_student_answers_with_question_and_course_details(session=session, student_id=student_id, class_id=courseclass_id)
-            content = generate_study_report(answers)
             report.report_content = content
         else:
             # 如果报告不存在，生成新的报告
-            answers = get_student_answers_with_question_and_course_details(session=session, student_id=student_id, class_id=courseclass_id)
-            content = generate_study_report(answers)
             report = StudentAnalysisReport(
                 student_id=student_id,
                 courseclass_id=courseclass_id,
