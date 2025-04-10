@@ -132,7 +132,7 @@ def recommend_images(keyword):
     access_key = 'GimQwr2RGVg_h6Op_FSb11kctxHCWkom_-GWbQbwqOI'
     translated_keyword = translate(keyword)  # 👈 替换为 DeepSeek 翻译
 
-    api_url = f'https://api.unsplash.com/photos/random?query={translated_keyword}&count=3&client_id={access_key}'
+    api_url = f'https://api.unsplash.com/photos/random?query={translated_keyword}&count=4&client_id={access_key}'
 
     try:
         response = requests.get(api_url, timeout=10)
@@ -157,7 +157,6 @@ def recommend_pictures(keyword):
     # print("正在推荐图片资源，请稍候...\n")
 
     result = {
-        "keyword": keyword,
         "images": []
     }
 

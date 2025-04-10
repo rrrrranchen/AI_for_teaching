@@ -133,8 +133,4 @@ report = """# 学情分析报告 - 操作系统第一章
 
 学生整体表现良好，在网络协议识别方面掌握扎实，但在网络设备功能区分上存在明显不足。建议重点加强网络设备层级和功能的学习，同时核实系统评分准确性。通过理论学习和实践结合的方式，可以进一步提升网络知识掌握水平。"""
 
-pre_results = generate_pre_resources_to_students(report)
-post_results = generate_post_resources_to_students(report)
 
-print(pre_results)
-print(post_results)

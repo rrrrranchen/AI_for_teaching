@@ -392,7 +392,6 @@ def delete_resource(resource_id):
         current_app.logger.error(f"删除资源失败: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-
 @resource_bp.route('/resources/course/<int:course_id>', methods=['GET'])
 def get_resources_by_course(course_id):
     try:

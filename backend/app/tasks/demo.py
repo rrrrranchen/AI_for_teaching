@@ -1,11 +1,4 @@
 import os
-
+test="{\n    \"images\": [\n        \"https://images.unsplash.com/photo-1564175200452-7afb0d552003?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3MzQwOTR8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NDQyOTg1MjF8&ixlib=rb-4.0.3&q=80&w=1080\",\n        \"https://images.unsplash.com/photo-1580893246395-52aead8960dc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3MzQwOTR8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NDQyOTg1MjF8&ixlib=rb-4.0.3&q=80&w=1080\",\n        \"https://images.unsplash.com/photo-1544026230-488aeae72c0d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3MzQwOTR8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NDQyOTg1MjF8&ixlib=rb-4.0.3&q=80&w=1080\"\n    ]\n}"
 # 定义静态文件夹路径
-static_folder = 'backend/app/static/uploads/'
-file_path = os.path.join(static_folder, 'opensuse.png')
-
-# 检查文件是否存在
-if os.path.exists(file_path):
-    print("File exists at:", file_path)
-else:
-    print("File does not exist.")
+print(test)
