@@ -14,7 +14,7 @@ from app.models.resources import Metadata, MultimediaResource
 from app.models.relationship import teacher_class
 from app.utils.file_validators import allowed_file
 from app.utils.fileparser import FileParser
-from app.utils.secure_filename import secure_filename
+from werkzeug.utils import secure_filename
 from app.utils.preview_generator import generate_preview
 from werkzeug.utils import safe_join  
 from mongoengine.errors import DoesNotExist, ValidationError

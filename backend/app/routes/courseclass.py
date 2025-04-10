@@ -81,7 +81,7 @@ def get_courseclasses():
                 'created_at': courseclass.created_at,
                 'invite_code': courseclass.invite_code,
                 'teachers': [
-                    {'id': teacher.id, 'username': teacher.username}
+                    {'id': teacher.id, 'username': teacher.username,'avatar':teacher.avatar}
                     for teacher in courseclass.teachers
                 ]
             }
