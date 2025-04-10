@@ -33,7 +33,9 @@
         <!-- 头部信息区 -->
         <div class="class-header">
           <div class="class-basic">
-            <h1>{{ courseclassDetail?.name }}</h1>
+            <div style="font-weight: bold; font-size: 36px; margin-left: 10px">
+              {{ courseclassDetail?.name || "加载中..." }}
+            </div>
             <div class="class-meta">
               <a-tag
                 color="blue"
@@ -59,14 +61,30 @@
           <div class="teacher-section">
             <h3>任课教师</h3>
             <a-space wrap>
-              <a-tag
-                v-for="teacher in courseclassDetail?.teachers"
-                :key="teacher.id"
-                color="blue"
-              >
-                <user-outlined class="mr-1" />
-                {{ teacher.username }}
-              </a-tag>
+              <div class="flex flex-row items-center">
+                <a-avatar
+                  v-if="
+                    courseclassDetail?.teachers &&
+                    courseclassDetail?.teachers.length > 0
+                  "
+                  size="large"
+                  :src="
+                    'http://localhost:5000/' +
+                      courseclassDetail.teachers[0].avatar ||
+                    '/default-avatar.png'
+                  "
+                  class="text-lg bg-blue-100 p-2 rounded-full"
+                />
+                <p
+                  v-if="
+                    courseclassDetail?.teachers &&
+                    courseclassDetail?.teachers.length > 0
+                  "
+                  style="font-size: large"
+                >
+                  {{ courseclassDetail?.teachers[0]?.username }}
+                </p>
+              </div>
             </a-space>
           </div>
         </div>
@@ -118,7 +136,7 @@
                       :class="{
                         selected: selectedCourseIds.includes(course.id),
                       }"
-                      @click="handleCourseClick(course.id)"
+                      @click="handleCourseClick(course.id, course.name)"
                     >
                       <div class="course-card-header">
                         <a-checkbox
@@ -170,7 +188,14 @@
                       class="student-table-row"
                     >
                       <div class="student-cell" style="flex: 2">
-                        <user-outlined class="student-icon" />
+                        <a-avatar
+                          v-if="student?.avatar"
+                          :src="'http://localhost:5000/' + student?.avatar"
+                        >
+                        </a-avatar>
+                        <a-avatar v-else>
+                          <UserOutlined />
+                        </a-avatar>
                         <span class="student-name">{{ student.username }}</span>
                       </div>
                       <div class="student-cell" style="flex: 1">
@@ -273,12 +298,13 @@ export default defineComponent({
     const newCourse = ref({ name: "", description: "" });
     const router = useRouter();
 
-    const handleCourseClick = (courseId: number) => {
+    const handleCourseClick = (courseId: number, courseName: string) => {
       router.push({
         path: `/home/t-course/${courseId}`,
         query: {
           courseclassName: courseclassDetail.value?.name || "未知班级",
           courseclassId: courseclassId.value,
+          courseName: courseName,
         },
       });
     };
@@ -494,13 +520,8 @@ export default defineComponent({
   overflow: hidden;
 }
 
-.breadcrumb-section {
-  padding: 16px 24px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
 .class-header {
-  padding: 24px;
+  padding: 0px 24px;
   display: flex;
   gap: 24px;
   flex-wrap: wrap;
@@ -521,9 +542,7 @@ export default defineComponent({
 .class-meta {
   display: flex;
   flex-direction: column;
-  gap: 16px;
   align-items: left;
-  margin-top: 20px;
   color: rgba(0, 0, 0, 0.45);
 }
 
@@ -604,6 +623,8 @@ export default defineComponent({
   align-items: center;
   gap: 6px;
   padding: 4px 12px;
+  margin-top: 20px;
+  margin-bottom: 15px;
 }
 
 @media (max-width: 768px) {
@@ -633,7 +654,7 @@ export default defineComponent({
   padding: 16px 24px; /* 上下间距和左间距 */
   font-size: 16px; /* 字体大小 */
   line-height: 1.5;
-  margin-bottom: 16px; /* 下间距 */
+  margin-bottom: 10px; /* 下间距 */
 }
 
 .ant-breadcrumb a {
@@ -756,6 +777,7 @@ export default defineComponent({
 }
 
 .student-name {
+  margin-left: 10px;
   color: rgba(0, 0, 0, 0.85);
   font-weight: 500;
 }
@@ -818,7 +840,7 @@ export default defineComponent({
 /* 课程列表容器 - 单列布局 */
 .course-list-container {
   margin-top: 16px;
-  max-height: 400px;
+  max-height: 53vh;
   overflow-y: auto;
   padding-right: 8px;
 }
