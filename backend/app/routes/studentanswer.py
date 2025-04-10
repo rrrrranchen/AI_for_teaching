@@ -765,28 +765,12 @@ def get_student_answerreport(student_id, courseclass_id):
         report = session.query(StudentAnalysisReport).filter_by(student_id=student_id, courseclass_id=courseclass_id).first()
         if report:
             return jsonify({'markdown_report': report.report_content}), 200
-
-        # 如果没有报告，生成报告
-        answers = get_student_answers_with_question_and_course_details(session=session, student_id=student_id, class_id=courseclass_id)
-        content = generate_study_report(answers)
-
-        # 创建一个新的 StudentAnalysisReport 实例
-        report = StudentAnalysisReport(
-            student_id=student_id,
-            courseclass_id=courseclass_id,
-            report_content=content
-        )
-
-        # 将报告保存到数据库
-        session.add(report)
-        session.commit()
-
-        # 返回 Markdown 内容
-        return jsonify({'markdown_report': content}), 200
+        else:
+            # 如果报告不存在，返回 null
+            return jsonify({'markdown_report': None}), 200
 
     except Exception as e:
-        # 如果发生错误，回滚数据库会话并返回错误信息
-        session.rollback()
+        # 如果发生错误，返回错误信息
         return jsonify({"error": str(e)}), 500
 
 #获取单个教学班的答题分析报告
@@ -812,27 +796,12 @@ def get_class_answerreport(courseclass_id):
         report = session.query(ClassAnalysisReport).filter_by(courseclass_id=courseclass_id).first()
         if report:
             return jsonify({'markdown_report': report.report_content}), 200
-
-        # 如果没有报告，生成报告
-        answers = get_class_student_answers(session=session, class_id=courseclass_id)
-        content = generate_study_report_overall(answers)
-
-        # 创建一个新的 ClassAnalysisReport 实例
-        report = ClassAnalysisReport(
-            courseclass_id=courseclass_id,
-            report_content=content
-        )
-
-        # 将报告保存到数据库
-        session.add(report)
-        session.commit()
-
-        # 返回 Markdown 内容
-        return jsonify({'markdown_report': content}), 200
+        else:
+            # 如果报告不存在，返回 null
+            return jsonify({'markdown_report': None}), 200
 
     except Exception as e:
-        # 如果发生错误，回滚数据库会话并返回错误信息
-        session.rollback()
+        # 如果发生错误，返回错误信息
         return jsonify({"error": str(e)}), 500
     
 #获取单个课程的答题分析报告
@@ -858,27 +827,12 @@ def get_course_answersreport(course_id):
         report = session.query(ClassAnalysisReport).filter_by(course_id=course_id).first()
         if report:
             return jsonify({'markdown_report': report.report_content}), 200
-
-        # 如果没有报告，生成报告
-        answers = get_course_student_answers(session=session, course_id=course_id)
-        content = generate_study_report_overall(answers)
-
-        # 创建一个新的 ClassAnalysisReport 实例
-        report = ClassAnalysisReport(
-            course_id=course_id,
-            report_content=content
-        )
-
-        # 将报告保存到数据库
-        session.add(report)
-        session.commit()
-
-        # 返回 Markdown 内容
-        return jsonify({'markdown_report': content}), 200
+        else:
+            # 如果报告不存在，返回 null
+            return jsonify({'markdown_report': None}), 200
 
     except Exception as e:
-        # 如果发生错误，回滚数据库会话并返回错误信息
-        session.rollback()
+        # 如果发生错误，返回错误信息
         return jsonify({"error": str(e)}), 500
 
 #获取单个学生的有关单个课程的答题分析报告
@@ -897,36 +851,16 @@ def get_student_in_course_answerreport(student_id, course_id):
     try:
         session = db.session
 
-        # 检查是否存在报告（修正 exists() 的使用）
-        report_exists = session.query(
-            session.query(StudentAnalysisReport)
-            .filter_by(student_id=student_id, course_id=course_id)
-            .exists()
-        ).scalar()
-
-        if report_exists:
-            report = session.query(StudentAnalysisReport).filter_by(
-                student_id=student_id, course_id=course_id
-            ).first()
-            return jsonify({'markdown_report': str(report.report_content)}), 200
-
-        # 如果没有报告，生成报告
-        answers = get_student_answers_in_course(session=session, student_id=student_id, course_id=course_id)
-        content = str(generate_study_report(answers))  # 确保内容可序列化
-
-        report = StudentAnalysisReport(
-            student_id=student_id,
-            course_id=course_id,
-            report_content=content
-        )
-        session.add(report)
-        session.commit()
-
-        return jsonify({'markdown_report': content}), 200
+        # 检查是否存在报告
+        report = session.query(StudentAnalysisReport).filter_by(student_id=student_id, course_id=course_id).first()
+        if report:
+            return jsonify({'markdown_report': report.report_content}), 200
+        else:
+            # 如果报告不存在，返回 null
+            return jsonify({'markdown_report': None}), 200
 
     except Exception as e:
-        session.rollback()
-        return jsonify({"error": f"错误: {str(e)}"}), 500
+        return jsonify({"error": str(e)}), 500
 
 #更新单个课程班的某一个学生的 Markdown 形式课后习题答题记录分析报告
 @studentanswer_bp.route('/updatestudentanswerreport/<int:student_id>/<int:courseclass_id>', methods=['POST'])
