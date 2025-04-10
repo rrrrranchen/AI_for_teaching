@@ -478,6 +478,7 @@ def get_students_by_courseclass(courseclass_id):
             {
                 'id': student.id,
                 'username': student.username,
+                'avatar':student.avatar
             }
             for student in students
         ]
