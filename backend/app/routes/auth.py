@@ -173,7 +173,7 @@ def update_avatar():
         return jsonify({'message': 'No selected file'}), 400
 
     try:
-        # 调用 file_upload.py 中的 upload_file 函数
+
         relative_path = upload_file_avatar(file)
         
         # 更新用户头像路径
