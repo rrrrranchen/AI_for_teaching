@@ -171,7 +171,6 @@ async def set_current_version_async(new_design, versions):
     await asyncio.to_thread(db.session.commit)
 
 # 异步创建教学设计
-# 异步创建教学设计
 @teachingdesign_bp.route('/createteachingdesign', methods=['POST'])
 async def create_teaching_design():
     try:
