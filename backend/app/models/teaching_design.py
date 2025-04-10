@@ -16,6 +16,6 @@ class TeachingDesign(db.Model):
     course = db.relationship('Course', back_populates='teaching_designs')
     versions = db.relationship('TeachingDesignVersion', back_populates='design', cascade='all, delete-orphan')
     creator = db.relationship('User', back_populates='teaching_designs')  # 添加与 User 的关系
-
+    teacher_recommendations = db.relationship('TeacherRecommend', back_populates='teaching_design')
     def __repr__(self):
         return f'<TeachingDesign {self.title}>'

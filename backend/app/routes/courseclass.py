@@ -281,41 +281,6 @@ def create_course_for_courseclass(courseclass_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-# # 为课程班添加课程
-# @courseclass_bp.route('/courseclasses/<int:courseclass_id>/add_courses', methods=['POST'])
-# def add_courses_to_courseclass(courseclass_id):
-#     if not is_logged_in():
-#         return jsonify({'error': 'Unauthorized'}), 401
-#     try:
-#         # 检查当前用户是否为该课程班的老师
-#         if not is_teacher_of_courseclass(courseclass_id):
-#             return jsonify({'error': 'You are not authorized to add courses to this course class'}), 403
-
-#         courseclass = Courseclass.query.get(courseclass_id)
-#         if not courseclass:
-#             return jsonify({'error': 'CourseClass not found'}), 404
-
-#         data = request.json
-#         course_ids = data.get('course_ids')
-#         if not course_ids:
-#             return jsonify({'error': 'Course IDs are required'}), 400
-
-#         # 查询所有指定的课程
-#         courses = Course.query.filter(Course.id.in_(course_ids)).all()
-#         if len(courses) != len(course_ids):
-#             return jsonify({'error': 'One or more courses not found'}), 404
-
-#         # 将课程添加到课程班
-#         for course in courses:
-#             if course not in courseclass.courses:
-#                 courseclass.courses.append(course)
-
-#         db.session.commit()
-#         return jsonify({'message': 'Courses added to CourseClass successfully'}), 200
-#     except Exception as e:
-#         db.session.rollback()
-#         return jsonify({'error': str(e)}), 500
-
 
 #为课程班删除课程
 @courseclass_bp.route('/courseclasses/<int:courseclass_id>/remove_courses', methods=['POST'])

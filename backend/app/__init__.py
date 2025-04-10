@@ -3,8 +3,6 @@ from bson import ObjectId
 from flask import Flask
 from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
-
-
 from .utils.database import init_db
 from app.routes.auth import auth_bp
 from app.routes.courseclass import courseclass_bp
@@ -15,6 +13,8 @@ from app.routes.resource import resource_bp
 from app.routes.forum import forum_bp
 from app.routes.teachingdesign import teachingdesign_bp
 from app.routes.ppts import ppts_bp
+from app.routes.teacher_recommend import teacher_recommend_bp
+from app.routes.student_recommend import student_recommend_bp
 from app.utils.database import init_db
 from config import Config
 
@@ -39,4 +39,6 @@ def create_app():
     app.register_blueprint(forum_bp)
     app.register_blueprint(teachingdesign_bp)
     app.register_blueprint(ppts_bp)
+    app.register_blueprint(teacher_recommend_bp)
+    app.register_blueprint(student_recommend_bp)
     return app
