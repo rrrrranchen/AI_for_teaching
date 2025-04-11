@@ -133,6 +133,8 @@ def async_generate_ppt(app, course_id, teachingdesignversion_id, ppttemplate_id,
         except Exception as e:
             current_app.logger.error(f"生成 PPT 时出错: {str(e)}")
 
+#选择ppt模板提供教学设计版本id和课程id生成ppt（ppt模板地址存储在数据表ppttemplate中，因为我们这个系统还没有后台因此要手动往数据库中存储模板数据才能调用以下接口函数
+#ppt模板的url存储绝对路径地址，如：d:\AI_for_teaching\backend\app\static\template\template.pptx，展示图片存储相对路径地址，如：static\uploads\avator\opensuse.png
 @resource_bp.route('/createPPT/<int:course_id>/<int:teachingdesignversion_id>/<int:ppttemplate_id>', methods=['POST'])
 def generatePPT(course_id, teachingdesignversion_id, ppttemplate_id):
     # 从请求中获取标题
@@ -150,7 +152,7 @@ def generatePPT(course_id, teachingdesignversion_id, ppttemplate_id):
 
     return jsonify({'message': 'PPT generation started'}), 202
 
-
+#上传资源（暂时用不到）
 @resource_bp.route('/resources', methods=['POST'])
 def upload_resource():
     # 获取上传的文件
@@ -266,6 +268,7 @@ def _map_file_type(ext):
     }
     return type_map.get(ext.lstrip('.'), 'other')
 
+#查询单个教学设计版本的ppt资源（目前资源中仅存储了ppt）
 @resource_bp.route('/resources/teachingdesignversion/<int:designversion_id>', methods=['GET'])
 def get_resources_by_designversion(designversion_id):
     # 检查用户是否登录
@@ -287,7 +290,6 @@ def get_resources_by_designversion(designversion_id):
                 "id": str(resource.id),
                 "title": resource.title,
                 "designversion_id":resource.designversion_id,
-                "description": resource.description,
                 "description": resource.description,
                 "type": resource.type,
                 "storage_path": resource.storage_path,
@@ -313,7 +315,8 @@ def get_resources_by_designversion(designversion_id):
     except Exception as e:
         current_app.logger.error(f"查询资源失败: {str(e)}")
         return jsonify({"error": str(e)}), 500
-    
+
+#查询当前用户的所有资源（目前资源中仅存储了ppt）    
 @resource_bp.route('/resources', methods=['GET'])
 def get_all_resources():
     # 检查用户是否登录
@@ -361,7 +364,8 @@ def get_all_resources():
     except Exception as e:
         current_app.logger.error(f"查询资源失败: {str(e)}")
         return jsonify({"error": str(e)}), 500
-    
+
+#根据资源id删除资源（目前资源中仅存储了ppt）  
 @resource_bp.route('/resources/<resource_id>', methods=['DELETE'])
 def delete_resource(resource_id):
     # 检查用户是否登录
@@ -374,7 +378,7 @@ def delete_resource(resource_id):
 
     try:
         # 查询指定资源
-        resource = MultimediaResource.objects(id=resource_id, uploader_id=current_user.id).first()
+        resource = MultimediaResource.objects(_id=resource_id, uploader_id=current_user.id).first()
         if not resource:
             return jsonify({'error': '资源不存在'}), 404
 
@@ -392,7 +396,7 @@ def delete_resource(resource_id):
         current_app.logger.error(f"删除资源失败: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-
+#查询单个课程的所有资源（目前资源中仅存储了ppt）
 @resource_bp.route('/resources/course/<int:course_id>', methods=['GET'])
 def get_resources_by_course(course_id):
     try:
@@ -432,12 +436,13 @@ def get_resources_by_course(course_id):
     except Exception as e:
         current_app.logger.error(f"查询课程资源失败: {str(e)}")
         return jsonify({"error": str(e)}), 500
-    
+
+#根据资源id查询单个资源信息 （目前资源中仅存储了ppt）   
 @resource_bp.route('/resources/<resource_id>', methods=['GET'])
 def get_resource_by_id(resource_id):
     try:
         # 查询指定资源
-        resource = MultimediaResource.objects(id=resource_id).first()
+        resource = MultimediaResource.objects(_id=resource_id).first()
         if not resource:
             return jsonify({'error': '资源不存在'}), 404
 
@@ -471,7 +476,61 @@ def get_resource_by_id(resource_id):
     except Exception as e:
         current_app.logger.error(f"查询单个资源失败: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+#查询所有ppt模板的详细信息（返回id，name，展示图片路径）
+#[
+#    {
+#        "id": 1,
+#        "name": "ppt模板一",
+#        "image_url": "static\\uploads\\avator\\opensuse.png"
+#    }
+#]
+@resource_bp.route('/ppt-templates', methods=['GET'])
+def get_all_ppt_templates():
+    """
+    获取所有PPT模板信息
+    ---
+    tags:
+      - PPT模板管理
+    responses:
+      200:
+        description: 返回所有PPT模板信息列表
+        schema:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                description: 模板ID
+              name:
+                type: string
+                description: 模板名称
+              url:
+                type: string
+                description: 模板文件URL
+              image_url:
+                type: string
+                description: 模板预览图URL
+      500:
+        description: 服务器内部错误
+    """
+    try:
+        # 查询所有模板并按ID排序
+        templates = PPTTemplate.query.order_by(PPTTemplate.id).all()
+        
+        # 构建返回数据
+        templates_data = [{
+            'id': template.id,
+            'name': template.name,
+            'image_url': template.image_url
+        } for template in templates]
+        
+        return jsonify(templates_data), 200
     
+    except Exception as e:
+        current_app.logger.error(f"获取PPT模板失败: {str(e)}")
+        return jsonify({'error': '获取模板信息失败', 'details': str(e)}), 500
 
 @resource_bp.route('/re')
 def resourcetemplate():
