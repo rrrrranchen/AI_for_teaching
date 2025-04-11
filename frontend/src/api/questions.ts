@@ -22,6 +22,7 @@ export interface Question {
   difficulty: QuestionDifficulty;
   timing: QuestionTiming;
   is_public?: boolean;
+  studentAnswer?: StudentAnswer;
 }
 
 /**
@@ -49,6 +50,13 @@ interface UpdateQuestionParams {
   difficulty?: QuestionDifficulty;
   timing?: QuestionTiming;
   is_public?: boolean;
+}
+
+export interface StudentAnswer {
+  question_id: number;
+  answer: string;
+  correct_percentage: number;
+  submitted_at: string;
 }
 
 // ======================== 问题API ========================

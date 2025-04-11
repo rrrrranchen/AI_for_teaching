@@ -20,151 +20,193 @@
   </div>
 
   <div class="course-container">
-    <!-- 题目列表 -->
-    <a-card
-      :title="`课前预习题目 (${preQuestions.length})`"
-      style="margin-bottom: 20px"
-    >
-      <template #extra>
-        <a-button type="link" @click="toggleCollapse" size="small">
-          <template #icon>
-            <UpOutlined v-if="!isCollapsed" />
-            <DownOutlined v-else />
-          </template>
-          {{ isCollapsed ? "展开" : "收起" }}
-        </a-button>
-      </template>
-
-      <a-table
-        v-show="!isCollapsed"
-        :columns="questionColumns"
-        :dataSource="preQuestions"
-        :loading="loading"
-        rowKey="id"
-        :pagination="{ pageSize: 5 }"
-      >
+    <!-- 新增报告标签页 -->
+    <a-tabs v-model:activeKey="activeTab">
+      <!-- 原有标签页保持不变 -->
+      <a-tab-pane key="questions" tab="资源管理">
+        <!-- 题目列表 -->
+        <a-card
+          :title="`课前预习题目 (${preQuestions.length})`"
+          style="margin-bottom: 20px"
         >
-        <template #bodyCell="{ column, record }">
-          <!-- 新增选择题内容解析 -->
-          <template v-if="column.key === 'content'">
-            <div v-if="record.type === 'choice'">
-              <div class="question-text">
-                {{ parsedContent(record.content).question }}
-              </div>
-              <div
-                v-for="(option, index) in parsedContent(record.content).options"
-                :key="index"
-                class="option-item"
-              >
-                {{ option }}
-              </div>
-            </div>
-            <template v-else>
-              {{ record.content }}
+          <template #extra>
+            <a-button type="link" @click="toggleCollapse" size="small">
+              <template #icon>
+                <UpOutlined v-if="!isCollapsed" />
+                <DownOutlined v-else />
+              </template>
+              {{ isCollapsed ? "展开" : "收起" }}
+            </a-button>
+          </template>
+
+          <a-table
+            v-show="!isCollapsed"
+            :columns="questionColumns"
+            :dataSource="preQuestions"
+            :loading="loading"
+            rowKey="id"
+            :pagination="{ pageSize: 5 }"
+          >
+            >
+            <template #bodyCell="{ column, record }">
+              <!-- 新增选择题内容解析 -->
+              <template v-if="column.key === 'content'">
+                <div v-if="record.type === 'choice'">
+                  <div class="question-text">
+                    {{ parsedContent(record.content).question }}
+                  </div>
+                  <div
+                    v-for="(option, index) in parsedContent(record.content)
+                      .options"
+                    :key="index"
+                    class="option-item"
+                  >
+                    {{ option }}
+                  </div>
+                </div>
+                <template v-else>
+                  {{ record.content }}
+                </template>
+              </template>
+              <template v-if="column.key === 'actions'">
+                <a-space>
+                  <a-button size="small" @click="showEditModal(record)">
+                    <template #icon><EditOutlined /></template>
+                  </a-button>
+                  <a-button
+                    size="small"
+                    danger
+                    @click="confirmDelete(record.id)"
+                  >
+                    <template #icon><DeleteOutlined /></template>
+                  </a-button>
+                  <a-switch
+                    checked-children="已发布"
+                    un-checked-children="未发布"
+                    :checked="record.is_public"
+                    @change="(checked: any) => togglePublic(record.id, checked)"
+                  />
+                </a-space>
+              </template>
+              <template v-else-if="column.key === 'difficulty'">
+                <a-rate :value="Number(record.difficulty)" disabled />
+              </template>
             </template>
-          </template>
-          <template v-if="column.key === 'actions'">
-            <a-space>
-              <a-button size="small" @click="showEditModal(record)">
-                <template #icon><EditOutlined /></template>
-              </a-button>
-              <a-button size="small" danger @click="confirmDelete(record.id)">
-                <template #icon><DeleteOutlined /></template>
-              </a-button>
-              <a-switch
-                checked-children="已发布"
-                un-checked-children="未发布"
-                :checked="record.is_public"
-                @change="(checked: any) => togglePublic(record.id, checked)"
-              />
-            </a-space>
-          </template>
-          <template v-else-if="column.key === 'difficulty'">
-            <a-rate :value="Number(record.difficulty)" disabled />
-          </template>
-        </template>
-      </a-table>
-    </a-card>
+          </a-table>
+        </a-card>
 
-    <!-- 教学设计列表 -->
-    <a-card :title="`教学设计`" style="margin-bottom: 20px">
-      <div class="teaching-design-cards" v-if="teachingDesigns.length > 0">
-        <TeachingDesignItem
-          v-for="design in teachingDesigns"
-          :key="design.design_id"
-          :design="design"
-          class="teaching-design-item"
-        />
-      </div>
-    </a-card>
+        <!-- 教学设计列表 -->
+        <a-card :title="`教学设计`" style="margin-bottom: 20px">
+          <div class="teaching-design-cards" v-if="teachingDesigns.length > 0">
+            <TeachingDesignItem
+              v-for="design in teachingDesigns"
+              :key="design.design_id"
+              :design="design"
+              class="teaching-design-item"
+            />
+          </div>
+        </a-card>
 
-    <!-- 课后练习题目 -->
-    <a-card
-      :title="`课后练习题目 (${postQuestions.length})`"
-      style="margin-bottom: 20px"
-    >
-      <template #extra>
-        <a-button type="link" @click="toggleCollapsePost" size="small">
-          <template #icon>
-            <UpOutlined v-if="!isCollapsedPost" />
-            <DownOutlined v-else />
+        <!-- 课后练习题目 -->
+        <a-card
+          :title="`课后练习题目 (${postQuestions.length})`"
+          style="margin-bottom: 20px"
+        >
+          <template #extra>
+            <a-button type="link" @click="toggleCollapsePost" size="small">
+              <template #icon>
+                <UpOutlined v-if="!isCollapsedPost" />
+                <DownOutlined v-else />
+              </template>
+              {{ isCollapsedPost ? "展开" : "收起" }}
+            </a-button>
           </template>
-          {{ isCollapsedPost ? "展开" : "收起" }}
-        </a-button>
-      </template>
 
-      <a-table
-        v-show="!isCollapsedPost"
-        :columns="questionColumns"
-        :dataSource="postQuestions"
-        :loading="loading"
-        rowKey="id"
-        :pagination="{ pageSize: 5 }"
-      >
-        <template #bodyCell="{ column, record }">
-          <!-- 复用相同的内容解析逻辑 -->
-          <template v-if="column.key === 'content'">
-            <div v-if="record.type === 'choice'">
-              <div class="question-text">
-                {{ parsedContent(record.content).question }}
-              </div>
-              <div
-                v-for="(option, index) in parsedContent(record.content).options"
-                :key="index"
-                class="option-item"
-              >
-                {{ option }}
-              </div>
-            </div>
-            <template v-else>
-              {{ record.content }}
+          <a-table
+            v-show="!isCollapsedPost"
+            :columns="questionColumns"
+            :dataSource="postQuestions"
+            :loading="loading"
+            rowKey="id"
+            :pagination="{ pageSize: 5 }"
+          >
+            <template #bodyCell="{ column, record }">
+              <!-- 复用相同的内容解析逻辑 -->
+              <template v-if="column.key === 'content'">
+                <div v-if="record.type === 'choice'">
+                  <div class="question-text">
+                    {{ parsedContent(record.content).question }}
+                  </div>
+                  <div
+                    v-for="(option, index) in parsedContent(record.content)
+                      .options"
+                    :key="index"
+                    class="option-item"
+                  >
+                    {{ option }}
+                  </div>
+                </div>
+                <template v-else>
+                  {{ record.content }}
+                </template>
+              </template>
+
+              <template v-if="column.key === 'actions'">
+                <a-space>
+                  <!-- 复用相同的操作按钮 -->
+                  <a-button size="small" @click="showEditModal(record)">
+                    <template #icon><EditOutlined /></template>
+                  </a-button>
+                  <a-button
+                    size="small"
+                    danger
+                    @click="confirmDelete(record.id)"
+                  >
+                    <template #icon><DeleteOutlined /></template>
+                  </a-button>
+                  <a-switch
+                    checked-children="已发布"
+                    un-checked-children="未发布"
+                    :checked="record.is_public"
+                    @change="(checked: any) => togglePublic(record.id, checked)"
+                  />
+                </a-space>
+              </template>
+
+              <template v-else-if="column.key === 'difficulty'">
+                <a-rate :value="Number(record.difficulty)" disabled />
+              </template>
             </template>
-          </template>
+          </a-table>
+        </a-card>
+      </a-tab-pane>
 
-          <template v-if="column.key === 'actions'">
-            <a-space>
-              <!-- 复用相同的操作按钮 -->
-              <a-button size="small" @click="showEditModal(record)">
-                <template #icon><EditOutlined /></template>
-              </a-button>
-              <a-button size="small" danger @click="confirmDelete(record.id)">
-                <template #icon><DeleteOutlined /></template>
-              </a-button>
-              <a-switch
-                checked-children="已发布"
-                un-checked-children="未发布"
-                :checked="record.is_public"
-                @change="(checked: any) => togglePublic(record.id, checked)"
-              />
-            </a-space>
-          </template>
+      <a-tab-pane key="report" tab="课程分析报告">
+        <div class="report-container">
+          <div class="report-header">
+            <a-button
+              type="primary"
+              @click="handleUpdateCourseReport"
+              :loading="updatingReport"
+            >
+              <sync-outlined />
+              {{ courseReport ? "更新报告" : "生成报告" }}
+            </a-button>
+          </div>
 
-          <template v-else-if="column.key === 'difficulty'">
-            <a-rate :value="Number(record.difficulty)" disabled />
-          </template>
-        </template>
-      </a-table>
-    </a-card>
+          <div v-if="!courseReport" class="empty-report">
+            <a-empty description="暂无分析报告">
+              <a-button type="primary" @click="handleUpdateCourseReport">
+                立即生成
+              </a-button>
+            </a-empty>
+          </div>
+
+          <!-- 使用markdown渲染容器 -->
+          <div v-else class="markdown-content" v-html="renderedReport"></div>
+        </div>
+      </a-tab-pane>
+    </a-tabs>
 
     <!-- 编辑题目模态框 -->
     <a-modal
@@ -196,7 +238,14 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, reactive, onMounted } from "vue";
+import {
+  defineComponent,
+  ref,
+  reactive,
+  onMounted,
+  onBeforeUnmount,
+  nextTick,
+} from "vue";
 import { useRoute } from "vue-router";
 import { message, Modal } from "ant-design-vue";
 import {
@@ -213,6 +262,13 @@ import {
 } from "@/api/questions";
 import { getCourseDesigns, type TeachingDesign } from "@/api/teachingdesign";
 import TeachingDesignItem from "@/components/TeachingDesignItem.vue";
+import {
+  getCourseAnalysisReport,
+  updateCourseReport,
+} from "@/api/studentanswer";
+import MarkdownIt from "markdown-it";
+import hljs from "highlight.js";
+import "highlight.js/styles/github.css";
 
 export default defineComponent({
   name: "TeacherCourseDetail",
@@ -234,7 +290,7 @@ export default defineComponent({
     const postQuestions = ref<Question[]>([]);
     const teachingDesigns = ref<TeachingDesign[]>([]);
     const currentQuestion = ref<Question | null>(null);
-    const isCollapsed = ref(false);
+    const isCollapsed = ref(true);
     const isCollapsedPost = ref(true);
     const toggleCollapse = () => {
       isCollapsed.value = !isCollapsed.value;
@@ -328,6 +384,7 @@ export default defineComponent({
           fetchPostQuestions(),
           fetchTeachingDesigns(),
         ]);
+        await loadCourseReport();
       } catch (err) {
         message.error("初始化失败");
         console.error("初始化错误:", err);
@@ -454,6 +511,64 @@ export default defineComponent({
       }
     };
 
+    // 新增报告相关状态
+    const activeTab = ref("questions");
+    const courseReport = ref<string | null>(null);
+    const updatingReport = ref(false);
+
+    const md: any = new MarkdownIt({
+      html: true,
+      linkify: true,
+      typographer: true,
+      highlight: function (str, lang) {
+        if (lang && hljs.getLanguage(lang)) {
+          try {
+            return (
+              '<pre class="hljs"><code>' +
+              hljs.highlight(str, { language: lang, ignoreIllegals: true })
+                .value +
+              "</code></pre>"
+            );
+          } catch (err) {
+            console.error(err);
+          }
+        }
+        return (
+          '<pre class="hljs"><code>' +
+          md.utils.escapeHtml(str) +
+          "</code></pre>"
+        );
+      },
+    });
+
+    // 添加渲染后的报告内容
+    const renderedReport = ref<string>("");
+    // 加载课程报告
+    const loadCourseReport = async () => {
+      try {
+        const { data } = await getCourseAnalysisReport(courseId.value);
+        courseReport.value = data.markdown_report;
+        renderedReport.value = md.render(courseReport.value || "");
+      } catch (error) {
+        message.error("获取报告失败");
+      }
+    };
+
+    // 更新课程报告
+    const handleUpdateCourseReport = async () => {
+      try {
+        updatingReport.value = true;
+        const { data } = await updateCourseReport(courseId.value);
+        courseReport.value = data.markdown_report;
+        message.success("报告更新成功");
+        renderedReport.value = md.render(courseReport.value);
+      } catch (error) {
+        message.error("报告更新失败");
+      } finally {
+        updatingReport.value = false;
+      }
+    };
+
     return {
       courseclassId,
       courseclassName,
@@ -481,6 +596,11 @@ export default defineComponent({
       confirmDelete,
       togglePublic,
       parsedContent,
+      activeTab,
+      courseReport,
+      handleUpdateCourseReport,
+      updatingReport,
+      renderedReport,
     };
   },
 });
@@ -572,5 +692,47 @@ export default defineComponent({
   position: absolute;
   left: 0;
   color: #666;
+}
+
+/* 新增报告样式 */
+.report-container {
+  padding: 16px;
+  background: #fbfaef;
+  border-radius: 8px;
+  min-height: 500px;
+}
+
+.report-header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.empty-report {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 300px;
+}
+
+/* 解决方案2：弹性布局滚动（推荐） */
+
+.markdown-content {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 70vh; /* 根据视口高度自动调整 */
+  padding: 24px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
+}
+
+/* 通用代码块滚动处理 */
+.markdown-content :deep() pre {
+  max-width: 100%;
+  overflow-x: auto;
+  background: #f6f8fa;
+  padding: 16px;
+  border-radius: 6px;
 }
 </style>
