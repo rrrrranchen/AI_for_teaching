@@ -133,6 +133,7 @@ def async_generate_ppt(app, course_id, teachingdesignversion_id, ppttemplate_id,
         except Exception as e:
             current_app.logger.error(f"生成 PPT 时出错: {str(e)}")
 
+#选择ppt模板提供教学设计版本id和课程id生成ppt
 @resource_bp.route('/createPPT/<int:course_id>/<int:teachingdesignversion_id>/<int:ppttemplate_id>', methods=['POST'])
 def generatePPT(course_id, teachingdesignversion_id, ppttemplate_id):
     # 从请求中获取标题
@@ -150,7 +151,7 @@ def generatePPT(course_id, teachingdesignversion_id, ppttemplate_id):
 
     return jsonify({'message': 'PPT generation started'}), 202
 
-
+#上传资源
 @resource_bp.route('/resources', methods=['POST'])
 def upload_resource():
     # 获取上传的文件
@@ -266,6 +267,7 @@ def _map_file_type(ext):
     }
     return type_map.get(ext.lstrip('.'), 'other')
 
+#查询单个教学设计版本的ppt资源
 @resource_bp.route('/resources/teachingdesignversion/<int:designversion_id>', methods=['GET'])
 def get_resources_by_designversion(designversion_id):
     # 检查用户是否登录
@@ -287,7 +289,6 @@ def get_resources_by_designversion(designversion_id):
                 "id": str(resource.id),
                 "title": resource.title,
                 "designversion_id":resource.designversion_id,
-                "description": resource.description,
                 "description": resource.description,
                 "type": resource.type,
                 "storage_path": resource.storage_path,
@@ -313,7 +314,8 @@ def get_resources_by_designversion(designversion_id):
     except Exception as e:
         current_app.logger.error(f"查询资源失败: {str(e)}")
         return jsonify({"error": str(e)}), 500
-    
+
+#查询当前用户的所有资源    
 @resource_bp.route('/resources', methods=['GET'])
 def get_all_resources():
     # 检查用户是否登录
@@ -361,7 +363,8 @@ def get_all_resources():
     except Exception as e:
         current_app.logger.error(f"查询资源失败: {str(e)}")
         return jsonify({"error": str(e)}), 500
-    
+
+#根据资源id删除资源    
 @resource_bp.route('/resources/<resource_id>', methods=['DELETE'])
 def delete_resource(resource_id):
     # 检查用户是否登录
@@ -392,6 +395,7 @@ def delete_resource(resource_id):
         current_app.logger.error(f"删除资源失败: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+#查询单个课程的所有资源
 @resource_bp.route('/resources/course/<int:course_id>', methods=['GET'])
 def get_resources_by_course(course_id):
     try:
@@ -431,7 +435,8 @@ def get_resources_by_course(course_id):
     except Exception as e:
         current_app.logger.error(f"查询课程资源失败: {str(e)}")
         return jsonify({"error": str(e)}), 500
-    
+
+#根据资源id查询单个资源信息    
 @resource_bp.route('/resources/<resource_id>', methods=['GET'])
 def get_resource_by_id(resource_id):
     try:
