@@ -152,7 +152,7 @@ def generatePPT(course_id, teachingdesignversion_id, ppttemplate_id):
 
     return jsonify({'message': 'PPT generation started'}), 202
 
-#上传资源
+#上传资源（暂时用不到）
 @resource_bp.route('/resources', methods=['POST'])
 def upload_resource():
     # 获取上传的文件
@@ -378,7 +378,7 @@ def delete_resource(resource_id):
 
     try:
         # 查询指定资源
-        resource = MultimediaResource.objects(id=resource_id, uploader_id=current_user.id).first()
+        resource = MultimediaResource.objects(_id=resource_id, uploader_id=current_user.id).first()
         if not resource:
             return jsonify({'error': '资源不存在'}), 404
 
@@ -442,7 +442,7 @@ def get_resources_by_course(course_id):
 def get_resource_by_id(resource_id):
     try:
         # 查询指定资源
-        resource = MultimediaResource.objects(id=resource_id).first()
+        resource = MultimediaResource.objects(_id=resource_id).first()
         if not resource:
             return jsonify({'error': '资源不存在'}), 404
 
