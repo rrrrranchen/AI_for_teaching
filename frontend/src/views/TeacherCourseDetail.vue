@@ -238,14 +238,7 @@
 </template>
 
 <script lang="ts">
-import {
-  defineComponent,
-  ref,
-  reactive,
-  onMounted,
-  onBeforeUnmount,
-  nextTick,
-} from "vue";
+import { defineComponent, ref, reactive, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { message, Modal } from "ant-design-vue";
 import {
@@ -253,6 +246,7 @@ import {
   EditOutlined,
   UpOutlined,
   DownOutlined,
+  SyncOutlined,
 } from "@ant-design/icons-vue";
 import {
   questionApi,
@@ -277,6 +271,7 @@ export default defineComponent({
     EditOutlined,
     UpOutlined,
     DownOutlined,
+    SyncOutlined,
     TeachingDesignItem,
   },
   setup() {
@@ -698,6 +693,7 @@ export default defineComponent({
 .report-container {
   padding: 16px;
   background: #fbfaef;
+  border: 5px solid #fcf9d3;
   border-radius: 8px;
   min-height: 500px;
 }

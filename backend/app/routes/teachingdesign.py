@@ -306,6 +306,7 @@ def get_my_designs():
             design_data = {
                 "design_id": design.id,
                 "title": design.title,
+                "default_version_id": design.current_version_id,
                 "course_id": design.course_id,
                 "created_at": design.created_at.isoformat() if design.created_at else None,
                 "updated_at": design.updated_at.isoformat() if design.updated_at else None
@@ -394,6 +395,7 @@ def get_course_designs(course_id):
             design_data = {
                 "design_id": design.id,
                 "title": design.title,
+                "default_version_id": design.current_version_id,
                 "creator_id": design.creator_id,
                 "created_at": design.created_at.isoformat() if design.created_at else None
             }

@@ -246,6 +246,7 @@ export default defineComponent({
   gap: 12px;
   justify-content: flex-end;
   padding: 16px 0;
+  margin-right: 10px;
 }
 
 .option-item {
