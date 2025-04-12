@@ -241,6 +241,7 @@ import {
   CalendarOutlined,
   BookOutlined,
   DeleteOutlined,
+  SyncOutlined,
 } from "@ant-design/icons-vue";
 import MarkdownIt from "markdown-it";
 import hljs from "highlight.js";
@@ -258,6 +259,7 @@ export default defineComponent({
     CalendarOutlined,
     BookOutlined,
     DeleteOutlined,
+    SyncOutlined,
   },
   setup() {
     const route = useRoute();
@@ -883,6 +885,7 @@ export default defineComponent({
 .report-container {
   padding: 16px;
   background: #fbfaef;
+  border: 5px solid #fcf9d3;
   border-radius: 8px;
   min-height: 500px;
 }
