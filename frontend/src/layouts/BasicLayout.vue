@@ -39,7 +39,7 @@
         </a-menu-item>
         <a-menu-item key="4">
           <SlackCircleFilled />
-          <span class="nav-text">社区</span>
+          <span class="nav-text">学习社区</span>
         </a-menu-item>
       </a-menu>
       <!-- 用户信息区域 - 固定在侧边栏底部 -->

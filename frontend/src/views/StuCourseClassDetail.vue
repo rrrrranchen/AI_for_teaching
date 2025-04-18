@@ -188,6 +188,36 @@
                 </div>
               </div>
             </a-tab-pane>
+            <a-tab-pane key="report" tab="我的学习报告">
+              <!-- 报告内容区域 -->
+              <div class="report-container">
+                <div class="report-header">
+                  <a-button
+                    type="primary"
+                    @click="handleUpdateMyReport"
+                    :loading="updatingReport"
+                  >
+                    <sync-outlined />
+                    {{ myReport ? "更新报告" : "生成报告" }}
+                  </a-button>
+                </div>
+
+                <div v-if="!myReport" class="empty-report">
+                  <a-empty description="暂无学习报告">
+                    <a-button type="primary" @click="handleUpdateMyReport">
+                      立即生成
+                    </a-button>
+                  </a-empty>
+                </div>
+
+                <div
+                  v-else
+                  id="myReportViewer"
+                  class="vditor-container"
+                  style="background: white; padding: 16px"
+                ></div>
+              </div>
+            </a-tab-pane>
           </a-tabs>
         </div>
       </div>
@@ -211,7 +241,16 @@ import {
   CalendarOutlined,
   BookOutlined,
   DeleteOutlined,
+  SyncOutlined,
 } from "@ant-design/icons-vue";
+import MarkdownIt from "markdown-it";
+import hljs from "highlight.js";
+import "highlight.js/styles/github.css";
+import {
+  getStudentClassReport,
+  updateStudentClassReport,
+} from "@/api/studentanswer";
+import { useAuthStore } from "@/stores/auth";
 
 export default defineComponent({
   name: "CourseClassDetail",
@@ -220,6 +259,7 @@ export default defineComponent({
     CalendarOutlined,
     BookOutlined,
     DeleteOutlined,
+    SyncOutlined,
   },
   setup() {
     const route = useRoute();
@@ -240,9 +280,72 @@ export default defineComponent({
     const newCourse = ref({ name: "", description: "" });
     const router = useRouter();
 
+    const myReport = ref<string | null>(null);
+    const updatingReport = ref(false);
+    const authStore = useAuthStore();
+    // 在setup中添加
+    const md: any = new MarkdownIt({
+      html: true,
+      linkify: true,
+      typographer: true,
+      highlight: function (str, lang) {
+        if (lang && hljs.getLanguage(lang)) {
+          try {
+            return (
+              '<pre class="hljs"><code>' +
+              hljs.highlight(str, { language: lang, ignoreIllegals: true })
+                .value +
+              "</code></pre>"
+            );
+          } catch (err) {
+            console.log(err);
+          }
+        }
+        return (
+          '<pre class="hljs"><code>' +
+          md.utils.escapeHtml(str) +
+          "</code></pre>"
+        );
+      },
+    });
+
+    // 添加渲染后的报告内容
+    const renderedReport = ref<string>("");
+    // 获取报告数据
+    const loadMyReport = async () => {
+      try {
+        const { data } = await getStudentClassReport(
+          authStore.user?.id || 0,
+          courseclassId.value
+        );
+        myReport.value = data.markdown_report;
+        renderedReport.value = md.render(myReport.value || "");
+      } catch (error) {
+        message.error("获取报告失败");
+      }
+    };
+
+    // 更新报告
+    const handleUpdateMyReport = async () => {
+      try {
+        updatingReport.value = true;
+        const { data } = await updateStudentClassReport(
+          authStore.user?.id || 0,
+          courseclassId.value
+        );
+        myReport.value = data.markdown_report;
+        renderedReport.value = md.render(myReport.value);
+        message.success("报告更新成功");
+      } catch (error) {
+        message.error("报告更新失败");
+      } finally {
+        updatingReport.value = false;
+      }
+    };
+
     const handleCourseClick = (courseId: number, courseName: string) => {
       router.push({
-        path: `/home/t-course/${courseId}`,
+        path: `/home/s-course/${courseId}`,
         query: {
           courseclassName: courseclassDetail.value?.name || "未知班级",
           courseclassId: courseclassId.value,
@@ -306,6 +409,7 @@ export default defineComponent({
           fetchCourses(),
           fetchStudents(),
         ]);
+        await loadMyReport();
       } catch (err) {
         error.value = "加载数据失败，请稍后再试";
         console.error(err);
@@ -391,6 +495,9 @@ export default defineComponent({
       filteredStudents,
       showCreateModal: () => (createVisible.value = true),
       formatCreatedAt,
+      myReport,
+      handleUpdateMyReport,
+      updatingReport,
     };
   },
 });
@@ -432,6 +539,7 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   align-items: left;
+  margin-left: 30px;
   color: rgba(0, 0, 0, 0.45);
 }
 
@@ -771,5 +879,47 @@ export default defineComponent({
 
 .student-table-row:last-child {
   border-bottom: none;
+}
+
+/* 添加报告样式 */
+.report-container {
+  padding: 16px;
+  background: #fbfaef;
+  border: 5px solid #fcf9d3;
+  border-radius: 8px;
+  min-height: 500px;
+}
+
+.report-header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.empty-report {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 300px;
+}
+/* 解决方案2：弹性布局滚动（推荐） */
+
+.markdown-content {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 70vh; /* 根据视口高度自动调整 */
+  padding: 24px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
+}
+
+/* 通用代码块滚动处理 */
+.markdown-content :deep() pre {
+  max-width: 100%;
+  overflow-x: auto;
+  background: #f6f8fa;
+  padding: 16px;
+  border-radius: 6px;
 }
 </style>
