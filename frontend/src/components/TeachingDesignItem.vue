@@ -33,7 +33,13 @@ export default defineComponent({
 
     // 点击卡片跳转到教学设计详情
     const handleCardClick = () => {
-      router.push(`/home/teaching-design/${props.design.design_id}`);
+      router.push({
+        path: `/home/teaching-design/${props.design.design_id}`,
+        query: {
+          title: props.design.title,
+          default_version_id: props.design.default_version_id,
+        },
+      });
     };
 
     return {

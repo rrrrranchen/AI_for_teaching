@@ -19,7 +19,7 @@ class ChineseGrader:
         self.BASE_DIR = os.path.dirname(os.path.abspath(__file__))
         self.cc = OpenCC('t2s')
         self._init_resources()
-        self.model_path = r'C:\Users\86150\.cache\huggingface\hub\paraphrase-multilingual-MiniLM-L12-v2'
+        self.model_path = r'C:\Users\13925\.cache\huggingface\hub\paraphrase-multilingual-MiniLM-L12-v2'
         
         # 初始化模型
         try:
@@ -208,4 +208,30 @@ class ChineseGrader:
                     "查看日志获取详细信息"
                 ]
             }
+def main():
+    # 创建ChineseGrader实例
+    grader = ChineseGrader()
+    
+    # 定义标准答案和学生答案
+    std_answer = "这是标准答案，包含了一些关键概念和信息。"
+    student_answer = "这是学生的答案，其中包含了一些与标准答案相似的关键概念。"
+    
+    try:
+        # 调用grade方法进行评分
+        result = grader.grade(std_answer, student_answer)
+        
+        # 打印评分结果
+        print("评分结果：")
+        print(f"得分：{result['score']}")
+        print("详细评分信息：")
+        for key, value in result['details'].items():
+            print(f"{key}: {value}")
+    
+    except Exception as e:
+        # 如果评分过程中出现异常，打印错误信息
+        print(f"评分过程中出现错误：{str(e)}")
+        print("请检查日志获取详细信息")
+
+if __name__ == "__main__":
+    main()
 
