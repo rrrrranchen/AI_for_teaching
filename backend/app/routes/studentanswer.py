@@ -417,6 +417,30 @@ def add_answers():
                 })
                 continue
 
+            # 获取课程信息
+            course = Course.query.get(question.course_id)
+            if not course:
+                results.append({
+                    'question_id': question_id,
+                    'error': 'Course not found'
+                })
+                continue
+
+            # 检查截止时间
+            now = datetime.utcnow()
+            if question.timing == 'pre_class' and course.preview_deadline and now > course.preview_deadline:
+                results.append({
+                    'question_id': question_id,
+                    'error': '预习题目已过截止时间'
+                })
+                continue
+            elif question.timing == 'post_class' and course.post_class_deadline and now > course.post_class_deadline:
+                results.append({
+                    'question_id': question_id,
+                    'error': '课后题目已过截止时间'
+                })
+                continue
+
             # 根据题目类型评分
             if question.type in ['choice', 'fill']:
                 # 选择题和填空题：直接对比答案
@@ -469,6 +493,8 @@ def add_answers():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': f'添加失败：{str(e)}'}), 500
+    
+
 #教师更新作答成绩
 @studentanswer_bp.route('/update_score/<int:studentanswer_id>', methods=['POST'])
 def update_score(studentanswer_id):

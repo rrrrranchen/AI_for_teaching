@@ -12,7 +12,7 @@ class ForumFavorite(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     post_id = db.Column(db.Integer, db.ForeignKey('forum_posts.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    tags = db.Column(db.String(100))  # 收藏标签（可选）
+    
     
     __table_args__ = (
         db.UniqueConstraint('user_id', 'post_id', name='uq_user_post_favorite'),

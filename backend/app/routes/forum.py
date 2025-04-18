@@ -1,3 +1,4 @@
+from datetime import datetime
 import os
 import random
 import string
@@ -12,15 +13,21 @@ from app.models.courseclass import Courseclass
 from app.models.course import Course
 from app.models.user import User
 from app.models.relationship import teacher_class,student_class,course_courseclass
-from app.models.forumpost_tag import ForumPost
+from app.models.forumpost_tag import ForumPost, ForumTag,forum_post_tags
 from app.models.teachingdesignversion import TeachingDesignVersion
 from app.models.forumattachment import ForumAttachment
 from app.models.forumcomment import ForumComment
 from app.models.forumfavorite import ForumFavorite
 from app.models.forumpostlike import ForumPostLike
 from werkzeug.utils import secure_filename
-
+from sqlalchemy.orm import joinedload
 forum_bp=Blueprint('forum',__name__)
+
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+UPLOAD_FOLDER = os.path.join('static', 'uploads','forumattachments')
+ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 # 检查用户是否登录
 def is_logged_in():
     return 'user_id' in session
@@ -29,16 +36,98 @@ def get_current_user():
     if user_id:
         return User.query.get(user_id)
     return None
+from sqlalchemy import or_
 
-#创建帖子
+def search_posts(keyword):
+    # 搜索帖子标题、内容和标签
+    posts = ForumPost.query.join(ForumPost.tags).filter(
+        or_(
+            ForumPost.title.ilike(f'%{keyword}%'),
+            ForumPost.content.ilike(f'%{keyword}%'),
+            ForumTag.name.ilike(f'%{keyword}%')
+        )
+    ).order_by(
+        # 按优先级排序：标题 > 标签 > 内容
+        ForumPost.title.ilike(f'%{keyword}%').desc(),
+        ForumTag.name.ilike(f'%{keyword}%').desc(),
+        ForumPost.content.ilike(f'%{keyword}%').desc()
+    ).all()
+    return posts
+@forum_bp.route('/attachments', methods=['POST'])
+def upload_attachment():
+    try:
+        # 获取当前用户
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({'error': '请先登录'}), 401
+
+        # 获取文件列表
+        files = request.files.getlist('files')
+        if not files:
+            return jsonify({'error': '未上传文件'}), 400
+
+        # 初始化返回结果
+        results = []
+
+        # 遍历文件列表
+        for file in files:
+            # 检查文件类型
+            if not allowed_file(file.filename):
+                return jsonify({'error': '不允许的文件类型'}), 400
+
+            # 生成唯一的文件名
+            filename = secure_filename(file.filename)
+            unique_filename = f"{uuid.uuid4().hex}_{filename}"
+            file_path = os.path.join(project_root, UPLOAD_FOLDER, unique_filename)
+
+            # 确保上传目录存在
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+            # 保存文件
+            file.save(file_path)
+
+            # 保存附件信息到数据库
+            new_attachment = ForumAttachment(
+                file_path=os.path.join(UPLOAD_FOLDER, unique_filename),
+                uploader_id=current_user.id
+            )
+            db.session.add(new_attachment)
+            db.session.commit()
+
+            # 添加到返回结果
+            results.append({
+                'attachment_id': new_attachment.id,
+                'file_path': new_attachment.file_path
+            })
+
+        return jsonify({
+            'message': '附件上传成功',
+            'results': results
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"上传附件失败: {str(e)}")
+        return jsonify({'error': '服务器内部错误'}), 500
+    
+
+# 创建帖子
 @forum_bp.route('/posts', methods=['POST'])
 def create_post():
     try:
+        # 获取基本数据
         data = request.json
         title = data.get('title')
         content = data.get('content')
-        author_id = data.get('author_id')
+        author_id = get_current_user().id
+        
+        # 获取标签列表
+        tags = data.get('tags', [])
+        
+        # 获取教学设计版本列表
         teaching_design_version_ids = data.get('teaching_design_version_ids', [])
+        
+        # 获取附件ID列表
+        attachment_ids = data.get('attachment_ids', [])
 
         if not title or not content or not author_id:
             return jsonify({'error': '缺少必要字段'}), 400
@@ -47,34 +136,94 @@ def create_post():
         if not current_user:
             return jsonify({'error': '请先登录'}), 401
 
-        if current_user.id != author_id and current_user.role != 'admin':
-            return jsonify({'error': '无权创建该帖子'}), 403
-
+        # 创建新帖子
         new_post = ForumPost(title=title, content=content, author_id=author_id)
         db.session.add(new_post)
         db.session.commit()
 
+        # 处理标签
+        new_tags = []
+        for tag_name in tags:
+            tag = ForumTag.query.filter_by(name=tag_name).first()
+            if not tag:
+                tag = ForumTag(name=tag_name)
+                db.session.add(tag)
+                db.session.commit()
+            new_post.tags.append(tag)
+        
+        # 处理教学设计版本
         if teaching_design_version_ids:
             for version_id in teaching_design_version_ids:
-                teaching_design_version = TeachingDesignVersion.query.get(version_id)
-                if teaching_design_version:
-                    new_post.teaching_design_versions.append(teaching_design_version)
-                else:
+                version = TeachingDesignVersion.query.get(version_id)
+                if not version:
                     return jsonify({'error': f'Teaching Design Version with ID {version_id} not found'}), 404
+                if version.author_id != current_user.id:
+                    return jsonify({'error': f'无权添加 Teaching Design Version with ID {version_id}，您不是该版本的作者'}), 403
+                new_post.teaching_design_versions.append(version)
             db.session.commit()
 
-        return jsonify({'message': '帖子创建成功', 'post_id': new_post.id}), 201
+        # 处理附件
+        if attachment_ids:
+            for attachment_id in attachment_ids:
+                attachment = ForumAttachment.query.get(attachment_id)
+                if not attachment:
+                    return jsonify({'error': f'Attachment with ID {attachment_id} not found'}), 404
+                if attachment.uploader_id != current_user.id:
+                    return jsonify({'error': f'无权添加 Attachment with ID {attachment_id}，您不是该附件的上传者'}), 403
+                attachment.post_id = new_post.id  # 更新附件的 post_id
+                new_post.attachments.append(attachment)
+            db.session.commit()
+
+        return jsonify({
+            'message': '帖子创建成功',
+            'post_id': new_post.id,
+            'tag_ids': [t.id for t in new_post.tags],
+            'version_ids': [v.id for v in new_post.teaching_design_versions],
+            'attachment_ids': [a.id for a in new_post.attachments]
+        }), 201
     except Exception as e:
         db.session.rollback()
         logger.error(f"创建帖子失败: {str(e)}")
         return jsonify({'error': '服务器内部错误'}), 500
+    
 
-#获取所有帖子
+#获取所有帖子(综合排序/时间排序/点赞排序/收藏排序/浏览次数排序)
 @forum_bp.route('/posts', methods=['GET'])
 def get_all_posts():
     try:
+        # 获取排序参数
+        sort_by = request.args.get('sort_by', 'composite')  # 默认按综合排序
+        if sort_by not in ['like_count', 'favorite_count', 'view_count', 'composite', 'created_at']:
+            return jsonify({'error': '无效的排序参数'}), 400
+
+        # 获取帖子列表
         posts = ForumPost.query.all()
-        return jsonify([{
+
+        # 定义权重系数
+        alpha = 1.0  # 点赞数权重
+        beta = 1.0   # 收藏数权重
+        gamma = 0.5  # 浏览次数权重
+        delta = 0.1  # 时间因子权重
+
+        # 计算综合得分
+        def calculate_score(post):
+            # 计算时间因子，较新的帖子时间因子更高
+            time_factor = (datetime.utcnow() - post.created_at).total_seconds() / (60 * 60 * 24)
+            return (alpha * post.like_count +
+                    beta * post.favorite_count +
+                    gamma * post.view_count +
+                    delta * time_factor)
+
+        # 根据排序参数排序
+        if sort_by == 'composite':
+            posts.sort(key=calculate_score, reverse=True)
+        elif sort_by == 'created_at':
+            posts.sort(key=lambda post: post.created_at, reverse=True)
+        else:
+            posts.sort(key=lambda post: getattr(post, sort_by), reverse=True)
+
+        # 构建返回数据
+        post_data = [{
             'id': post.id,
             'title': post.title,
             'content': post.content,
@@ -83,8 +232,11 @@ def get_all_posts():
             'updated_at': post.updated_at,
             'view_count': post.view_count,
             'is_pinned': post.is_pinned,
-            'like_count': post.like_count
-        } for post in posts]), 200
+            'like_count': post.like_count,
+            'favorite_count': post.favorite_count
+        } for post in posts]
+
+        return jsonify(post_data), 200
     except Exception as e:
         logger.error(f"获取帖子列表失败: {str(e)}")
         return jsonify({'error': '服务器内部错误'}), 500
@@ -97,8 +249,20 @@ def get_post(post_id):
         if not post:
             return jsonify({'error': '帖子不存在'}), 404
 
-        post.view_count += 1
-        db.session.commit()
+        current_user = get_current_user()
+        if current_user and current_user.id == post.author_id:
+            # 如果当前用户是帖子的创建者，不增加浏览量
+            pass
+        else:
+            # 如果当前用户不是帖子的创建者，增加浏览量
+            post.view_count += 1
+            db.session.commit()
+
+        # 获取与帖子相关联的教学设计版本ID
+        teaching_design_versions = [version.id for version in post.teaching_design_versions]
+
+        # 获取与帖子相关联的附件ID
+        attachments = [attachment.id for attachment in post.attachments]
 
         return jsonify({
             'id': post.id,
@@ -108,12 +272,15 @@ def get_post(post_id):
             'created_at': post.created_at,
             'updated_at': post.updated_at,
             'view_count': post.view_count,
-            'is_pinned': post.is_pinned,
-            'like_count': post.like_count
+            'like_count': post.like_count,
+            'favorite_count': post.favorite_count,
+            'teaching_design_versions': teaching_design_versions,
+            'attachments': attachments
         }), 200
     except Exception as e:
         logger.error(f"获取帖子失败: {str(e)}")
         return jsonify({'error': '服务器内部错误'}), 500
+    
 
 #删除单个帖子
 @forum_bp.route('/posts/<int:post_id>', methods=['DELETE'])
@@ -130,9 +297,44 @@ def delete_post(post_id):
         if current_user.id != post.author_id and current_user.role != 'admin':
             return jsonify({'error': '无权删除该帖子'}), 403
 
+        # 获取帖子的所有附件
+        attachments = ForumAttachment.query.filter_by(post_id=post_id).all()
+
+        # 删除文件系统中的附件文件
+        for attachment in attachments:
+            file_path = os.path.join(project_root, attachment.file_path)
+            if os.path.exists(file_path):
+                os.remove(file_path)
+
+        # 删除数据库中的附件记录
+        for attachment in attachments:
+            db.session.delete(attachment)
+
+        # 删除帖子与标签的关联记录
+        db.session.execute(forum_post_tags.delete().where(forum_post_tags.c.post_id == post_id))
+
+        # 删除帖子的评论
+        comments = ForumComment.query.filter_by(post_id=post_id).all()
+        for comment in comments:
+            db.session.delete(comment)
+
+        # 删除帖子的点赞记录
+        likes = ForumPostLike.query.filter_by(post_id=post_id).all()
+        for like in likes:
+            db.session.delete(like)
+
+        # 删除帖子的收藏记录
+        favorites = ForumFavorite.query.filter_by(post_id=post_id).all()
+        for favorite in favorites:
+            db.session.delete(favorite)
+
+        # 删除帖子记录
         db.session.delete(post)
+
+        # 提交所有删除操作
         db.session.commit()
-        return jsonify({'message': '帖子已删除'}), 200
+
+        return jsonify({'message': '帖子及所有相关数据已删除'}), 200
     except Exception as e:
         db.session.rollback()
         logger.error(f"删除帖子失败: {str(e)}")
@@ -153,11 +355,59 @@ def update_post(post_id):
         if current_user.id != post.author_id and current_user.role != 'admin':
             return jsonify({'error': '无权修改该帖子'}), 403
 
+        # 获取 JSON 数据
         data = request.json
+
+        # 更新帖子基本信息
         post.title = data.get('title', post.title)
         post.content = data.get('content', post.content)
+
+        # 更新相关联的教学设计版本信息
+        teaching_design_version_ids = data.get('teaching_design_version_ids', [])
+        if teaching_design_version_ids:
+            # 清除现有关联
+            post.teaching_design_versions = []  # 使用赋值来清空关系
+            # 添加新的关联
+            for version_id in teaching_design_version_ids:
+                version = TeachingDesignVersion.query.get(version_id)
+                if not version:
+                    return jsonify({'error': f'Teaching Design Version with ID {version_id} not found'}), 404
+                if version.author_id != current_user.id:
+                    return jsonify({'error': f'无权添加 Teaching Design Version with ID {version_id}，您不是该版本的作者'}), 403
+                post.teaching_design_versions.append(version)
+
+        # 更新相关联的附件信息
+        attachment_ids = data.get('attachment_ids', [])
+        if attachment_ids:
+            # 找出需要删除的附件
+            current_attachment_ids = {attachment.id for attachment in post.attachments}
+            new_attachment_ids = set(attachment_ids)
+            attachments_to_delete = current_attachment_ids - new_attachment_ids
+
+            # 删除不再属于帖子的附件及其本地存储文件
+            for attachment_id in attachments_to_delete:
+                attachment = ForumAttachment.query.get(attachment_id)
+                if attachment:
+                    # 删除本地存储文件
+                    file_path = os.path.join(project_root, attachment.file_path)
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                    # 删除数据库记录
+                    db.session.delete(attachment)
+
+            # 清除现有关联
+            post.attachments = []  # 使用赋值来清空关系
+            # 添加新的关联
+            for attachment_id in attachment_ids:
+                attachment = ForumAttachment.query.get(attachment_id)
+                if not attachment:
+                    return jsonify({'error': f'Attachment with ID {attachment_id} not found'}), 404
+                if attachment.uploader_id != current_user.id:
+                    return jsonify({'error': f'无权添加 Attachment with ID {attachment_id}，您不是该附件的上传者'}), 403
+                post.attachments.append(attachment)
+
         db.session.commit()
-        return jsonify({'message': '帖子已更新'}), 200
+        return jsonify({'message': '帖子及关联信息已更新'}), 200
     except Exception as e:
         db.session.rollback()
         logger.error(f"更新帖子失败: {str(e)}")
@@ -182,6 +432,11 @@ def like_post(post_id):
         new_like = ForumPostLike(user_id=current_user.id, post_id=post_id)
         db.session.add(new_like)
         db.session.commit()
+
+        # 更新帖子的点赞人数
+        post.update_counts()
+        db.session.commit()
+
         return jsonify({'message': '点赞成功'}), 201
     except Exception as e:
         db.session.rollback()
@@ -206,6 +461,11 @@ def unlike_post(post_id):
 
         db.session.delete(existing_like)
         db.session.commit()
+
+        # 更新帖子的点赞人数
+        post.update_counts()
+        db.session.commit()
+
         return jsonify({'message': '取消点赞成功'}), 200
     except Exception as e:
         db.session.rollback()
@@ -224,14 +484,20 @@ def favorite_post(post_id):
         if not current_user:
             return jsonify({'error': '请先登录'}), 401
 
-        tags = request.json.get('tags', '')
+
+
         existing_favorite = ForumFavorite.query.filter_by(user_id=current_user.id, post_id=post_id).first()
         if existing_favorite:
             return jsonify({'error': '用户已经收藏'}), 400
 
-        new_favorite = ForumFavorite(user_id=current_user.id, post_id=post_id, tags=tags)
+        new_favorite = ForumFavorite(user_id=current_user.id, post_id=post_id)
         db.session.add(new_favorite)
         db.session.commit()
+
+        # 更新帖子的收藏人数
+        post.update_counts()
+        db.session.commit()
+
         return jsonify({'message': '收藏成功'}), 201
     except Exception as e:
         db.session.rollback()
@@ -256,6 +522,11 @@ def unfavorite_post(post_id):
 
         db.session.delete(existing_favorite)
         db.session.commit()
+
+        # 更新帖子的收藏人数
+        post.update_counts()
+        db.session.commit()
+
         return jsonify({'message': '取消收藏成功'}), 200
     except Exception as e:
         db.session.rollback()
@@ -330,74 +601,22 @@ def delete_comment(comment_id):
         if current_user.id != comment.author_id and current_user.role != 'admin':
             return jsonify({'error': '无权删除该评论'}), 403
 
-        db.session.delete(comment)
+        # 递归删除所有子评论
+        def delete_comment_and_replies(comment):
+            for reply in comment.replies:
+                delete_comment_and_replies(reply)
+            db.session.delete(comment)
+
+        delete_comment_and_replies(comment)
         db.session.commit()
-        return jsonify({'message': '评论已删除'}), 200
+        return jsonify({'message': '评论及所有回复已删除'}), 200
     except Exception as e:
         db.session.rollback()
         logger.error(f"删除评论失败: {str(e)}")
         return jsonify({'error': '服务器内部错误'}), 500
 
 
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-UPLOAD_FOLDER = os.path.join('static', 'uploads','forumattachments')
-ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-
-#为单个帖子上传附件
-@forum_bp.route('/posts/<int:post_id>/attachments', methods=['POST'])
-def upload_attachment(post_id):
-    try:
-        post = ForumPost.query.get(post_id)
-        if not post:
-            return jsonify({'error': '帖子不存在'}), 404
-
-        current_user = get_current_user()
-        if not current_user:
-            return jsonify({'error': '请先登录'}), 401
-
-        if current_user.id != post.author_id and current_user.role != 'admin':
-            return jsonify({'error': '无权上传附件'}), 403
-
-        # 检查是否有文件在请求中
-        if 'file' not in request.files:
-            return jsonify({'error': '没有文件部分'}), 400
-
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({'error': '没有选择文件'}), 400
-
-        if file and allowed_file(file.filename):
-            # 生成唯一的文件名
-            filename = secure_filename(file.filename)
-            unique_filename = f"{uuid.uuid4().hex}_{filename}"
-            file_path = os.path.join(project_root, UPLOAD_FOLDER, unique_filename)
-
-            # 确保上传目录存在
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)
-
-            # 保存文件
-            file.save(file_path)
-
-            # 保存附件信息到数据库
-            new_attachment = ForumAttachment(
-                post_id=post_id,
-                file_path=os.path.join(UPLOAD_FOLDER, unique_filename),
-                uploader_id=current_user.id,
-                display_name=request.form.get('display_name', filename)
-            )
-            db.session.add(new_attachment)
-            db.session.commit()
-
-            return jsonify({'message': '附件已上传', 'attachment_id': new_attachment.id}), 201
-
-        return jsonify({'error': '不允许的文件类型'}), 400
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"上传附件失败: {str(e)}")
-        return jsonify({'error': '服务器内部错误'}), 500
 #获取单个帖子的附件
 @forum_bp.route('/posts/<int:post_id>/attachments', methods=['GET'])
 def get_attachments(post_id):
@@ -411,153 +630,64 @@ def get_attachments(post_id):
             'id': attachment.id,
             'file_path': attachment.file_path,
             'uploader_id': attachment.uploader_id,
-            'display_name': attachment.display_name,
             'created_at': attachment.created_at
         } for attachment in attachments]), 200
     except Exception as e:
         logger.error(f"获取附件失败: {str(e)}")
         return jsonify({'error': '服务器内部错误'}), 500
     
-#删除单个帖子的附件
-@forum_bp.route('/attachments/<int:attachment_id>', methods=['DELETE'])
-def delete_attachment(attachment_id):
-    try:
-        attachment = ForumAttachment.query.get(attachment_id)
-        if not attachment:
-            return jsonify({'error': '附件不存在'}), 404
-
-        current_user = get_current_user()
-        if not current_user:
-            return jsonify({'error': '请先登录'}), 401
-
-        if current_user.id != attachment.uploader_id and current_user.role != 'admin':
-            return jsonify({'error': '无权删除该附件'}), 403
-
-        # 删除文件系统中的文件
-        file_path = os.path.join(project_root, attachment.file_path)
-        if os.path.exists(file_path):
-            os.remove(file_path)
-
-        # 删除数据库中的记录
-        db.session.delete(attachment)
-        db.session.commit()
-        return jsonify({'message': '附件已删除'}), 200
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"删除附件失败: {str(e)}")
-        return jsonify({'error': '服务器内部错误'}), 500
     
 #获取用户收藏的帖子
-@forum_bp.route('/users/<int:user_id>/favorites', methods=['GET'])
-def get_user_favorites(user_id):
+@forum_bp.route('/users/favorites', methods=['GET'])
+def get_user_favorites():
     try:
         current_user = get_current_user()
         if not current_user:
             return jsonify({'error': '请先登录'}), 401
 
-        if current_user.id != user_id and current_user.role != 'admin':
-            return jsonify({'error': '无权查看该用户的收藏'}), 403
+        user_id=current_user.id
+        # 使用 joinedload 加载帖子信息
+        favorites = ForumFavorite.query.options(joinedload(ForumFavorite.post)).filter_by(user_id=user_id).all()
 
-        favorites = ForumFavorite.query.filter_by(user_id=user_id).all()
-        return jsonify([{
+        # 构建返回数据
+        favorite_data = [{
             'id': favorite.id,
             'post_id': favorite.post_id,
-            'created_at': favorite.created_at,
-            'tags': favorite.tags
-        } for favorite in favorites]), 200
+            'post_title': favorite.post.title,  # 帖子标题
+            'author_id': favorite.post.author_id,  # 帖子作者ID
+            'created_at': favorite.created_at
+        } for favorite in favorites]
+
+        return jsonify(favorite_data), 200
     except Exception as e:
         logger.error(f"获取用户收藏失败: {str(e)}")
         return jsonify({'error': '服务器内部错误'}), 500
 
-#为单个帖子添加教学设计版本    
-@forum_bp.route('/posts/<int:post_id>/design_versions', methods=['POST'])
-def add_design_version_to_post(post_id):
+@forum_bp.route('/posts/search', methods=['GET'])
+def search_posts_route():
     try:
-        post = ForumPost.query.get(post_id)
-        if not post:
-            return jsonify({'error': '帖子不存在'}), 404
+        keyword = request.args.get('keyword')
+        if not keyword:
+            return jsonify({'error': '缺少搜索关键词'}), 400
 
-        current_user = get_current_user()
-        if not current_user:
-            return jsonify({'error': '请先登录'}), 401
+        # 调用搜索方法
+        posts = search_posts(keyword)
 
-        if current_user.id != post.author_id and current_user.role != 'admin':
-            return jsonify({'error': '无权为该帖子添加教学设计版本'}), 403
+        # 构建返回数据
+        post_data = [{
+            'id': post.id,
+            'title': post.title,
+            
+            'author_id': post.author_id,
+            'created_at': post.created_at,
+            
+            'view_count': post.view_count,
+            'like_count': post.like_count,
+            'favorite_count': post.favorite_count,
+            'tags': [tag.name for tag in post.tags]
+        } for post in posts]
 
-        data = request.json
-        version_id = data.get('version_id')
-
-        if not version_id:
-            return jsonify({'error': '缺少教学设计版本ID'}), 400
-
-        version = TeachingDesignVersion.query.get(version_id)
-        if not version:
-            return jsonify({'error': '教学设计版本不存在'}), 404
-
-        # 检查是否已经关联
-        if version in post.teaching_design_versions:
-            return jsonify({'error': '该帖子已经关联了该教学设计版本'}), 400
-
-        post.teaching_design_versions.append(version)
-        db.session.commit()
-        return jsonify({'message': '教学设计版本已成功添加到帖子', 'version_id': version.id}), 201
+        return jsonify(post_data), 200
     except Exception as e:
-        db.session.rollback()
-        logger.error(f"为帖子添加教学设计版本失败: {str(e)}")
-        return jsonify({'error': '服务器内部错误'}), 500
-
-#获取单个帖子的所有教学设计版本    
-@forum_bp.route('/posts/<int:post_id>/design_versions', methods=['GET'])
-def get_design_versions_for_post(post_id):
-    try:
-        post = ForumPost.query.get(post_id)
-        if not post:
-            return jsonify({'error': '帖子不存在'}), 404
-
-        versions = post.teaching_design_versions
-        versions_data = [{
-            'version_id': version.id,
-            'design_id': version.design_id,
-            'version': version.version,
-            'content': version.content,
-            'author_id': version.author_id,
-            'created_at': version.created_at.isoformat() if version.created_at else None,
-            'updated_at': version.updated_at.isoformat() if version.updated_at else None,
-            'level': version.level,
-            'recommendation_score': version.recommendation_score
-        } for version in versions]
-
-        return jsonify({'data': versions_data}), 200
-    except Exception as e:
-        logger.error(f"获取帖子的教学设计版本失败: {str(e)}")
-        return jsonify({'error': '服务器内部错误'}), 500
-    
-#为单个帖子移除教学设计版本
-@forum_bp.route('/posts/<int:post_id>/design_versions/<int:version_id>', methods=['DELETE'])
-def remove_design_version_from_post(post_id, version_id):
-    try:
-        post = ForumPost.query.get(post_id)
-        if not post:
-            return jsonify({'error': '帖子不存在'}), 404
-
-        current_user = get_current_user()
-        if not current_user:
-            return jsonify({'error': '请先登录'}), 401
-
-        if current_user.id != post.author_id and current_user.role != 'admin':
-            return jsonify({'error': '无权从该帖子移除教学设计版本'}), 403
-
-        version = TeachingDesignVersion.query.get(version_id)
-        if not version:
-            return jsonify({'error': '教学设计版本不存在'}), 404
-
-        if version not in post.teaching_design_versions:
-            return jsonify({'error': '该帖子未关联该教学设计版本'}), 400
-
-        post.teaching_design_versions.remove(version)
-        db.session.commit()
-        return jsonify({'message': '教学设计版本已成功从帖子中移除', 'version_id': version.id}), 200
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"从帖子移除教学设计版本失败: {str(e)}")
+        logger.error(f"搜索帖子失败: {str(e)}")
         return jsonify({'error': '服务器内部错误'}), 500
