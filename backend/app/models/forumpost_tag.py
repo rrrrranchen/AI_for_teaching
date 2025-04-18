@@ -19,7 +19,8 @@ class ForumPost(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
     view_count = db.Column(db.Integer, default=0)
-    is_pinned = db.Column(db.Boolean, default=False)
+    favorite_count = db.Column(db.Integer, default=0)  
+    like_count = db.Column(db.Integer, default=0)      
     
     # 关系定义
     author = db.relationship('User', back_populates='posts')
@@ -27,10 +28,12 @@ class ForumPost(db.Model):
     attachments = db.relationship('ForumAttachment', back_populates='post')
     likes = db.relationship('ForumPostLike', back_populates='post')
     favorites = db.relationship('ForumFavorite', back_populates='post')
+    tags = db.relationship('ForumTag', secondary=forum_post_tags, backref=db.backref('posts', lazy='dynamic'))
 
-    @property
-    def like_count(self):
-        return len(self.likes)
+    def update_counts(self):
+        """更新收藏人数和点赞人数"""
+        self.like_count = len(self.likes)
+        self.favorite_count = len(self.favorites)
     
 class ForumTag(db.Model):
     __tablename__ = 'forum_tags'

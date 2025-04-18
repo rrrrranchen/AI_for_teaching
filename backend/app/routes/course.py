@@ -1,3 +1,4 @@
+from datetime import datetime
 from flask import Blueprint, render_template, request, jsonify, session
 from sqlalchemy import func, select
 from app.utils.database import db
@@ -171,3 +172,72 @@ def delete_course(course_id):
         return jsonify({'error': str(e)}), 500
 
 
+# 设置课前习题截止时间
+@course_bp.route('/courses/<int:course_id>/set_preview_deadline', methods=['POST'])
+def set_preview_deadline(course_id):
+    if not is_logged_in():
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        course = Course.query.get(course_id)
+        if not course:
+            return jsonify({'error': 'Course not found'}), 404
+
+        # 检查当前用户是否为该课程所属课程班的老师
+        if not any(is_teacher_of_courseclass(cc.id) for cc in course.courseclasses):
+            return jsonify({'error': 'You are not authorized to update this course'}), 403
+
+        data = request.json
+        deadline = data.get('deadline')
+        if not deadline:
+            return jsonify({'error': 'Deadline is required'}), 400
+
+        # 解析截止时间
+        try:
+            deadline = datetime.strptime(deadline, '%Y-%m-%d %H:%M:%S')
+        except ValueError:
+            return jsonify({'error': 'Invalid deadline format. Use YYYY-MM-DD HH:MM:SS'}), 400
+
+        course.preview_deadline = deadline
+        db.session.commit()
+
+        return jsonify({'message': 'Preview deadline set successfully', 'deadline': deadline.isoformat()}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+    
+# 设置课后习题截止时间
+@course_bp.route('/courses/<int:course_id>/set_post_class_deadline', methods=['POST'])
+def set_post_class_deadline(course_id):
+    if not is_logged_in():
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        course = Course.query.get(course_id)
+        if not course:
+            return jsonify({'error': 'Course not found'}), 404
+
+        # 检查当前用户是否为该课程所属课程班的老师
+        if not any(is_teacher_of_courseclass(cc.id) for cc in course.courseclasses):
+            return jsonify({'error': 'You are not authorized to update this course'}), 403
+
+        data = request.json
+        deadline = data.get('deadline')
+        if not deadline:
+            return jsonify({'error': 'Deadline is required'}), 400
+
+        # 解析截止时间
+        try:
+            deadline = datetime.strptime(deadline, '%Y-%m-%d %H:%M:%S')
+        except ValueError:
+            return jsonify({'error': 'Invalid deadline format. Use YYYY-MM-DD HH:MM:SS'}), 400
+
+        course.post_class_deadline = deadline
+        db.session.commit()
+
+        return jsonify({'message': 'Post-class deadline set successfully', 'deadline': deadline.isoformat()}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
