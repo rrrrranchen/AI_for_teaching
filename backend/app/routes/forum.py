@@ -221,17 +221,17 @@ def get_all_posts():
             posts.sort(key=lambda post: post.created_at, reverse=True)
         else:
             posts.sort(key=lambda post: getattr(post, sort_by), reverse=True)
-
+        
         # 构建返回数据
         post_data = [{
             'id': post.id,
             'title': post.title,
             'content': post.content,
             'author_id': post.author_id,
+            'authorname': User.query.get(post.author_id).username,
             'created_at': post.created_at,
             'updated_at': post.updated_at,
             'view_count': post.view_count,
-            'is_pinned': post.is_pinned,
             'like_count': post.like_count,
             'favorite_count': post.favorite_count
         } for post in posts]
@@ -269,6 +269,7 @@ def get_post(post_id):
             'title': post.title,
             'content': post.content,
             'author_id': post.author_id,
+            'authorname': User.query.get(post.author_id).username,
             'created_at': post.created_at,
             'updated_at': post.updated_at,
             'view_count': post.view_count,
@@ -630,6 +631,7 @@ def get_attachments(post_id):
             'id': attachment.id,
             'file_path': attachment.file_path,
             'uploader_id': attachment.uploader_id,
+            'uploader_name':User.query.get(attachment.uploader_id).username,
             'created_at': attachment.created_at
         } for attachment in attachments]), 200
     except Exception as e:
@@ -637,7 +639,8 @@ def get_attachments(post_id):
         return jsonify({'error': '服务器内部错误'}), 500
     
     
-#获取用户收藏的帖子
+
+# 获取用户收藏的帖子
 @forum_bp.route('/users/favorites', methods=['GET'])
 def get_user_favorites():
     try:
@@ -645,7 +648,7 @@ def get_user_favorites():
         if not current_user:
             return jsonify({'error': '请先登录'}), 401
 
-        user_id=current_user.id
+        user_id = current_user.id
         # 使用 joinedload 加载帖子信息
         favorites = ForumFavorite.query.options(joinedload(ForumFavorite.post)).filter_by(user_id=user_id).all()
 
@@ -655,13 +658,16 @@ def get_user_favorites():
             'post_id': favorite.post_id,
             'post_title': favorite.post.title,  # 帖子标题
             'author_id': favorite.post.author_id,  # 帖子作者ID
-            'created_at': favorite.created_at
+            'author_name': User.query.get(favorite.post.author_id).username,
+            'created_at': favorite.created_at,
+            'tags': [tag.name for tag in favorite.post.tags]  # 添加帖子的标签
         } for favorite in favorites]
 
         return jsonify(favorite_data), 200
     except Exception as e:
         logger.error(f"获取用户收藏失败: {str(e)}")
         return jsonify({'error': '服务器内部错误'}), 500
+    
 
 @forum_bp.route('/posts/search', methods=['GET'])
 def search_posts_route():
@@ -680,7 +686,7 @@ def search_posts_route():
             
             'author_id': post.author_id,
             'created_at': post.created_at,
-            
+            'author_name': User.query.get(post.author_id).username,
             'view_count': post.view_count,
             'like_count': post.like_count,
             'favorite_count': post.favorite_count,
@@ -707,6 +713,7 @@ def get_user_posts():
         post_data = [ {
             'id': post.id,
             'title': post.title,
+            'author_name': User.query.get(post.author_id).username,
             'created_at': post.created_at,
             'updated_at': post.updated_at,
             'view_count': post.view_count,
