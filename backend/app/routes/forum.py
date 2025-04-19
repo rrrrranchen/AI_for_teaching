@@ -269,7 +269,8 @@ def get_post(post_id):
             'title': post.title,
             'content': post.content,
             'author_id': post.author_id,
-            'authorname': User.query.get(post.author_id).username,
+            'author_name': User.query.get(post.author_id).username,
+            'author_avatar':User.query.get(post.author_id).avatar,
             'created_at': post.created_at,
             'updated_at': post.updated_at,
             'view_count': post.view_count,
@@ -534,7 +535,7 @@ def unfavorite_post(post_id):
         logger.error(f"取消收藏失败: {str(e)}")
         return jsonify({'error': '服务器内部错误'}), 500
 
-#获取单个帖子的评论
+# 获取单个帖子的评论
 @forum_bp.route('/posts/<int:post_id>/comments', methods=['GET'])
 def get_comments(post_id):
     try:
@@ -542,13 +543,47 @@ def get_comments(post_id):
         if not post:
             return jsonify({'error': '帖子不存在'}), 404
 
+        # 查询所有评论
         comments = ForumComment.query.filter_by(post_id=post_id).all()
-        return jsonify([{
-            'id': comment.id,
-            'content': comment.content,
-            'author_id': comment.author_id,
-            'created_at': comment.created_at
-        } for comment in comments]), 200
+
+        # 获取所有评论作者的ID
+        author_ids = {comment.author_id for comment in comments}
+
+        # 一次性查询所有相关用户信息
+        users = User.query.filter(User.id.in_(author_ids)).all()
+        user_map = {user.id: user for user in users}
+
+        # 构建评论数据
+        comment_data = []
+        for comment in comments:
+            user = user_map.get(comment.author_id)
+            if user:
+                comment_info = {
+                    'id': comment.id,
+                    'content': comment.content,
+                    'author_id': comment.author_id,
+                    'author_name': user.username,
+                    'author_avatar': user.avatar,
+                    'created_at': comment.created_at,
+                    'parent_id': comment.parent_id,
+                    'replies': []  # 初始化回复列表
+                }
+                comment_data.append(comment_info)
+
+        # 构建评论树结构
+        comment_tree = []
+        comment_map = {comment['id']: comment for comment in comment_data}
+
+        for comment in comment_data:
+            if comment['parent_id'] is None:
+                comment_tree.append(comment)
+            else:
+                parent_comment = comment_map.get(comment['parent_id'])
+                if parent_comment:
+                    parent_comment['replies'].append(comment)
+
+        return jsonify(comment_tree), 200
+
     except Exception as e:
         logger.error(f"获取评论失败: {str(e)}")
         return jsonify({'error': '服务器内部错误'}), 500
