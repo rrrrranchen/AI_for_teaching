@@ -187,7 +187,13 @@ def create_post():
         return jsonify({'error': '服务器内部错误'}), 500
     
 
-#获取所有帖子(综合排序/时间排序/点赞排序/收藏排序/浏览次数排序)
+
+import logging
+
+logger = logging.getLogger(__name__)
+
+# 假设 User 和 ForumPost 模型已经定义
+
 @forum_bp.route('/posts', methods=['GET'])
 def get_all_posts():
     try:
@@ -221,27 +227,49 @@ def get_all_posts():
             posts.sort(key=lambda post: post.created_at, reverse=True)
         else:
             posts.sort(key=lambda post: getattr(post, sort_by), reverse=True)
-        
+
+        current_user_id = get_current_user().id
+
         # 构建返回数据
-        post_data = [{
-            'id': post.id,
-            'title': post.title,
-            'content': post.content,
-            'author_id': post.author_id,
-            'authorname': User.query.get(post.author_id).username,
-            'created_at': post.created_at,
-            'updated_at': post.updated_at,
-            'view_count': post.view_count,
-            'like_count': post.like_count,
-            'favorite_count': post.favorite_count
-        } for post in posts]
+        post_data = []
+        for post in posts:
+            # 查询当前用户是否点赞了该帖子
+            is_liked = False
+            if current_user_id:
+                like = ForumPostLike.query.filter_by(user_id=current_user_id, post_id=post.id).first()
+                if like:
+                    is_liked = True
+
+            # 查询当前用户是否收藏了该帖子
+            is_favorited = False
+            if current_user_id:
+                favorite = ForumFavorite.query.filter_by(user_id=current_user_id, post_id=post.id).first()
+                if favorite:
+                    is_favorited = True
+
+            post_data.append({
+                'id': post.id,
+                'title': post.title,
+                'content': post.content,
+                'author_id': post.author_id,
+                'authorname': User.query.get(post.author_id).username,
+                'created_at': post.created_at,
+                'updated_at': post.updated_at,
+                'view_count': post.view_count,
+                'like_count': post.like_count,
+                'favorite_count': post.favorite_count,
+                'is_liked': is_liked,
+                'is_favorited': is_favorited
+            })
 
         return jsonify(post_data), 200
     except Exception as e:
         logger.error(f"获取帖子列表失败: {str(e)}")
         return jsonify({'error': '服务器内部错误'}), 500
 
-#获取单个帖子  
+
+# 假设 User 和 ForumPost 模型已经定义
+
 @forum_bp.route('/posts/<int:post_id>', methods=['GET'])
 def get_post(post_id):
     try:
@@ -264,20 +292,36 @@ def get_post(post_id):
         # 获取与帖子相关联的附件ID
         attachments = [attachment.id for attachment in post.attachments]
 
+        # 查询当前用户是否点赞了该帖子
+        is_liked = False
+        if current_user:
+            like = ForumPostLike.query.filter_by(user_id=current_user.id, post_id=post.id).first()
+            if like:
+                is_liked = True
+
+        # 查询当前用户是否收藏了该帖子
+        is_favorited = False
+        if current_user:
+            favorite = ForumFavorite.query.filter_by(user_id=current_user.id, post_id=post.id).first()
+            if favorite:
+                is_favorited = True
+
         return jsonify({
             'id': post.id,
             'title': post.title,
             'content': post.content,
             'author_id': post.author_id,
-            'author_name': User.query.get(post.author_id).username,
-            'author_avatar':User.query.get(post.author_id).avatar,
+            'author_name': post.author.username,  # 假设作者对象已经加载
+            'author_avatar': post.author.avatar,  # 假设作者对象已经加载
             'created_at': post.created_at,
             'updated_at': post.updated_at,
             'view_count': post.view_count,
             'like_count': post.like_count,
             'favorite_count': post.favorite_count,
             'teaching_design_versions': teaching_design_versions,
-            'attachments': attachments
+            'attachments': attachments,
+            'is_liked': is_liked,
+            'is_favorited': is_favorited
         }), 200
     except Exception as e:
         logger.error(f"获取帖子失败: {str(e)}")
