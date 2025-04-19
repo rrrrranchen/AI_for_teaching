@@ -12,9 +12,9 @@ class Question(db.Model):
     correct_answer = db.Column(db.Text, nullable=False)
     difficulty = db.Column(db.Integer)
     timing = db.Column(db.Enum('pre_class', 'post_class'), nullable=False)
-    is_public = db.Column(db.Boolean, default=False)  # 添加 is_public 字段
-    
-    # 修改 backref 名称
+    is_public = db.Column(db.Boolean, default=False)  
+    knowledge_point = db.Column(db.String(255))  
+
     answers = db.relationship('StudentAnswer', backref='question', lazy=True)
 
     def __repr__(self):

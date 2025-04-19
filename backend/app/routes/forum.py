@@ -691,3 +691,31 @@ def search_posts_route():
     except Exception as e:
         logger.error(f"搜索帖子失败: {str(e)}")
         return jsonify({'error': '服务器内部错误'}), 500
+    
+
+# 获取当前登录用户的所有帖子
+@forum_bp.route('/users/posts', methods=['GET'])
+def get_user_posts():
+    try:
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({'error': '请先登录'}), 401
+
+        user_id = current_user.id
+        posts = ForumPost.query.filter_by(author_id=user_id).all()
+
+        post_data = [ {
+            'id': post.id,
+            'title': post.title,
+            'created_at': post.created_at,
+            'updated_at': post.updated_at,
+            'view_count': post.view_count,
+            'like_count': post.like_count,
+            'favorite_count': post.favorite_count,
+            'tags': [tag.name for tag in post.tags]
+        } for post in posts]
+
+        return jsonify(post_data), 200
+    except Exception as e:
+        logger.error(f"获取用户帖子失败: {str(e)}")
+        return jsonify({'error': '服务器内部错误'}), 500
