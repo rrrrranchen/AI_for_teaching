@@ -11,6 +11,7 @@ from app.services.lesson_plan import generate_post_class_questions, generate_pre
 from app.models.studentanswer import StudentAnswer
 from app.models.teaching_design import TeachingDesign
 from app.models.teachingdesignversion import TeachingDesignVersion
+from app.models.MindMapNode import MindMapNode
 question_bp=Blueprint('question',__name__)
 
 def is_logged_in():
@@ -369,7 +370,7 @@ def toggle_question_public(question_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-#根据单个教学设计版本生成课后习题
+# 根据单个教学设计版本生成课后习题
 @question_bp.route('/design/<int:design_id>/version/<int:version_id>/generate_post_class_questions', methods=['POST'])
 def generate_post_class_questions_for_version(design_id, version_id):
     """
@@ -398,10 +399,13 @@ def generate_post_class_questions_for_version(design_id, version_id):
         version_content = json.loads(version.content) if version.content else {}
         lesson_plan_content = version_content.get('plan_content', '')
 
-        # 5. 调用 AI 接口生成课后习题
-        questions = generate_post_class_questions(lesson_plan_content)
+        # 5. 获取思维导图数据（假设存储在 teaching_design 的 mindmap 字段中）
+        mind_map = json.loads(design.mindmap) if design.mindmap else {}
 
-        # 6. 将生成的课后习题存储到数据库
+        # 6. 调用 AI 接口生成课后习题
+        questions = generate_post_class_questions(lesson_plan_content, mind_map)
+
+        # 7. 将生成的课后习题存储到数据库
         for question_data in questions:
             new_question = Question(
                 course_id=design.course_id,
@@ -410,13 +414,14 @@ def generate_post_class_questions_for_version(design_id, version_id):
                 correct_answer=question_data['correct_answer'],
                 difficulty=question_data['difficulty'],
                 timing='post_class',
-                is_public=False
+                is_public=False,
+                knowledge_point_id=question_data.get('knowledge_point_id')  # 知识点 ID 字段
             )
             db.session.add(new_question)
 
         db.session.commit()
 
-        # 7. 返回响应
+        # 8. 返回响应
         return jsonify(code=200, message="课后习题生成成功", data=questions), 200
 
     except Exception as e:
@@ -752,6 +757,66 @@ def create_question(course_id):
         logger.error(f"Error creating question: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+# 查询单个知识点的所有题目
+@question_bp.route('/knowledge/<int:knowledge_point_id>/questions', methods=['GET'])
+def get_questions_by_knowledge_point(knowledge_point_id):
+    if not is_logged_in():
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        # 获取当前登录用户
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({'error': 'User not found'}), 404
+
+        # 查询知识点是否存在
+        knowledge_point = MindMapNode.query.get(knowledge_point_id)
+        if not knowledge_point:
+            return jsonify({'error': 'Knowledge point not found'}), 404
+
+        # 获取知识点所属的教学设计
+        design = TeachingDesign.query.get(knowledge_point.teachingdesignid)
+        if not design:
+            return jsonify({'error': 'Teaching design not found'}), 404
+
+        # 获取教学设计所属的课程
+        course = Course.query.get(design.course_id)
+        if not course:
+            return jsonify({'error': 'Course not found'}), 404
+
+        # 获取课程所属的课程班
+        course_class = Courseclass.query.filter(Courseclass.courses.contains(course)).first()
+        if not course_class:
+            return jsonify({'error': 'Course class not found'}), 404
+
+        # 检查当前用户是否是课程班的老师或学生
+        if current_user not in course_class.teachers and current_user not in course_class.students:
+            return jsonify({'error': 'You do not have permission to access questions for this knowledge point'}), 403
+
+        # 根据用户角色决定是否过滤 is_public 字段
+        if current_user.role == 'student':
+            # 学生只能查看公开的题目
+            questions = Question.query.filter_by(knowledge_point_id=knowledge_point_id, is_public=True).all()
+        else:
+            # 老师可以查看所有题目
+            questions = Question.query.filter_by(knowledge_point_id=knowledge_point_id).all()
+
+        # 返回题目列表
+        return jsonify([{
+            'id': question.id,
+            'course_id': question.course_id,
+            'type': question.type,
+            'content': question.content,
+            'correct_answer': question.correct_answer,
+            'difficulty': question.difficulty,
+            'timing': question.timing,
+            'is_public': question.is_public
+        } for question in questions]), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
+    
 @question_bp.route('/question-page')
 def questiontest():
     return render_template('question.html')

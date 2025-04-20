@@ -5,6 +5,7 @@ from venv import logger
 from bson import ObjectId
 from flask import Blueprint, app, current_app, json, make_response, redirect, render_template, request, jsonify, send_file, session
 from jwt import InvalidKeyError
+from pymysql import IntegrityError
 from sqlalchemy import func, select
 from app.utils.database import db
 from app.models.user import User
@@ -14,7 +15,8 @@ from app.models.course import Course
 from app.models.teaching_design import TeachingDesign
 from app.models.teachingdesignversion import TeachingDesignVersion
 from app.models.question import Question
-from app.services.lesson_plan import generate_post_class_questions, generate_teaching_plans
+from app.services.lesson_plan import generate_knowledge_mind_map, generate_post_class_questions, generate_teaching_plans
+from app.models.MindMapNode import MindMapNode
 
 teachingdesign_bp=Blueprint('teachingdesign',__name__)
 
@@ -630,3 +632,268 @@ def migrate_course_designs(source_course_id, target_course_id):
         return jsonify(code=500, message="服务器内部错误"), 500
 
 
+# 异步生成思维导图并存储
+@teachingdesign_bp.route('/generatemindmap/<int:design_id>', methods=['POST'])
+async def generate_and_store_mindmap(design_id):
+    try:
+        # 1. 基础验证
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify(code=401, message="请先登录"), 401
+
+        # 2. 查询教学设计
+        design = TeachingDesign.query.get(design_id)
+        if not design:
+            return jsonify(code=404, message="教学设计不存在"), 404
+
+        # 3. 权限验证（教师只能操作自己创建的教学设计）
+        if current_user.role == 'teacher' and design.creator_id != current_user.id:
+            return jsonify(code=403, message="无操作权限"), 403
+
+        # 4. 获取默认版本的教学设计内容
+        default_version = next(
+            (v for v in design.versions if v.id == design.current_version_id),
+            None
+        )
+        if not default_version or not default_version.content:
+            return jsonify(code=400, message="默认版本不存在或内容为空"), 400
+
+        # 尝试解析默认版本的 content 为 JSON
+        try:
+            version_content = json.loads(default_version.content)
+        except json.JSONDecodeError:
+            return jsonify(code=400, message="默认版本内容格式错误"), 400
+
+        # 5. 调用函数生成思维导图
+        mind_map_json = generate_knowledge_mind_map(version_content.get('plan_content', ''))
+
+        # 6. 存储思维导图到 MindMapNode 表，并获取带有 node_id 的思维导图
+        stored_mind_map = await asyncio.to_thread(store_and_adjust_mind_map, design.id, mind_map_json)
+
+        # 7. 将调整后的 JSON 存储到 TeachingDesign 的 mindmap 字段
+        design.mindmap = json.dumps(stored_mind_map)
+        db.session.commit()
+
+        return jsonify(code=200, message="思维导图生成并存储成功", data={
+            "design_id": design.id,
+            "mind_map": stored_mind_map
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"生成并存储思维导图失败: {str(e)}")
+        return jsonify(code=500, message="服务器内部错误"), 500
+    
+def store_and_adjust_mind_map(teachingdesignid, mind_map):
+    """存储思维导图到 MindMapNode 表，并调整节点 id 为数据库生成的 id"""
+    # 清除现有的 MindMapNode 记录（如果需要保留历史记录，可以注释掉这行）
+    top_level_nodes = MindMapNode.query.filter_by(teachingdesignid=teachingdesignid, parent_node_id=None).all()
+    for node in top_level_nodes:
+        db.session.delete(node)
+    db.session.commit()  # 提交删除操作
+
+    # 递归存储节点并调整结构
+    adjusted_map = store_and_get_adjusted_map(teachingdesignid, None, mind_map)
+
+    return adjusted_map
+
+def store_and_get_adjusted_map(teachingdesignid, parent_node_id, node_data):
+    """递归存储节点并获取调整后的节点数据"""
+    if not isinstance(node_data, dict):
+        return node_data
+
+    # 创建当前节点
+    new_node = MindMapNode(
+        teachingdesignid=teachingdesignid,
+        node_name=node_data.get("name", "未命名节点"),
+        node_content=node_data.get("content", ""),
+        parent_node_id=parent_node_id,
+        is_leaf=True  # 默认为叶子节点
+    )
+    db.session.add(new_node)
+    db.session.flush()  # 立即插入以获取新生成的 ID
+
+    # 检查是否为叶子节点
+    if "children" in node_data and isinstance(node_data["children"], list) and len(node_data["children"]) > 0:
+        new_node.is_leaf = False
+        db.session.commit()
+
+    # 递归存储子节点并调整结构
+    adjusted_node = {
+        "id": new_node.id,  # 使用数据库生成的 id
+        "name": new_node.node_name,
+        "content": new_node.node_content,
+        "is_leaf": new_node.is_leaf  # 将是否为叶子节点的状态加入返回的字典
+    }
+
+    if "children" in node_data and isinstance(node_data["children"], list):
+        adjusted_node["children"] = []
+        for child_data in node_data["children"]:
+            adjusted_child = store_and_get_adjusted_map(teachingdesignid, new_node.id, child_data)
+            if adjusted_child:
+                adjusted_node["children"].append(adjusted_child)
+
+    return adjusted_node
+
+
+
+
+@teachingdesign_bp.route('/updatemindmap/<int:design_id>', methods=['POST'])
+def update_mind_map(design_id):
+    """
+    智能更新思维导图数据：
+    1. 对含id的节点验证并更新内容
+    2. 对不含id的节点创建新记录
+    3. 自动维护父子节点关系
+    4. 生成完整思维导图存储
+    """
+    try:
+        # 1. 基础验证
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify(code=401, message="请先登录"), 401
+
+        design = TeachingDesign.query.get(design_id)
+        if not design:
+            return jsonify(code=404, message="教学设计不存在"), 404
+
+        if current_user.role == 'teacher' and design.creator_id != current_user.id:
+            return jsonify(code=403, message="无操作权限"), 403
+
+        data = request.get_json()
+        if not data or 'mind_map' not in data:
+            return jsonify(code=400, message="缺少思维导图数据"), 400
+
+        # 2. 获取现有节点映射表（用于快速查找）
+        existing_nodes = {
+            node.id: node
+            for node in MindMapNode.query.filter_by(teachingdesignid=design_id).all()
+        }
+
+        # 3. 递归处理节点树
+        def process_node(node_data, parent_id=None):
+            # 处理已有节点
+            if 'id' in node_data and node_data['id'] in existing_nodes:
+                node = existing_nodes[node_data['id']]
+
+                # 验证节点归属
+                if node.teachingdesignid != design_id:
+                    raise ValueError("节点不属于当前教学设计")
+
+                # 更新变更字段
+                update_flag = False
+                if node.node_name != node_data.get('name'):
+                    node.node_name = node_data.get('name', node.node_name)
+                    update_flag = True
+                if node.node_content != node_data.get('content'):
+                    node.node_content = node_data.get('content', node.node_content)
+                    update_flag = True
+                if node.parent_node_id != parent_id:
+                    node.parent_node_id = parent_id
+                    update_flag = True
+
+                if update_flag:
+                    db.session.add(node)
+
+                node_id = node.id
+                is_new = False
+            # 创建新节点
+            else:
+                is_leaf = not bool(node_data.get('children', []))
+                new_node = MindMapNode(
+                    teachingdesignid=design_id,
+                    node_name=node_data.get('name', '未命名节点'),
+                    node_content=node_data.get('content', ''),
+                    parent_node_id=parent_id,
+                    is_leaf=is_leaf
+                )
+                db.session.add(new_node)
+                db.session.flush()
+                node_id = new_node.id
+                is_new = True
+                existing_nodes[node_id] = new_node  # 加入映射表
+
+            # 处理子节点
+            children_data = node_data.get('children', [])
+            processed_children = []
+            for child_data in children_data:
+                child_node = process_node(child_data, node_id)
+                processed_children.append(child_node)
+
+            # 返回处理后的节点结构（移除 is_new 字段）
+            return {
+                "id": node_id,
+                "name": node_data.get('name', ''),
+                "content": node_data.get('content', ''),
+                "is_leaf": not bool(processed_children),
+                "children": processed_children
+            }
+
+        # 4. 开始处理（先清除已删除的节点关系）
+        MindMapNode.query.filter_by(teachingdesignid=design_id).update({'parent_node_id': None})
+        db.session.flush()
+
+        # 5. 构建新树结构
+        mind_map_data = data['mind_map']
+        updated_map = process_node(mind_map_data)
+
+        # 6. 清理孤立节点（可选）
+        updated_ids = set()
+        def collect_ids(node):
+            updated_ids.add(node['id'])
+            for child in node.get('children', []):
+                collect_ids(child)
+        collect_ids(updated_map)
+
+        # 删除未被引用的旧节点
+        nodes_to_delete = MindMapNode.query.filter(
+            MindMapNode.teachingdesignid == design_id,
+            ~MindMapNode.id.in_(updated_ids)
+        ).with_entities(MindMapNode.id).all()
+
+        # 删除这些节点对应的 question 记录
+        question_ids_to_delete = [node.id for node in nodes_to_delete]
+        Question.query.filter(
+            Question.knowledge_point_id.in_(question_ids_to_delete)
+        ).delete(synchronize_session=False)
+
+        # 删除未被引用的 mind_map_node 记录
+        MindMapNode.query.filter(
+            MindMapNode.teachingdesignid == design_id,
+            ~MindMapNode.id.in_(updated_ids)
+        ).delete(synchronize_session=False)
+
+        # 7. 更新教学设计记录
+        design.mindmap = json.dumps(updated_map)
+        db.session.commit()
+
+        # 8. 重新查询数据库以获取最新的节点状态
+        existing_nodes_after_commit = {
+            node.id: node
+            for node in MindMapNode.query.filter_by(teachingdesignid=design_id).all()
+        }
+
+        # 9. 计算统计信息
+        updated_nodes_count = len([n for n in existing_nodes_after_commit.values() if n.id in updated_ids])
+        new_nodes_count = len(updated_ids) - len(existing_nodes_after_commit)
+
+        return jsonify(code=200, message="更新成功", data={
+            "design_id": design.id,
+            "mind_map": updated_map,
+            "stats": {
+                "updated_nodes": updated_nodes_count,
+                "new_nodes": new_nodes_count
+            }
+        }), 200
+
+    except ValueError as e:
+        db.session.rollback()
+        return jsonify(code=400, message=str(e)), 400
+    except IntegrityError as e:
+        db.session.rollback()
+        return jsonify(code=400, message=f"完整性错误: {str(e)}"), 400
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"思维导图更新失败: {str(e)}", exc_info=True)
+        return jsonify(code=500, message="服务器内部错误"), 500
+    
