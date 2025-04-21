@@ -15,6 +15,7 @@ from app.routes.teachingdesign import teachingdesign_bp
 from app.routes.ppts import ppts_bp
 from app.routes.teacher_recommend import teacher_recommend_bp
 from app.routes.student_recommend import student_recommend_bp
+from app.routes.mindmap import mindmap_bp
 from app.utils.database import init_db
 from config import Config
 
@@ -41,4 +42,5 @@ def create_app():
     app.register_blueprint(ppts_bp)
     app.register_blueprint(teacher_recommend_bp)
     app.register_blueprint(student_recommend_bp)
+    app.register_blueprint(mindmap_bp)
     return app

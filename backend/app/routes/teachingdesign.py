@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 import os
 import uuid
 from venv import logger
@@ -17,8 +18,53 @@ from app.models.teachingdesignversion import TeachingDesignVersion
 from app.models.question import Question
 from app.services.lesson_plan import generate_knowledge_mind_map, generate_post_class_questions, generate_teaching_plans
 from app.models.MindMapNode import MindMapNode
+from app.models.studentanswer import StudentAnswer
 
 teachingdesign_bp=Blueprint('teachingdesign',__name__)
+# 定义一个函数来计算节点颜色
+def calculate_node_color(knowledge_point_id):
+    # 获取该知识点及其所有子节点
+    def get_all_descendant_nodes(node_id):
+        nodes = []
+        stack = [node_id]
+        while stack:
+            current_node_id = stack.pop()
+            current_node = MindMapNode.query.get(current_node_id)
+            nodes.append(current_node)
+            for child in current_node.children:
+                stack.append(child.id)
+        return nodes
+
+    # 获取知识点及其所有子节点
+    all_nodes = get_all_descendant_nodes(knowledge_point_id)
+
+    # 收集所有相关题目ID
+    question_ids = []
+    for node in all_nodes:
+        questions = Question.query.filter_by(knowledge_point_id=node.id).all()
+        for q in questions:
+            question_ids.append(q.id)
+
+    # 如果没有相关题目，返回白色
+    if not question_ids:
+        return '#ffffff'  # 白色
+
+    # 获取所有相关题目的学生作答情况
+    answers = StudentAnswer.query.filter(StudentAnswer.question_id.in_(question_ids)).all()
+
+    # 如果没有学生作答，返回白色
+    if not answers:
+        return '#ffffff'  # 白色
+
+    # 计算平均正确率
+    total_correct = sum(answer.correct_percentage for answer in answers)
+    avg_correct = total_correct / len(answers)
+
+    # 根据平均正确率设置颜色（从浅红色到白色）
+    # 计算红色通道值（0-255）
+    red_component = int(255 * (1 - avg_correct / 100))
+    # 构造十六进制颜色代码
+    return f'#{red_component:02x}ffffff'[:7]
 
 def get_pre_class_questions_as_feedback(course_id):
     """
@@ -959,3 +1005,91 @@ def generate_and_store_mind_map(design_id):
         db.session.rollback()
         logger.error(f"生成并存储思维导图失败: {str(e)}")
         return jsonify(code=500, message="服务器内部错误"), 500
+    
+# 获取单个教学设计的思维导图接口
+@teachingdesign_bp.route('/teaching-design/<int:design_id>/mindmap', methods=['GET'])
+def get_teaching_design_mindmap(design_id):
+    if not is_logged_in():
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        # 获取当前登录用户
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({'error': 'User not found'}), 404
+
+        # 查询教学设计是否存在
+        design = TeachingDesign.query.get(design_id)
+        if not design:
+            return jsonify({'error': 'Teaching design not found'}), 404
+
+        # 获取教学设计所属的课程
+        course = Course.query.get(design.course_id)
+        if not course:
+            return jsonify({'error': 'Course not found'}), 404
+
+        # 获取课程所属的课程班
+        course_class = Courseclass.query.filter(Courseclass.courses.contains(course)).first()
+        if not course_class:
+            return jsonify({'error': 'Course class not found'}), 404
+
+        # 检查当前用户是否是课程班的老师
+        if current_user not in course_class.teachers:
+            return jsonify({'error': 'You do not have permission to access this teaching design'}), 403
+
+        # 判断是否在课后习题截止时间之后，且思维导图是否需要更新
+        mindmap_needs_update = True
+
+        # 如果当前时间在课后习题截止时间之后
+        if course.post_class_deadline and datetime.utcnow() > course.post_class_deadline:
+            # 检查是否已更新过思维导图
+            if not design.mindmap_updated_at or design.mindmap_updated_at < course.post_class_deadline:
+                mindmap_needs_update = True
+
+        # 如果需要更新思维导图
+        if mindmap_needs_update:
+            # 递归构建思维导图并添加颜色
+            def build_mind_map_with_colors(node, is_root=False):
+                node_data = {
+                    "data": {
+                        "id": node.id,
+                        "text": node.node_name,
+                        "note": node.node_content
+                    },
+                    "children": []
+                }
+
+                # 根节点颜色固定为白色，其他节点颜色动态计算
+                if is_root:
+                    node_data["data"]["color"] = "#ffffff"  # 根节点颜色为白色
+                else:
+                    node_data["data"]["color"] = calculate_node_color(node.id)  # 动态计算颜色
+
+                for child in node.children:
+                    node_data["children"].append(build_mind_map_with_colors(child))
+                return node_data
+
+            # 获取该教学设计的所有顶级节点
+            top_level_nodes = MindMapNode.query.filter_by(
+                teachingdesignid=design_id,
+                parent_node_id=None
+            ).all()
+
+            # 构建完整的带有颜色的思维导图
+            mind_map_with_colors = []
+            for root_node in top_level_nodes:
+                mind_map_with_colors.append(build_mind_map_with_colors(root_node, is_root=True))
+
+            # 将更新后的思维导图存储到 TeachingDesign 的 mindmap 字段
+            design.mindmap = json.dumps(mind_map_with_colors, ensure_ascii=False)
+            design.mindmap_updated_at = datetime.utcnow()  # 更新 mindmap_updated_at 字段
+            db.session.commit()
+
+        # 返回思维导图
+        return jsonify({
+            'mindmap': json.loads(design.mindmap) if design.mindmap else None,
+            'timestamp': datetime.utcnow().isoformat()
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
