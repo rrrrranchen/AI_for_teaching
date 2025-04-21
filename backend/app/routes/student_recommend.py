@@ -10,7 +10,7 @@ from app.routes.teachingdesign import get_question_type_name
 from app.models.studentanswer import StudentAnswer
 from sqlalchemy.orm import Session
 from app.models.student_recommend import StudentRecommend
-from app.services.recommend_to_students import generate_post_resources_to_students, generate_pre_resources_to_students
+from app.services.recommend_to_students import extract_keywords_from_report, generate_final_json
 from app.models.studentanalysisreport import StudentAnalysisReport
 student_recommend_bp=Blueprint('student_recommend_bp', __name__)
 def is_logged_in():
@@ -81,8 +81,9 @@ def save_student_recommendation(session: Session, user_id: int, course_id: int, 
     """
     try:
         # 调用生成推荐内容的函数
-        recommendations_content = generate_pre_resources_to_students(report)
 
+        keywords = extract_keywords_from_report(report)
+        recommendations_content =generate_final_json(keywords)
         # 创建 StudentRecommend 记录
         student_recommend = StudentRecommend(
             user_id=user_id,
@@ -196,7 +197,8 @@ def save_student_post_class_recommendation(session: Session, user_id: int, cours
     """
     try:
         # 调用生成推荐内容的函数
-        recommendations_content = generate_post_resources_to_students(report)
+        keywords = extract_keywords_from_report(report)
+        recommendations_content =generate_final_json(keywords)
 
         # 创建 StudentRecommend 记录
         student_recommend = StudentRecommend(
