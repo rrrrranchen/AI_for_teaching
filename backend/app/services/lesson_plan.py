@@ -27,6 +27,87 @@ def printChar(text, delay=0.05):
 import json
 
 
+
+def generate_ai_analysis(knowledge_point_name: str, student_answers: Dict[str, Any]) -> str:
+    """
+    调用 AI 接口，围绕特定知识点分析学生的学习掌握情况，并返回简短的分析报告。
+
+    参数:
+        knowledge_point_name: 知识点名称
+        student_answers: JSON 格式的学生作答情况，包含每个题目的学生作答数据
+
+    返回:
+        纯文本格式的分析报告，包含：
+        - 分析摘要
+        - 错误分析
+        - 薄弱环节
+    """
+    system_prompt = """你是教学分析专家，请根据学生对知识点题目的作答情况，生成简短的分析报告。
+报告必须包含以下内容：
+1. 学生对知识点的掌握情况（整体分析）
+2. 常见错误点及错误原因分析
+3. 学生理解的难点、薄弱环节（具体知识点内容）
+
+输出格式：
+分析摘要：
+[在这里输出学生对知识点的掌握情况]
+
+错误分析：
+[在这里输出常见错误点及错误原因]
+
+薄弱环节：
+[在这里输出学生理解的难点和薄弱环节]
+"""
+
+    try:
+        # 调用 AI 接口
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {
+                    "role": "user",
+                    "content": f"知识点名称：{knowledge_point_name}\n学生作答数据：\n{json.dumps(student_answers, ensure_ascii=False)}"
+                }
+            ],
+            temperature=0.5
+        )
+
+        # 解析 AI 返回的内容
+        ai_response = response.choices[0].message.content
+
+        # 提取分析报告内容
+        analysis_summary = re.search(r'分析摘要：(.*?)错误分析', ai_response, re.DOTALL)
+        error_analysis = re.search(r'错误分析：(.*?)薄弱环节', ai_response, re.DOTALL)
+        weak_points = re.search(r'薄弱环节：(.*?)$', ai_response, re.DOTALL)
+
+        # 构建纯文本格式的分析报告
+        analysis_report = f"""
+分析摘要：
+{analysis_summary.group(1).strip() if analysis_summary else '无法生成摘要'}
+
+错误分析：
+{error_analysis.group(1).strip() if error_analysis else '无法生成错误分析'}
+
+薄弱环节：
+{weak_points.group(1).strip() if weak_points else '无法检测薄弱环节'}
+"""
+
+        return analysis_report
+
+    except Exception as e:
+        print(f"AI 分析出错: {str(e)}")
+        # 出错时返回默认值
+        return """
+分析摘要：
+AI 分析失败，无法生成摘要
+
+错误分析：
+无法生成错误分析
+
+薄弱环节：
+无法检测薄弱环节
+"""
 def generate_pre_class_questions(course_content: str) -> List[Dict[str, Union[str, int]]]:
     """
     生成课前预习题目（完整优化版）
