@@ -16,7 +16,7 @@ class Course(db.Model):
     preview_deadline = db.Column(db.DateTime, nullable=True)
     # 新增字段：课后题目截止时间
     post_class_deadline = db.Column(db.DateTime, nullable=True)
-
+    post_class_deadline_processed = db.Column(db.Boolean, default=False)
     student_reports = db.relationship('StudentAnalysisReport', back_populates='course')
     class_reports = db.relationship('ClassAnalysisReport', back_populates='course')
     courseclasses = db.relationship('Courseclass', secondary=course_courseclass, back_populates='courses')
