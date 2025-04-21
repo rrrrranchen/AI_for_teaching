@@ -617,7 +617,8 @@ def get_course_heatmap_data(course_id):
     except Exception as e:
         logger.error(f"Error generating heatmap data: {str(e)}")
         return jsonify({'error': str(e)}), 500
-    
+
+
 @question_bp.route('/course/<int:course_id>/error_ranking', methods=['GET'])
 def get_course_error_ranking(course_id):
     """
