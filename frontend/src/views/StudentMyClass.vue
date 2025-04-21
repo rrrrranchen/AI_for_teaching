@@ -151,8 +151,10 @@ export default defineComponent({
     const inviteCode = ref("");
 
     const filteredClasses = computed(() => {
-      return courseClasses.value.filter((c) =>
-        c.name.toLowerCase().includes(searchKeyword.value.toLowerCase())
+      return courseClasses.value.filter(
+        (c) =>
+          c.name &&
+          c.name.toLowerCase().includes(searchKeyword.value.toLowerCase())
       );
     });
 

@@ -16,16 +16,26 @@
           <!-- 下方卡片 -->
           <a-row :gutter="24" class="card-container">
             <a-col :span="12">
-              <a-card title="智能备课" class="info-card">
+              <a-card class="info-card">
+                <template #cover>
+                  <img alt="example" src="../assets/aiforedu.png" />
+                </template>
+                <a-card-meta title="智能备课"></a-card-meta>
                 <!-- 原有智能备课内容 -->
                 <a-list
                   item-layout="horizontal"
-                  :data-source="teachingDesigns.slice(0, 5)"
+                  :data-source="teachingDesigns.slice(0, 3)"
                 >
                   <template #renderItem="{ item }">
                     <a-list-item>
                       <router-link
-                        :to="`/home/teaching-design/${item.design_id}`"
+                        :to="{
+                          path: `/home/teaching-design/${item.design_id}`,
+                          query: {
+                            title: item.title,
+                            default_version_id: item.default_version_id,
+                          },
+                        }"
                       >
                         {{ item.title }}
                       </router-link>
@@ -43,9 +53,16 @@
               </a-card>
             </a-col>
             <a-col :span="12">
-              <a-card title="学习社区" class="info-card">
+              <a-card class="info-card">
                 <!-- 原有学习社区内容 -->
-                <template #cover></template>
+                <template #cover>
+                  <img alt="example" src="../assets/community.png" />
+                </template>
+                <a-card-meta
+                  title="学习社区"
+                  description="教师交流，分析经验的平台"
+                >
+                </a-card-meta>
                 <template #actions>
                   <a-button
                     type="primary"
@@ -82,12 +99,12 @@
         <a-card title="我的班级" class="class-list-card">
           <a-list
             item-layout="horizontal"
-            :data-source="courseClasses.slice(0, 4)"
+            :data-source="courseClasses.slice(0, 5)"
             :loading="loading"
           >
             <template #renderItem="{ item }">
               <a-list-item>
-                <a-list-item-meta :description="item.description">
+                <a-list-item-meta>
                   <template #title>
                     <router-link :to="`/home/courseclass/${item.id}`">
                       {{ item.name }}
@@ -239,9 +256,20 @@ export default defineComponent({
 }
 
 .info-card {
-  background-color: #faf5df;
-  margin-bottom: 24px;
-  height: calc(100% - 24px);
+  display: flex;
+  margin-top: 20px;
+  flex-direction: column;
+  height: 40vh;
+}
+
+.ant-card-cover img {
+  height: 200px;
+  object-fit: cover;
+}
+
+.ant-card-action {
+  margin-top: auto;
+  background-color: inherit;
 }
 
 /* 确保内容自适应高度 */

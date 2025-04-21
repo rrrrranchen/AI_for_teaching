@@ -9,6 +9,7 @@ interface User {
   email: string;
   role: "student" | "teacher";
   signature?: string;
+  password?: string; // 添加密码字段
   avatar?: string; // 添加头像字段
   created_at?: string; // 可选添加创建时间
 }
