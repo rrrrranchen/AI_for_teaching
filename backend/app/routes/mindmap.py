@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import datetime
 from venv import logger
 from flask import Blueprint, json, render_template, request, jsonify, session
@@ -30,46 +31,38 @@ def get_current_user():
 
 
 
-# 查询单个知识点的所有题目
+# 查询单个知识点的所有题目相关信息
 @mindmap_bp.route('/knowledge/<int:knowledge_point_id>/questions', methods=['GET'])
 def get_questions_by_knowledge_point(knowledge_point_id):
     if not is_logged_in():
         return jsonify({'error': 'Unauthorized'}), 401
 
     try:
-        # 获取当前登录用户
         current_user = get_current_user()
         if not current_user:
             return jsonify({'error': 'User not found'}), 404
 
-        # 查询知识点是否存在
         knowledge_point = MindMapNode.query.get(knowledge_point_id)
         if not knowledge_point:
             return jsonify({'error': 'Knowledge point not found'}), 404
 
-        # 获取知识点所属的教学设计
         design = TeachingDesign.query.get(knowledge_point.teachingdesignid)
         if not design:
             return jsonify({'error': 'Teaching design not found'}), 404
 
-        # 获取教学设计所属的课程
         course = Course.query.get(design.course_id)
         if not course:
             return jsonify({'error': 'Course not found'}), 404
 
-        # 获取课程所属的课程班
         course_class = Courseclass.query.filter(Courseclass.courses.contains(course)).first()
         if not course_class:
             return jsonify({'error': 'Course class not found'}), 404
 
-        # 检查当前用户是否是课程班的老师或学生
-        if current_user not in course_class.teachers and current_user not in course_class.students:
-            return jsonify({'error': 'You do not have permission to access questions for this knowledge point'}), 403
+        if current_user not in course_class.teachers :
+            return jsonify({'error': 'Permission denied'}), 403
 
-        # 定义一个递归函数来收集所有子节点的题目和叶子节点信息
         def collect_leaf_questions(node):
             leaf_questions = {}
-            # 如果是叶子节点，收集题目
             if node.is_leaf:
                 node_questions = Question.query.filter_by(knowledge_point_id=node.id).all()
                 if node_questions:
@@ -79,7 +72,7 @@ def get_questions_by_knowledge_point(knowledge_point_id):
                         'questions': []
                     }
                     for q in node_questions:
-                        leaf_questions[node.id]['questions'].append({
+                        question_data = {
                             'id': q.id,
                             'course_id': q.course_id,
                             'type': q.type,
@@ -88,27 +81,101 @@ def get_questions_by_knowledge_point(knowledge_point_id):
                             'difficulty': q.difficulty,
                             'timing': q.timing,
                             'is_public': q.is_public
-                        })
+                        }
+                        # 添加统计信息（如果超过截止时间）
+                        current_time = datetime.utcnow()
+                        if course.post_class_deadline and current_time > course.post_class_deadline:
+                            class_id = course_class.id
+                            answers = StudentAnswer.query.filter_by(
+                                question_id=q.id, 
+                                class_id=class_id
+                            ).all()
+                            statistics = {}
+                            
+                            if q.type == 'choice':
+                                option_counts = defaultdict(int)
+                                total = len(answers)
+                                correct_option = q.correct_answer.strip().upper()
+                                for ans in answers:
+                                    option = ans.answer.strip().upper()
+                                    option_counts[option] += 1
+                                options_stat = []
+                                for opt, cnt in option_counts.items():
+                                    percentage = (cnt / total * 100) if total > 0 else 0
+                                    options_stat.append({
+                                        'option': opt,
+                                        'count': cnt,
+                                        'percentage': round(percentage, 2),
+                                        'is_correct': opt == correct_option
+                                    })
+                                statistics['options'] = options_stat
+                            
+                            elif q.type == 'fill':
+                                correct_count = 0
+                                error_counts = defaultdict(int)
+                                correct_answer = q.correct_answer.strip().lower()
+                                for ans in answers:
+                                    ans_text = ans.answer.strip().lower()
+                                    if ans_text == correct_answer:
+                                        correct_count += 1
+                                    else:
+                                        error_counts[ans_text] += 1
+                                total = len(answers)
+                                sorted_errors = sorted(error_counts.items(), key=lambda x: (-x[1], x[0]))
+                                top_errors = [{'answer': k, 'count': v, 'percentage': round((v / total * 100), 2)} 
+                                            for k, v in sorted_errors[:3]]
+                                other_cnt = sum(v for k, v in sorted_errors[3:])
+                                statistics.update({
+                                    'correct': {
+                                        'count': correct_count,
+                                        'percentage': round((correct_count / total * 100), 2) if total > 0 else 0
+                                    },
+                                    'top_errors': top_errors,
+                                    'other_errors': {
+                                        'count': other_cnt,
+                                        'percentage': round((other_cnt / total * 100), 2) if total > 0 else 0
+                                    }
+                                })
+                            
+                            elif q.type == 'short_answer':
+                                ranges = {'0-25%': 0, '25-50%': 0, '50-75%': 0, '75-100%': 0}
+                                for ans in answers:
+                                    perc = ans.correct_percentage
+                                    if perc <= 25:
+                                        ranges['0-25%'] += 1
+                                    elif perc <= 50:
+                                        ranges['25-50%'] += 1
+                                    elif perc <= 75:
+                                        ranges['50-75%'] += 1
+                                    else:
+                                        ranges['75-100%'] += 1
+                                total = len(answers)
+                                score_ranges = [{
+                                    'range': k,
+                                    'count': v,
+                                    'percentage': round((v / total * 100), 2) if total > 0 else 0
+                                } for k, v in ranges.items()]
+                                statistics['score_ranges'] = score_ranges
+                            
+                            question_data['statistics'] = statistics
+                        
+                        leaf_questions[node.id]['questions'].append(question_data)
             else:
-                # 否则递归处理子节点
                 for child in node.children:
-                    child_leaf_questions = collect_leaf_questions(child)
-                    for key in child_leaf_questions:
-                        leaf_questions[key] = child_leaf_questions[key]
+                    child_questions = collect_leaf_questions(child)
+                    for k in child_questions:
+                        leaf_questions[k] = child_questions[k]
             return leaf_questions
 
-        # 获取所有叶子节点的题目信息
         leaf_questions_dict = collect_leaf_questions(knowledge_point)
-
-        # 根据用户角色过滤题目，并将结果转换为列表
         filtered_leaf_questions = []
+
         for leaf_id in leaf_questions_dict:
             leaf_info = leaf_questions_dict[leaf_id]
             filtered_questions = []
             for question in leaf_info['questions']:
-                if current_user.role == 'student' and question['is_public']:
-                    filtered_questions.append(question)
-                elif current_user.role != 'student':
+                # 权限过滤
+                if (current_user.role == 'student' and question['is_public']) or current_user.role != 'student':
                     filtered_questions.append(question)
             if filtered_questions:
                 filtered_leaf_questions.append({
@@ -118,10 +185,7 @@ def get_questions_by_knowledge_point(knowledge_point_id):
                     'questions': filtered_questions
                 })
 
-        # 返回题目列表
-        return jsonify({
-            'leaf_questions': filtered_leaf_questions
-        }), 200
+        return jsonify({'leaf_questions': filtered_leaf_questions}), 200
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -406,3 +470,5 @@ def update_teaching_design_mindmap(teaching_design_id):
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error updating teaching design mindmap: {str(e)}")
+
+
