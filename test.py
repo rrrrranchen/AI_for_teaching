@@ -8,5 +8,6 @@ data = {"objectives": "1. \u4e86\u89e3\u8ba1\u7b97\u673a\u7f51\u7edc\u7684\u57fa
 {"question": "以下哪项不是生成预习题目的目的？", "options": ["A. 提高学生的预习效率", "B. 增加教师的工作量", "C. 帮助学生更好地理解课程内容", "D. 提前识别学生的学习难点"]}
 # 或者使用 json.loads() 来解码
 # decoded_objectives = json.loads(f'"{objectives}"')
-question={"question": "Who provided the additional content for the course?", "options": ["A. The students", "B. The teacher", "C. The school principal", "D. The government"]}
+question="\n\u5206\u6790\u6458\u8981\uff1a\n\n\n\u9519\u8bef\u5206\u6790\uff1a\n\n\n\u8584\u5f31\u73af\u8282\uff1a\n\n"
 print(question)
+

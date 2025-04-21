@@ -12,10 +12,11 @@ class Question(db.Model):
     correct_answer = db.Column(db.Text, nullable=False)
     difficulty = db.Column(db.Integer)
     timing = db.Column(db.Enum('pre_class', 'post_class'), nullable=False)
-    is_public = db.Column(db.Boolean, default=False)  
-    knowledge_point = db.Column(db.String(255))  
+    is_public = db.Column(db.Boolean, default=False)
+    knowledge_point_id = db.Column(db.Integer, db.ForeignKey('mind_map_node.id'),nullable=True)  # 新增字段
 
     answers = db.relationship('StudentAnswer', backref='question', lazy=True)
+    knowledge_point = db.relationship('MindMapNode', backref='questions')  # 新增关系定义
 
     def __repr__(self):
         return f'<Question {self.id}>'

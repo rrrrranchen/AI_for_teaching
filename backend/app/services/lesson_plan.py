@@ -5,9 +5,9 @@ import time
 from docx import Document
 import markdown
 import pdfkit
-from sqlalchemy import and_
+from sqlalchemy import and_, false, true
 from typing import Any, List, Dict, Union
-
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 from typing import Dict
 # 设置 API Key 和 DeepSeek API 地址
@@ -27,6 +27,87 @@ def printChar(text, delay=0.05):
 import json
 
 
+
+def generate_ai_analysis(knowledge_point_name: str, student_answers: Dict[str, Any]) -> str:
+    """
+    调用 AI 接口，围绕特定知识点分析学生的学习掌握情况，并返回简短的分析报告。
+
+    参数:
+        knowledge_point_name: 知识点名称
+        student_answers: JSON 格式的学生作答情况，包含每个题目的学生作答数据
+
+    返回:
+        纯文本格式的分析报告，包含：
+        - 分析摘要
+        - 错误分析
+        - 薄弱环节
+    """
+    system_prompt = """你是教学分析专家，请根据学生对知识点题目的作答情况，生成简短的分析报告。
+报告必须包含以下内容：
+1. 学生对知识点的掌握情况（整体分析）
+2. 常见错误点及错误原因分析
+3. 学生理解的难点、薄弱环节（具体知识点内容）
+
+输出格式：
+分析摘要：
+[在这里输出学生对知识点的掌握情况]
+
+错误分析：
+[在这里输出常见错误点及错误原因]
+
+薄弱环节：
+[在这里输出学生理解的难点和薄弱环节]
+"""
+
+    try:
+        # 调用 AI 接口
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {
+                    "role": "user",
+                    "content": f"知识点名称：{knowledge_point_name}\n学生作答数据：\n{json.dumps(student_answers, ensure_ascii=False)}"
+                }
+            ],
+            temperature=0.5
+        )
+
+        # 解析 AI 返回的内容
+        ai_response = response.choices[0].message.content
+
+        # 提取分析报告内容
+        analysis_summary = re.search(r'分析摘要：(.*?)错误分析', ai_response, re.DOTALL)
+        error_analysis = re.search(r'错误分析：(.*?)薄弱环节', ai_response, re.DOTALL)
+        weak_points = re.search(r'薄弱环节：(.*?)$', ai_response, re.DOTALL)
+
+        # 构建纯文本格式的分析报告
+        analysis_report = f"""
+分析摘要：
+{analysis_summary.group(1).strip() if analysis_summary else '无法生成摘要'}
+
+错误分析：
+{error_analysis.group(1).strip() if error_analysis else '无法生成错误分析'}
+
+薄弱环节：
+{weak_points.group(1).strip() if weak_points else '无法检测薄弱环节'}
+"""
+
+        return analysis_report
+
+    except Exception as e:
+        print(f"AI 分析出错: {str(e)}")
+        # 出错时返回默认值
+        return """
+分析摘要：
+AI 分析失败，无法生成摘要
+
+错误分析：
+无法生成错误分析
+
+薄弱环节：
+无法检测薄弱环节
+"""
 def generate_pre_class_questions(course_content: str) -> List[Dict[str, Union[str, int]]]:
     """
     生成课前预习题目（完整优化版）
@@ -250,104 +331,177 @@ def generate_lesson_plans(course_content, student_feedback, student_level):
     )
     return response.choices[0].message.content
 
-
-def generate_post_class_questions(lesson_plan_content: str) -> list:
-    """
-    调用 AI 接口根据教案内容生成课后习题，返回符合 Question 数据模型的题目列表
-    :param lesson_plan_content: 教案内容文本
-    :return: 包含题目字典的列表，每个字典符合 Question 模型结构
-    """
-    # 构造系统提示：要求生成检测学生对教案中知识点理解与掌握情况的课后习题
-    system_prompt = """你是教学设计专家，请根据下面提供的教案内容生成15道课后巩固练习题。
+system_prompt = """你是教学设计专家，请根据知识点内容生成至少一道课后练习题。
 要求：
-1. 返回格式为JSON列表，每个题目包含以下字段：
+1. 返回格式为包含 questions 字段的 JSON 对象，questions 值为题目列表，每个题目包含：
    - type: 题目类型(choice/fill/short_answer)
    - content: 题目内容（选择题需包含question和options字段）
    - correct_answer: 正确答案
    - difficulty: 难度等级(1-5)
-2. 题目类型要多样，包含选择题、填空题和简答题
-3. 题目应检测学生对教案中涉及的关键知识点、互动环节以及实践环节的理解与掌握情况
-4. 对于选择题，题目内容中应包含选项，并且正确答案格式为ABCD这样的形式
-5. 选择题示例格式:
-   {
-     "type": "choice",
-     "content": {
-       "question": "问题文本",
-       "options": ["A.选项1", "B.选项2"]
-     },
-     "correct_answer": "A"
-   }
-6. 用中文回答
+   - knowledge_point_id: 知识点ID
+2. 必须生成两道题目，一道简单（难度1-2），另一道中等或困难（难度3-5）
+3. 题目类型要多样，两道题不能都是同一种类型
+4. 用中文回答
+5. 确保 knowledge_point_id 与提供的知识点ID一致
+
+示例格式:
+{
+  "questions": [
+    {
+      "type": "choice",
+      "content": {
+        "question": "Python中如何定义变量？",
+        "options": ["A. var name = value", "B. name = value", "C. set name value"]
+      },
+      "correct_answer": "B",
+      "difficulty": 2,
+      "knowledge_point_id": 1
+    },
+    {
+      "type": "fill",
+      "content": "Python中输出文本到控制台的函数是____",
+      "correct_answer": "print()",
+      "difficulty": 3,
+      "knowledge_point_id": 1
+    }
+  ]
+}
 """
+def generate_post_class_questions(lesson_plan_content: str, mind_map: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    调用 AI 接口根据教案内容和思维导图生成课后习题，返回符合 Question 数据模型的题目列表。
+    每个思维导图的知识叶子节点相关题目不少于两道，且难度不等。
+    """
+    
+
+    valid_questions = []  # 存储所有有效题目
+    processed_node_ids = set()  # 缓存已处理的节点ID
 
     try:
-        response = client.chat.completions.create(
-            model="deepseek-chat",
-            messages=[
-                {
-                    "role": "system",
-                    "content": system_prompt
-                },
-                {
-                    "role": "user",
-                    "content": f"请根据下面的教案内容生成课后习题:\n{lesson_plan_content}\n\n请返回符合要求的JSON格式题目列表。"
-                }
-            ],
-            response_format={"type": "json_object"},
-            stream=False
-        )
+        # 收集思维导图中的所有叶子节点
+        leaf_nodes = []
+        collect_leaf_nodes(mind_map, leaf_nodes)
+        
+        # 如果没有叶子节点，直接返回空列表
+        if not leaf_nodes:
+            return []
 
-        # 解析 AI 返回的 JSON 内容
-        ai_response = json.loads(response.choices[0].message.content)
-        # 如果返回结果为字典且包含 'questions' 键，则取出对应列表，否则直接作为列表使用
-        questions_data = ai_response.get('questions', []) if isinstance(ai_response, dict) else ai_response
+        batch_size = 3  # 每批处理的节点数
+        futures = []  # 存储线程池任务
 
-        # 转换为符合 Question 模型格式（与课前习题格式保持一致）
-        questions = []
-        for i, q in enumerate(questions_data, start=1):
-            question = {
-                "type": q.get("type", "choice"),  # 默认题型为选择题
-                "difficulty": min(max(int(q.get("difficulty", 3)), 1), 5),  # 难度限定在 1-5 之间
-                "timing": "post_class"  # 标记为课后习题
-            }
+        # 使用线程池并行生成题目
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            # 提交所有任务到线程池
+            for i in range(0, len(leaf_nodes), batch_size):
+                batch_leaf_nodes = leaf_nodes[i:i + batch_size]
+                futures.append(executor.submit(generate_questions_for_batch, batch_leaf_nodes, lesson_plan_content, processed_node_ids))
 
-            if question["type"] == "choice":
-                # 如果是选择题，content字段存储题目和选项的JSON格式
-                content_data = q.get("content", {})
-                if isinstance(content_data, dict):
-                    question["content"] = json.dumps({
-                        "question": content_data.get("question", f"课后习题{i}"),
-                        "options": content_data.get("options", ["A. 选项A", "B. 选项B", "C. 选项C", "D. 选项D"])
-                    }, ensure_ascii=False)
-                else:
-                    question["content"] = json.dumps({
-                        "question": str(content_data),
-                        "options": q.get("options", ["A. 选项A", "B. 选项B", "C. 选项C", "D. 选项D"])
-                    }, ensure_ascii=False)
-                question["correct_answer"] = q.get("correct_answer", "A")
-            else:
-                # 其他题型直接存储题目内容
-                question["content"] = q.get("content", f"课后习题{i}")
-                question["correct_answer"] = q.get("correct_answer", "")
+            # 收集所有结果
+            for future in as_completed(futures):
+                batch_questions = future.result()
+                valid_questions.extend(batch_questions)
 
-            questions.append(question)
+        # 最终校验每个知识点的题目数量
+        knowledge_counts = {}
+        for q in valid_questions:
+            knowledge_counts[q["knowledge_point_id"]] = knowledge_counts.get(q["knowledge_point_id"], 0) + 1
 
-        return questions
+        # 检查并提示题目缺失情况
+        for node in leaf_nodes:
+            if knowledge_counts.get(node["id"], 0) < 2:
+                print(f"警告：知识点 {node['id']} 最终题目数为 {knowledge_counts.get(node['id'], 0)}")
+
+        return valid_questions
 
     except Exception as e:
-        print(f"生成课后习题时出错: {e}")
-        # 出错时返回一个默认的课后习题，确保格式一致
-        return [{
-            "type": "choice",
-            "content": json.dumps({
-                "question": f"根据教案内容，回答关键知识点是什么？",
-                "options": ["A. 基础概念", "B. 进阶内容", "C. 其他"]
-            }, ensure_ascii=False),
-            "correct_answer": "A",
-            "difficulty": 3,
-            "timing": "post_class"
-        }]
+        print(f"整体流程错误: {str(e)[:200]}")
+        return []
 
+def collect_leaf_nodes(node: Dict[str, Any], leaf_nodes: List[Dict[str, Any]]):
+    """递归收集思维导图中的所有叶子节点"""
+    if "children" not in node or len(node["children"]) == 0:
+        leaf_nodes.append({
+            "id": node["id"],
+            "content": node["content"],
+            "depth": node.get("depth", 0)
+        })
+    else:
+        for child in node["children"]:
+            collect_leaf_nodes(child, leaf_nodes)
+
+def generate_questions_for_batch(batch_leaf_nodes: List[Dict[str, Any]], lesson_plan_content: str, processed_node_ids: set) -> List[Dict[str, Any]]:
+    """为一批叶子节点生成题目"""
+    batch_questions = []
+
+    for node in batch_leaf_nodes:
+        if node['id'] in processed_node_ids:
+            continue
+
+        processed_node_ids.add(node['id'])
+        print(node)
+        try:
+            # 构造用户消息
+            user_message = f"""知识点ID：{node['id']}
+知识点内容：
+{node['content']}
+
+教案相关内容（供参考）：
+{lesson_plan_content}
+
+请为该知识点生成两道不同难度、不同类型的题目："""
+
+            # 调用 AI 接口生成题目
+            response = client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.7
+            )
+
+            # 解析 AI 响应
+            ai_response = json.loads(response.choices[0].message.content)
+            questions_data = ai_response.get("questions", [])
+
+            # 题目格式转换和校验
+            for q in questions_data:
+                # 必要字段校验
+                required_fields = ["type", "content", "correct_answer", "difficulty", "knowledge_point_id"]
+                if not all(key in q for key in required_fields):
+                    continue
+
+                # 知识点ID校验
+                if q["knowledge_point_id"] != node["id"]:
+                    continue
+
+                # 构造题目对象
+                question = {
+                    "type": q["type"],
+                    "difficulty": min(max(int(q["difficulty"]), 1), 5),
+                    "timing": "post_class",
+                    "knowledge_point_id": q["knowledge_point_id"]
+                }
+
+                # 根据题型处理内容
+                if q["type"] == "choice":
+                    if isinstance(q["content"], dict) and "question" in q["content"] and "options" in q["content"]:
+                        question["content"] = json.dumps(q["content"], ensure_ascii=False)
+                        question["correct_answer"] = str(q["correct_answer"]).strip().upper()
+                    else:
+                        continue  # 跳过格式错误的选择题
+                else:
+                    question["content"] = str(q["content"])
+                    question["correct_answer"] = str(q["correct_answer"])
+
+                batch_questions.append(question)
+
+        except Exception as e:
+            print(f"处理知识点 {node['id']} 时出错: {str(e)[:200]}")
+
+    return batch_questions
+    
 
 # 推荐指数
 
@@ -429,38 +583,6 @@ def save_to_markdown(content, filename="教案.md"):
     with open(filename, "w", encoding="utf-8") as f:
         f.write(content)
     print(f"\n✅ 教案已保存为 Markdown 文件：{filename}")
-
-
-# 教案保存为PDF
-# def save_to_pdf(content, filename="教案.pdf"):
-#     # 将 Markdown 转换为 HTML
-#     html_content = markdown.markdown(content)
-#
-#     # HTML 模板
-#     html_template = f"""
-#     <html>
-#     <head>
-#         <meta charset="utf-8">
-#         <style>
-#             body {{ font-family: "SimSun", serif; line-height: 1.6; margin: 40px; }}
-#             h1 {{ text-align: center; color: #2c3e50; }}
-#             h2 {{ color: #2c3e50; margin-top: 25px; }}
-#             .section {{ margin-bottom: 20px; }}
-#         </style>
-#     </head>
-#     <body>
-#         <h1>教案设计</h1>
-#         <div class="section">{html_content}</div>
-#     </body>
-#     </html>
-#     """
-#
-#     # 手动指定 wkhtmltopdf 路径
-#     pdfkit_config = pdfkit.configuration(wkhtmltopdf=r"E:\Software\wkhtmltopdf\bin\wkhtmltopdf.exe")
-#
-#     # 生成 PDF
-#     pdfkit.from_string(html_template, filename, configuration=pdfkit_config)
-#     print(f"\n✅ PDF 已保存为：{filename}")
 
 
 
@@ -625,10 +747,17 @@ def get_default_structure() -> Dict:
 
     
 if __name__ == "__main__":
-    # 示例教学设计内容
-    lesson_plan_content = {"plan_content": "# TCP\u8fde\u63a5\u4e0e\u4e09\u6b21\u63e1\u624b\u534f\u8bae\u6559\u5b66\u8bbe\u8ba1\n\n## \u6559\u5b66\u76ee\u6807\n1. \u80fd\u591f\u51c6\u786e\u63cf\u8ff0TCP\u534f\u8bae\u7684\u7279\u70b9\u53ca\u5176\u4e0eUDP\u534f\u8bae\u7684\u533a\u522b\uff08\u7406\u89e3\u5c42\u9762\uff09\n2. \u80fd\u591f\u89e3\u91caTCP\u4e09\u6b21\u63e1\u624b\u7684\u8fc7\u7a0b\u53ca\u5176\u5fc5\u8981\u6027\uff08\u5e94\u7528\u5c42\u9762\uff09\n3. \u80fd\u591f\u7ed8\u5236TCP\u4e09\u6b21\u63e1\u624b\u7684\u65f6\u5e8f\u56fe\u5e76\u6807\u6ce8\u5173\u952e\u5b57\u6bb5\uff08\u6280\u80fd\u5c42\u9762\uff09\n4. \u80fd\u591f\u5206\u6790\u4e09\u6b21\u63e1\u624b\u5931\u8d25\u7684\u53ef\u80fd\u539f\u56e0\uff08\u5206\u6790\u5c42\u9762\uff09\n5. \u80fd\u591f\u5728\u6a21\u62df\u73af\u5883\u4e2d\u89c2\u5bdfTCP\u8fde\u63a5\u5efa\u7acb\u8fc7\u7a0b\uff08\u5b9e\u8df5\u5c42\u9762\uff09\n\n## \u6559\u5b66\u91cd\u96be\u70b9\n**\u91cd\u70b9\uff1a**\n- TCP\u4e09\u6b21\u63e1\u624b\u7684\u5177\u4f53\u8fc7\u7a0b\n- \u6bcf\u4e2a\u63e1\u624b\u62a5\u6587\u7684\u5173\u952e\u5b57\u6bb5\u53ca\u5176\u4f5c\u7528\n\n**\u96be\u70b9\uff1a**\n- SYN/ACK\u6807\u5fd7\u4f4d\u7684\u7406\u89e3\n- \u5e8f\u5217\u53f7\u548c\u786e\u8ba4\u53f7\u7684\u53d8\u5316\u89c4\u5f8b\n- \u534a\u8fde\u63a5\u72b6\u6001\u7684\u7406\u89e3\n\n**\u7a81\u7834\u7b56\u7565\uff1a**\n- \u4f7f\u7528\u7c7b\u6bd4\u6cd5\uff08\u5982\u6253\u7535\u8bdd\u8fc7\u7a0b\uff09\u89e3\u91ca\u4e09\u6b21\u63e1\u624b\n- \u901a\u8fc7\u52a8\u753b\u6f14\u793a\u5e8f\u5217\u53f7\u53d8\u5316\u8fc7\u7a0b\n- \u8bbe\u8ba1\u5206\u7ec4\u89d2\u8272\u626e\u6f14\u6d3b\u52a8\u6a21\u62df\u63e1\u624b\u8fc7\u7a0b\n- \u4f7f\u7528Wireshark\u6293\u5305\u5206\u6790\u771f\u5b9eTCP\u8fde\u63a5\n\n## \u6559\u5b66\u5185\u5bb9\n1. **TCP\u534f\u8bae\u57fa\u7840**\n   - \u9762\u5411\u8fde\u63a5\u7684\u7279\u6027\n   - \u53ef\u9760\u4f20\u8f93\u673a\u5236\n   - \u4e0eUDP\u7684\u5bf9\u6bd4\uff08\u57fa\u4e8e\u5b66\u751f\u9884\u4e60\u53cd\u9988\u5f3a\u5316\uff09\n\n2. **\u8fde\u63a5\u5efa\u7acb\u8fc7\u7a0b**\n   - \u4e09\u6b21\u63e1\u624b\u5fc5\u8981\u6027\n   - \u5404\u9636\u6bb5\u72b6\u6001\u53d8\u5316\n   - \u5173\u952e\u5b57\u6bb5\u89e3\u6790\uff08SYN\u3001ACK\u3001seq\u3001ack\uff09\n\n3. **\u5e38\u89c1\u95ee\u9898\u5206\u6790**\n   - \u63e1\u624b\u5931\u8d25\u573a\u666f\n   - SYN Flood\u653b\u51fb\u539f\u7406\n   - \u8fde\u63a5\u8d85\u65f6\u5904\u7406\n\n4. **\u5b9e\u8df5\u5e94\u7528**\n   - \u7f51\u7edc\u8bca\u65ad\u4e2d\u7684TCP\u8fde\u63a5\u5206\u6790\n   - \u6027\u80fd\u4f18\u5316\u8003\u8651\n\n## \u6559\u5b66\u65f6\u95f4\u5b89\u6392\uff0845\u5206\u949f\uff09\n| \u6559\u5b66\u73af\u8282 | \u65f6\u95f4\u5206\u914d |\n|---------|---------|\n| \u5bfc\u5165\u73af\u8282 | 5\u5206\u949f |\n| TCP\u534f\u8bae\u57fa\u7840\u8bb2\u89e3 | 8\u5206\u949f |\n| \u4e09\u6b21\u63e1\u624b\u539f\u7406\u8bb2\u89e3 | 10\u5206\u949f |\n| \u4e92\u52a8\u6d3b\u52a81\uff1a\u89d2\u8272\u626e\u6f14 | 7\u5206\u949f |\n| \u4e92\u52a8\u6d3b\u52a82\uff1aWireshark\u6f14\u793a | 8\u5206\u949f |\n| \u4e92\u52a8\u6d3b\u52a83\uff1a\u6545\u969c\u8bca\u65ad | 5\u5206\u949f |\n| \u5c0f\u7ed3\u4e0e\u4f5c\u4e1a\u5e03\u7f6e | 2\u5206\u949f |\n\n## \u6559\u5b66\u8fc7\u7a0b\n\n### 1. \u5bfc\u5165\u73af\u8282\uff085\u5206\u949f\uff09\n**\u65b9\u6cd5\uff1a** \u60c5\u5883\u5bfc\u5165+\u63d0\u95ee\u4e92\u52a8  \n**\u6d3b\u52a8\uff1a** \n- \u5c55\u793a\u7f51\u7edc\u901a\u4fe1\u573a\u666f\u56fe\u7247\uff08\u5982\u7f51\u9875\u52a0\u8f7d\u3001\u89c6\u9891\u901a\u8bdd\uff09\n- \u63d0\u95ee\uff1a\"\u5f53\u4f60\u5728\u6d4f\u89c8\u5668\u8f93\u5165\u7f51\u5740\u540e\uff0c\u8ba1\u7b97\u673a\u5982\u4f55\u4e0e\u670d\u52a1\u5668\u5efa\u7acb\u8fde\u63a5\uff1f\"\n- \u6839\u636e\u5b66\u751f\u9884\u4e60\u53cd\u9988\uff08\u9898\u76eeID29\u6b63\u786e\u73870%\uff09\uff0c\u5f3a\u8c03TCP/UDP\u533a\u522b\u7684\u91cd\u8981\u6027\n\n**\u6559\u5177\uff1a** \u7f51\u7edc\u901a\u4fe1\u573a\u666f\u56fe\u7247\u3001\u9884\u4e60\u7b54\u9898\u7edf\u8ba1\u56fe\u8868  \n**\u9884\u671f\u6210\u679c\uff1a** \u6fc0\u53d1\u5b66\u4e60\u5174\u8da3\uff0c\u660e\u786e\u5b66\u4e60\u76ee\u6807\n\n### 2. TCP\u534f\u8bae\u57fa\u7840\u8bb2\u89e3\uff088\u5206\u949f\uff09\n**\u65b9\u6cd5\uff1a** \u5bf9\u6bd4\u8bb2\u89e3+\u56fe\u793a\u6cd5  \n**\u5185\u5bb9\uff1a**\n- \u56de\u987eOSI\u6a21\u578b\uff08\u57fa\u4e8e\u9898\u76eeID28\u53cd\u9988\uff09\n- \u5bf9\u6bd4TCP\u4e0eUDP\u7279\u6027\u8868\u683c\uff08\u5f3a\u5316\u9898\u76eeID29\u5185\u5bb9\uff09\n- \u901a\u8fc7\u5feb\u9012\u5305\u88f9\u7c7b\u6bd4\u89e3\u91ca\u53ef\u9760\u4f20\u8f93\n\n**\u5b66\u751f\u884c\u4e3a\uff1a** \u8bb0\u5f55\u5173\u952e\u70b9\uff0c\u53c2\u4e0e\u7c7b\u6bd4\u8ba8\u8bba  \n**\u6559\u5177\uff1a** \u5bf9\u6bd4\u8868\u683c\u3001\u5feb\u9012\u7c7b\u6bd4\u52a8\u753b  \n**\u9884\u671f\u6210\u679c\uff1a** \u5efa\u7acbTCP\u57fa\u7840\u8ba4\u77e5\u6846\u67b6\n\n### 3. \u4e09\u6b21\u63e1\u624b\u539f\u7406\u8bb2\u89e3\uff0810\u5206\u949f\uff09\n**\u65b9\u6cd5\uff1a** \u5206\u6b65\u8bb2\u89e3+\u52a8\u753b\u6f14\u793a  \n**\u5185\u5bb9\uff1a**\n1. \u63e1\u624b\u5fc5\u8981\u6027\uff1a\u89e3\u51b3\u4fe1\u9053\u4e0d\u53ef\u9760\u95ee\u9898\n2. \u8be6\u7ec6\u6b65\u9aa4\uff1a\n   - \u7b2c\u4e00\u6b21\u63e1\u624b\uff1aSYN=1, seq=x\n   - \u7b2c\u4e8c\u6b21\u63e1\u624b\uff1aSYN=1, ACK=1, seq=y, ack=x+1\n   - \u7b2c\u4e09\u6b21\u63e1\u624b\uff1aACK=1, seq=x+1, ack=y+1\n3. \u72b6\u6001\u53d8\u5316\uff1aCLOSED \u2192 SYN_SENT \u2192 ESTABLISHED\n\n**\u6559\u5177\uff1a** \u52a8\u6001\u65f6\u5e8f\u56fe\u3001\u72b6\u6001\u8f6c\u6362\u56fe  \n**\u9884\u671f\u6210\u679c\uff1a** \u7406\u89e3\u63e1\u624b\u6d41\u7a0b\u53ca\u5b57\u6bb5\u542b\u4e49\n\n### 4. \u4e92\u52a8\u6d3b\u52a81\uff1a\u89d2\u8272\u626e\u6f14\uff087\u5206\u949f\uff09\n**\u4e92\u52a8\u5f62\u5f0f\uff1a** \u5c0f\u7ec4\u89d2\u8272\u626e\u6f14  \n**\u5b89\u6392\uff1a**\n- \u5c06\u5b66\u751f\u5206\u4e3a3\u7ec4\uff1a\u5ba2\u6237\u7aef\u3001\u670d\u52a1\u5668\u3001\u89c2\u5bdf\u5458\n- \u5ba2\u6237\u7aef\u7ec4\u6301\"SYN\"\u5361\u7247\uff0c\u670d\u52a1\u5668\u7ec4\u6301\"SYN+ACK\"\u5361\u7247\n- \u6a21\u62df\u4e09\u6b21\u63e1\u624b\u8fc7\u7a0b\uff0c\u89c2\u5bdf\u5458\u8bb0\u5f55\u5e8f\u5217\u53f7\u53d8\u5316\n- \u6559\u5e08\u6545\u610f\u5236\u9020\"\u63e1\u624b\u5931\u8d25\"\u573a\u666f\u4f9b\u5206\u6790\n\n**\u6559\u5177\uff1a** \u7279\u5236\u624b\u5361\uff08\u542b\u5b57\u6bb5\u4fe1\u606f\uff09\u3001\u8ba1\u65f6\u5668  \n**\u9884\u671f\u6210\u679c\uff1a** \u901a\u8fc7\u4f53\u9a8c\u52a0\u6df1\u6d41\u7a0b\u8bb0\u5fc6\n\n### 5. \u4e92\u52a8\u6d3b\u52a82\uff1aWireshark\u6f14\u793a\uff088\u5206\u949f\uff09\n**\u4e92\u52a8\u5f62\u5f0f\uff1a** \u5b9e\u65f6\u6f14\u793a+\u95ee\u7b54  \n**\u5b89\u6392\uff1a**\n- \u6559\u5e08\u73b0\u573a\u8bbf\u95ee\u7f51\u7ad9\uff0c\u6355\u83b7TCP\u63e1\u624b\u8fc7\u7a0b\n- \u5b66\u751f\u89c2\u5bdf\u5e76\u56de\u7b54\uff1a\n  - \u627e\u51fa\u4e09\u6b21\u63e1\u624b\u62a5\u6587\n  - \u8bc6\u522b\u5e8f\u5217\u53f7\u53d8\u5316\u89c4\u5f8b\n  - \u8ba1\u7b97\u63e1\u624b\u8017\u65f6\n- \u5206\u7ec4\u8ba8\u8bba\u5f02\u5e38\u62a5\u6587\u7279\u5f81\n\n**\u6559\u5177\uff1a** Wireshark\u8f6f\u4ef6\u3001\u9884\u8bbe\u7f51\u7edc\u73af\u5883  \n**\u9884\u671f\u6210\u679c\uff1a** \u5efa\u7acb\u7406\u8bba\u5230\u5b9e\u8df5\u7684\u8fde\u63a5\n\n### 6. \u4e92\u52a8\u6d3b\u52a83\uff1a\u6545\u969c\u8bca\u65ad\uff085\u5206\u949f\uff09\n**\u4e92\u52a8\u5f62\u5f0f\uff1a** \u6848\u4f8b\u5206\u6790+\u5c0f\u7ec4\u7ade\u8d5b  \n**\u5b89\u6392\uff1a**\n- \u63d0\u4f9b3\u4e2a\u63e1\u624b\u5931\u8d25\u6848\u4f8b\uff08\u57fa\u4e8e\u9898\u76eeID30\u76f8\u5173\u7f51\u7edc\u5c42\u95ee\u9898\uff09\n- \u5c0f\u7ec4\u8ba8\u8bba\u53ef\u80fd\u539f\u56e0\u53ca\u89e3\u51b3\u65b9\u6848\n- \u6700\u5feb\u6b63\u786e\u8bca\u65ad\u7684\u5c0f\u7ec4\u83b7\u5f97\u5956\u52b1\u5206\n\n**\u6559\u5177\uff1a** \u6848\u4f8b\u5361\u7247\u3001\u767d\u677f\u8bb0\u5f55  \n**\u9884\u671f\u6210\u679c\uff1a** \u57f9\u517b\u95ee\u9898\u89e3\u51b3\u80fd\u529b\n\n### 7. \u5c0f\u7ed3\u4e0e\u4f5c\u4e1a\u5e03\u7f6e\uff082\u5206\u949f\uff09\n**\u65b9\u6cd5\uff1a** \u601d\u7ef4\u5bfc\u56fe\u56de\u987e  \n**\u5185\u5bb9\uff1a**\n- \u7528\u601d\u7ef4\u5bfc\u56fe\u4e32\u8054\u5173\u952e\u77e5\u8bc6\u70b9\n- \u5f3a\u8c03TCP\u53ef\u9760\u6027\u7684\u5b9e\u73b0\u673a\u5236\n- \u9884\u544a\u4e0b\u8282\u8bfe\u5185\u5bb9\uff08\u56db\u6b21\u6325\u624b\uff09\n\n## \u8bfe\u540e\u4f5c\u4e1a\n**\u57fa\u7840\u9898\uff1a**\n1. \u7ed8\u5236\u4e09\u6b21\u63e1\u624b\u65f6\u5e8f\u56fe\uff0c\u6807\u6ce8\u5404\u5b57\u6bb5\u503c\uff08\u5982\u521d\u59cbseq=100\uff09\n2. \u9009\u62e9\u9898\uff1a\u7b2c\u4e8c\u6b21\u63e1\u624b\u65f6\uff0cack\u5b57\u6bb5\u7684\u503c\u5e94\u8be5\u662f\uff08\u57fa\u4e8e\u9898\u76eeID30\u98ce\u683c\uff09\n   A. x B. x+1 C. y D. y+1\n\n**\u62d3\u5c55\u9898\uff1a**\n1. \u7814\u7a76SYN Cookie\u673a\u5236\u5982\u4f55\u9632\u5fa1SYN Flood\u653b\u51fb\n2. \u4f7f\u7528\u7f51\u7edc\u547d\u4ee4\uff08\u5982telnet\uff09\u5efa\u7acbTCP\u8fde\u63a5\uff0c\u8bb0\u5f55\u63e1\u624b\u8fc7\u7a0b\n\n**\u5b9e\u8df5\u9898\uff08\u9009\u505a\uff09\uff1a**\n\u4f7f\u7528Wireshark\u6355\u83b7\u5fae\u4fe1\u767b\u5f55\u8fc7\u7a0b\u7684TCP\u8fde\u63a5\uff0c\u5206\u6790\u5176\u63e1\u624b\u7279\u5f81\n\n---\n\u672c\u6559\u6848\u9488\u5bf9\u5b66\u751f\u9884\u4e60\u53cd\u9988\u4e2d\u66b4\u9732\u7684TCP/UDP\u7406\u89e3\u8584\u5f31\u95ee\u9898\uff08\u9898\u76eeID29\u6b63\u786e\u73870%\uff09\uff0c\u901a\u8fc7\u591a\u5c42\u6b21\u4e92\u52a8\u8bbe\u8ba1\u5f3a\u5316\u6982\u5ff5\u7406\u89e3\u3002\u7279\u522b\u8bbe\u8ba1\u4e86\u4ece\u7406\u8bba\u5230\u5b9e\u8df5\u7684\u591a\u901a\u9053\u5b66\u4e60\u8def\u5f84\uff0c\u7ed3\u5408\u7f51\u7edc\u5c42\u8bbe\u5907\u77e5\u8bc6\uff08\u9898\u76eeID30\uff09\u8fdb\u884c\u7efc\u5408\u8bad\u7ec3\u3002\u6240\u6709\u4e92\u52a8\u73af\u8282\u5747\u914d\u5907\u53ef\u89c6\u5316\u5de5\u5177\u652f\u6301\uff0c\u786e\u4fdd\u62bd\u8c61\u6982\u5ff5\u7684\u5177\u8c61\u5316\u5448\u73b0\u3002", "analysis": "\u81ea\u52a8\u8bc4\u4f30\u5931\u8d25\uff0c\u4f7f\u7528\u9ed8\u8ba4\u63a8\u8350\u6307\u6570"}
-    # 生成思维导图数据
-    mind_map_data = generate_knowledge_mind_map(lesson_plan_content)
+    # 模拟教案内容
+    lesson_plan_content = """
+    本次课程主要介绍Python的基本语法和数据类型。包括变量的定义、数据类型（如整数、浮点数、字符串、列表、元组、字典等）、条件语句和循环语句。通过案例讲解和互动练习，帮助学生掌握Python编程的基础知识。
+    """
 
-    # 打印生成的思维导图数据
-    print(json.dumps(mind_map_data, ensure_ascii=False, indent=2))
+    # 模拟思维导图数据（JSON格式）
+    mind_map = {"id": 22, "name": "TCP\u8fde\u63a5\u539f\u7406\u6280\u672f\u77e5\u8bc6\u70b9", "content": "", "is_leaf": false, "children": [{"id": 23, "name": "TCP\u534f\u8bae\u57fa\u7840", "content": "", "is_leaf": false, "children": [{"id": 24, "name": "TCP\u5b9a\u4e49\u4e0e\u7279\u6027", "content": "- **\u9762\u5411\u8fde\u63a5\u7684\u4f20\u8f93\u5c42\u534f\u8bae**\n- **\u53ef\u9760\u6027\u4f20\u8f93\u673a\u5236**\n- **\u6d41\u91cf\u63a7\u5236\u529f\u80fd**\n- **\u62e5\u585e\u63a7\u5236\u529f\u80fd**", "is_leaf": true, "children": []}, {"id": 25, "name": "TCP\u4e0eUDP\u5bf9\u6bd4", "content": "- **TCP\u7279\u6027**\uff1a\u53ef\u9760\u6027\u3001\u6709\u5e8f\u6027\u3001\u9762\u5411\u8fde\u63a5\n- **UDP\u7279\u6027**\uff1a\u9ad8\u6548\u7387\u3001\u65e0\u8fde\u63a5\u3001\u65e0\u5e8f\u6027", "is_leaf": true, "children": []}, {"id": 26, "name": "\u534f\u8bae\u6808\u4f4d\u7f6e", "content": "- **\u4f20\u8f93\u5c42\u534f\u8bae**\n- **\u5de5\u4f5c\u5728IP\u534f\u8bae\u4e4b\u4e0a**", "is_leaf": true, "children": []}]}, {"id": 27, "name": "TCP\u8fde\u63a5\u7ba1\u7406", "content": "", "is_leaf": false, "children": [{"id": 28, "name": "\u4e09\u6b21\u63e1\u624b\u5efa\u7acb\u8fde\u63a5", "content": "- **SYN\u62a5\u6587**\uff1a\u521d\u59cb\u5e8f\u5217\u53f7\u4ea4\u6362\n- **SYN-ACK\u62a5\u6587**\uff1a\u786e\u8ba4\u5e8f\u5217\u53f7+\u670d\u52a1\u5668\u521d\u59cb\u5e8f\u5217\u53f7\n- **ACK\u62a5\u6587**\uff1a\u786e\u8ba4\u670d\u52a1\u5668\u5e8f\u5217\u53f7\n- **\u5e8f\u5217\u53f7(Sequence Number)\u4f5c\u7528**\uff1a\u6807\u8bc6\u6570\u636e\u5b57\u8282\u6d41\n- **\u786e\u8ba4\u53f7(Acknowledgment Number)\u4f5c\u7528**\uff1a\u671f\u671b\u63a5\u6536\u7684\u4e0b\u4e00\u4e2a\u5b57\u8282\u5e8f\u53f7\n- **\u8fde\u63a5\u72b6\u6001**\uff1a\n  - \u534a\u8fde\u63a5\u72b6\u6001(SYN_RECEIVED)\n  - \u5168\u8fde\u63a5\u72b6\u6001(ESTABLISHED)", "is_leaf": true, "children": []}, {"id": 29, "name": "\u56db\u6b21\u6325\u624b\u65ad\u5f00\u8fde\u63a5", "content": "- **FIN\u62a5\u6587**\uff1a\u53d1\u8d77\u8fde\u63a5\u7ec8\u6b62\n- **ACK\u62a5\u6587**\uff1a\u786e\u8ba4\u7ec8\u6b62\u8bf7\u6c42\n- **\u72b6\u6001\u8f6c\u6362**\uff1a\n  - FIN_WAIT_1\n  - FIN_WAIT_2\n  - TIME_WAIT(\u7b49\u5f852MSL\u65f6\u95f4)\n- **TIME_WAIT\u72b6\u6001\u610f\u4e49**\uff1a\n  - \u786e\u4fdd\u6700\u540e\u4e00\u4e2aACK\u5230\u8fbe\n  - \u8ba9\u7f51\u7edc\u4e2d\u6b8b\u7559\u62a5\u6587\u6bb5\u5931\u6548", "is_leaf": true, "children": []}]}, {"id": 30, "name": "TCP\u6570\u636e\u4f20\u8f93\u673a\u5236", "content": "", "is_leaf": false, "children": [{"id": 31, "name": "\u53ef\u9760\u6027\u4fdd\u8bc1\u673a\u5236", "content": "- **\u786e\u8ba4\u5e94\u7b54(ACK)**\uff1a\u63a5\u6536\u65b9\u53d1\u9001\u786e\u8ba4\u62a5\u6587\n- **\u8d85\u65f6\u91cd\u4f20**\uff1a\u672a\u6536\u5230ACK\u65f6\u91cd\u53d1\u6570\u636e\n- **\u6570\u636e\u6392\u5e8f**\uff1a\u901a\u8fc7\u5e8f\u5217\u53f7\u91cd\u7ec4\u4e71\u5e8f\u62a5\u6587", "is_leaf": true, "children": []}, {"id": 32, "name": "\u6d41\u91cf\u63a7\u5236", "content": "- **\u6ed1\u52a8\u7a97\u53e3\u539f\u7406**\uff1a\n  - \u63a5\u6536\u7a97\u53e3(rwnd)\uff1a\u63a5\u6536\u65b9\u7f13\u51b2\u533a\u5927\u5c0f\n  - \u53d1\u9001\u7a97\u53e3\uff1a\u4e0d\u8d85\u8fc7\u63a5\u6536\u7a97\u53e3\u548c\u62e5\u585e\u7a97\u53e3\n- **\u7a97\u53e3\u901a\u544a**\uff1a\u901a\u8fc7TCP\u5934\u90e8\u7a97\u53e3\u5b57\u6bb5\u901a\u77e5\u5bf9\u7aef", "is_leaf": true, "children": []}, {"id": 33, "name": "\u62e5\u585e\u63a7\u5236", "content": "- **\u6162\u542f\u52a8\u7b97\u6cd5**\uff1a\u7a97\u53e3\u5927\u5c0f\u6307\u6570\u589e\u957f\n- **\u62e5\u585e\u907f\u514d\u7b97\u6cd5**\uff1a\u7a97\u53e3\u5927\u5c0f\u7ebf\u6027\u589e\u957f\n- **\u5feb\u901f\u91cd\u4f20**\uff1a\u6536\u52303\u4e2a\u91cd\u590dACK\u7acb\u5373\u91cd\u4f20\n- **\u5feb\u901f\u6062\u590d**\uff1a\u5feb\u901f\u91cd\u4f20\u540e\u7684\u7a97\u53e3\u8c03\u6574\u7b56\u7565", "is_leaf": true, "children": []}]}, {"id": 34, "name": "TCP\u534f\u8bae\u5b9e\u73b0\u7ec6\u8282", "content": "", "is_leaf": false, "children": [{"id": 35, "name": "\u5173\u952e\u62a5\u6587\u5b57\u6bb5", "content": "- **\u5e8f\u5217\u53f7(32\u4f4d)**\n- **\u786e\u8ba4\u53f7(32\u4f4d)**\n- **\u7a97\u53e3\u5927\u5c0f(16\u4f4d)**\n- **\u6807\u5fd7\u4f4d(SYN/ACK/FIN/RST\u7b49)**", "is_leaf": true, "children": []}, {"id": 36, "name": "\u62e5\u585e\u63a7\u5236\u7b97\u6cd5\u53d8\u79cd", "content": "- **TCP Tahoe**\n- **TCP Reno**", "is_leaf": true, "children": []}, {"id": 37, "name": "\u6027\u80fd\u4f18\u5316\u53c2\u6570", "content": "- **\u6700\u5927\u62a5\u6587\u6bb5\u957f\u5ea6(MSS)**\n- **\u7a97\u53e3\u7f29\u653e\u56e0\u5b50(Window Scaling)**\n- **\u65f6\u95f4\u6233\u9009\u9879(Timestamp)**", "is_leaf": true, "children": []}]}]}
+
+    # 调用生成课后习题的函数
+    generated_questions = generate_post_class_questions(lesson_plan_content, mind_map)
+
+    # 打印生成的课后习题
+    print("生成的课后习题如下：")
+    print(json.dumps(generated_questions, ensure_ascii=False, indent=2))
