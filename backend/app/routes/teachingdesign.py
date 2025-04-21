@@ -720,14 +720,15 @@ def store_and_get_adjusted_map(teachingdesignid, parent_node_id, node_data):
 
     # 递归存储子节点并调整结构
     adjusted_node = {
-        "id": new_node.id,  # 使用数据库生成的 id
-        "name": new_node.node_name,
-        "content": new_node.node_content,
-        "is_leaf": new_node.is_leaf  # 将是否为叶子节点的状态加入返回的字典
+        "data": {  # 将节点信息包裹在 data 字段中
+            "id": new_node.id,
+            "text": new_node.node_name,
+            "note": new_node.node_content
+        },
+        "children": []
     }
 
     if "children" in node_data and isinstance(node_data["children"], list):
-        adjusted_node["children"] = []
         for child_data in node_data["children"]:
             adjusted_child = store_and_get_adjusted_map(teachingdesignid, new_node.id, child_data)
             if adjusted_child:
@@ -738,6 +739,9 @@ def store_and_get_adjusted_map(teachingdesignid, parent_node_id, node_data):
 
 
 
+
+
+# 智能更新思维导图数据
 @teachingdesign_bp.route('/updatemindmap/<int:design_id>', methods=['POST'])
 def update_mind_map(design_id):
     """
@@ -772,9 +776,12 @@ def update_mind_map(design_id):
 
         # 3. 递归处理节点树
         def process_node(node_data, parent_id=None):
+            # 提取 data 字段中的信息
+            node_info = node_data.get('data', {})
+            
             # 处理已有节点
-            if 'id' in node_data and node_data['id'] in existing_nodes:
-                node = existing_nodes[node_data['id']]
+            if 'id' in node_info and node_info['id'] in existing_nodes:
+                node = existing_nodes[node_info['id']]
 
                 # 验证节点归属
                 if node.teachingdesignid != design_id:
@@ -782,11 +789,11 @@ def update_mind_map(design_id):
 
                 # 更新变更字段
                 update_flag = False
-                if node.node_name != node_data.get('name'):
-                    node.node_name = node_data.get('name', node.node_name)
+                if node.node_name != node_info.get('text'):
+                    node.node_name = node_info.get('text', node.node_name)
                     update_flag = True
-                if node.node_content != node_data.get('content'):
-                    node.node_content = node_data.get('content', node.node_content)
+                if node.node_content != node_info.get('note'):
+                    node.node_content = node_info.get('note', node.node_content)
                     update_flag = True
                 if node.parent_node_id != parent_id:
                     node.parent_node_id = parent_id
@@ -802,8 +809,8 @@ def update_mind_map(design_id):
                 is_leaf = not bool(node_data.get('children', []))
                 new_node = MindMapNode(
                     teachingdesignid=design_id,
-                    node_name=node_data.get('name', '未命名节点'),
-                    node_content=node_data.get('content', ''),
+                    node_name=node_info.get('text', '未命名节点'),
+                    node_content=node_info.get('note', ''),
                     parent_node_id=parent_id,
                     is_leaf=is_leaf
                 )
@@ -820,12 +827,13 @@ def update_mind_map(design_id):
                 child_node = process_node(child_data, node_id)
                 processed_children.append(child_node)
 
-            # 返回处理后的节点结构（移除 is_new 字段）
+            # 返回处理后的节点结构
             return {
-                "id": node_id,
-                "name": node_data.get('name', ''),
-                "content": node_data.get('content', ''),
-                "is_leaf": not bool(processed_children),
+                "data": {  # 将节点信息包裹在 data 字段中
+                    "id": node_id,
+                    "text": node_info.get('text', ''),  # 使用 text 字段
+                    "note": node_info.get('note', ''),  # 使用 note 字段
+                },
                 "children": processed_children
             }
 
@@ -840,7 +848,7 @@ def update_mind_map(design_id):
         # 6. 清理孤立节点（可选）
         updated_ids = set()
         def collect_ids(node):
-            updated_ids.add(node['id'])
+            updated_ids.add(node['data']['id'])
             for child in node.get('children', []):
                 collect_ids(child)
         collect_ids(updated_map)
@@ -889,11 +897,65 @@ def update_mind_map(design_id):
     except ValueError as e:
         db.session.rollback()
         return jsonify(code=400, message=str(e)), 400
-    except IntegrityError as e:
-        db.session.rollback()
-        return jsonify(code=400, message=f"完整性错误: {str(e)}"), 400
     except Exception as e:
         db.session.rollback()
         logger.error(f"思维导图更新失败: {str(e)}", exc_info=True)
         return jsonify(code=500, message="服务器内部错误"), 500
-    
+
+
+
+#将单个教学设计的所有节点组成思维导图并存储
+@teachingdesign_bp.route('/<int:design_id>/generate_mindmap', methods=['POST'])
+def generate_and_store_mind_map(design_id):
+    try:
+        # 1. 基础验证
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify(code=401, message="请先登录"), 401
+
+        # 2. 查询教学设计
+        design = TeachingDesign.query.get(design_id)
+        if not design:
+            return jsonify(code=404, message="教学设计不存在"), 404
+
+        # 3. 权限验证（教师只能操作自己创建的教学设计）
+        if current_user.role == 'teacher' and design.creator_id != current_user.id:
+            return jsonify(code=403, message="无操作权限"), 403
+
+        # 4. 查询该教学设计的所有知识点
+        top_level_nodes = MindMapNode.query.filter_by(
+            teachingdesignid=design_id, 
+            parent_node_id=None
+        ).all()
+
+        # 5. 递归构建思维导图
+        def build_mind_map(node):
+            node_data = {
+                "data": {  # 将节点信息包裹在 data 字段中
+                   "id": node.id,
+                   "text": node.node_name,
+                   "note": node.node_content
+                },
+            "children": []
+            }
+            for child in node.children:
+                node_data["children"].append(build_mind_map(child))
+            return node_data
+        # 6. 构建完整的思维导图
+        mind_map = []
+        for root_node in top_level_nodes:
+            mind_map.append(build_mind_map(root_node))
+
+        # 7. 将思维导图存储到 TeachingDesign 的 mindmap 字段
+        design.mindmap = json.dumps(mind_map, ensure_ascii=False)
+        db.session.commit()
+
+        return jsonify(code=200, message="思维导图生成并存储成功", data={
+            "design_id": design.id,
+            "mind_map": mind_map
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"生成并存储思维导图失败: {str(e)}")
+        return jsonify(code=500, message="服务器内部错误"), 500

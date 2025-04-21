@@ -1,3 +1,4 @@
+from datetime import datetime
 from venv import logger
 from flask import Blueprint, json, render_template, request, jsonify, session
 from sqlalchemy import and_, desc, func
@@ -7,7 +8,7 @@ from app.models.question import Question
 from app.models.course import Course
 from app.models.user import User
 from app.models.courseclass import Courseclass
-from app.services.lesson_plan import generate_post_class_questions, generate_pre_class_questions
+from app.services.lesson_plan import generate_ai_analysis, generate_post_class_questions, generate_pre_class_questions
 from app.models.studentanswer import StudentAnswer
 from app.models.teaching_design import TeachingDesign
 from app.models.teachingdesignversion import TeachingDesignVersion
@@ -202,9 +203,11 @@ def get_questions_by_course(course_id):
         return jsonify({'error': str(e)}), 500
     
 
-# 查询单个题目
 @question_bp.route('/question/<int:question_id>', methods=['GET'])
 def get_question(question_id):
+    """
+    查询单个题目，如果是课后题目则返回知识点信息
+    """
     if not is_logged_in():
         return jsonify({'error': 'Unauthorized'}), 401
 
@@ -233,8 +236,8 @@ def get_question(question_id):
         if current_user not in course_class.teachers:
             return jsonify({'error': 'You do not have permission to view this question'}), 403
 
-        # 返回题目详情
-        return jsonify({
+        # 准备返回数据
+        question_data = {
             'id': question.id,
             'course_id': question.course_id,
             'type': question.type,
@@ -243,7 +246,19 @@ def get_question(question_id):
             'difficulty': question.difficulty,
             'timing': question.timing,
             'is_public': question.is_public  # 添加 is_public 字段
-        }), 200
+        }
+
+        # 如果是课后题目，添加知识点信息
+        if question.timing == 'post_class':
+            question_data['knowledge_point_id'] = question.knowledge_point_id
+            if question.knowledge_point:
+                question_data['knowledge_point_name'] = question.knowledge_point.node_name
+                question_data['knowledge_point_content'] = question.knowledge_point.node_content
+            else:
+                question_data['knowledge_point_name'] = None
+                question_data['knowledge_point_content'] = None
+
+        return jsonify(question_data), 200
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -434,7 +449,7 @@ def generate_post_class_questions_for_version(design_id, version_id):
 @question_bp.route('/postquestions/<int:course_id>', methods=['GET'])
 def get_post_class_questions_by_course(course_id):
     """
-    查询单个课程的所有课后习题
+    查询单个课程的所有课后习题，并返回知识点信息
     """
     try:
         # 1. 基础验证
@@ -464,7 +479,7 @@ def get_post_class_questions_by_course(course_id):
             # 老师可以查看所有题目
             questions = Question.query.filter_by(course_id=course_id, timing='post_class').all()
 
-        # 6. 返回题目列表
+        # 6. 返回题目列表，包含知识点信息
         return jsonify([{
             'id': question.id,
             'course_id': question.course_id,
@@ -473,7 +488,10 @@ def get_post_class_questions_by_course(course_id):
             'correct_answer': question.correct_answer,
             'difficulty': question.difficulty,
             'timing': question.timing,
-            'is_public': question.is_public
+            'is_public': question.is_public,
+            'knowledge_point_id': question.knowledge_point_id,
+            'knowledge_point_name': question.knowledge_point.node_name if question.knowledge_point else None,
+            'knowledge_point_content': question.knowledge_point.node_content if question.knowledge_point else None
         } for question in questions]), 200
 
     except Exception as e:
@@ -757,9 +775,13 @@ def create_question(course_id):
         logger.error(f"Error creating question: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-# 查询单个知识点的所有题目
-@question_bp.route('/knowledge/<int:knowledge_point_id>/questions', methods=['GET'])
-def get_questions_by_knowledge_point(knowledge_point_id):
+
+#创建新的课后题目
+@question_bp.route('/createpostquestion/<int:course_id>', methods=['POST'])
+def create_post_question(course_id):
+    """
+    教师手动创建题目，并可以关联到指定的知识点
+    """
     if not is_logged_in():
         return jsonify({'error': 'Unauthorized'}), 401
 
@@ -769,18 +791,8 @@ def get_questions_by_knowledge_point(knowledge_point_id):
         if not current_user:
             return jsonify({'error': 'User not found'}), 404
 
-        # 查询知识点是否存在
-        knowledge_point = MindMapNode.query.get(knowledge_point_id)
-        if not knowledge_point:
-            return jsonify({'error': 'Knowledge point not found'}), 404
-
-        # 获取知识点所属的教学设计
-        design = TeachingDesign.query.get(knowledge_point.teachingdesignid)
-        if not design:
-            return jsonify({'error': 'Teaching design not found'}), 404
-
-        # 获取教学设计所属的课程
-        course = Course.query.get(design.course_id)
+        # 验证课程是否存在
+        course = Course.query.get(course_id)
         if not course:
             return jsonify({'error': 'Course not found'}), 404
 
@@ -789,34 +801,248 @@ def get_questions_by_knowledge_point(knowledge_point_id):
         if not course_class:
             return jsonify({'error': 'Course class not found'}), 404
 
-        # 检查当前用户是否是课程班的老师或学生
-        if current_user not in course_class.teachers and current_user not in course_class.students:
-            return jsonify({'error': 'You do not have permission to access questions for this knowledge point'}), 403
+        # 检查当前用户是否是课程班的老师
+        if current_user not in course_class.teachers:
+            return jsonify({'error': 'You do not have permission to create questions for this course'}), 403
 
-        # 根据用户角色决定是否过滤 is_public 字段
-        if current_user.role == 'student':
-            # 学生只能查看公开的题目
-            questions = Question.query.filter_by(knowledge_point_id=knowledge_point_id, is_public=True).all()
-        else:
-            # 老师可以查看所有题目
-            questions = Question.query.filter_by(knowledge_point_id=knowledge_point_id).all()
+        # 获取请求中的 JSON 数据
+        data = request.json
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
 
-        # 返回题目列表
-        return jsonify([{
-            'id': question.id,
-            'course_id': question.course_id,
-            'type': question.type,
-            'content': question.content,
-            'correct_answer': question.correct_answer,
-            'difficulty': question.difficulty,
-            'timing': question.timing,
-            'is_public': question.is_public
-        } for question in questions]), 200
+        # 提取题目信息
+        question_type = data.get('type')
+        content = data.get('content')
+        correct_answer = data.get('correct_answer')
+        difficulty = data.get('difficulty', 1)
+        timing = data.get('timing', 'pre_class')
+        is_public = data.get('is_public', False)
+
+        # 提取知识点信息（可选）
+        knowledge_point_id = data.get('knowledge_point_id')
+        knowledge_point_name = data.get('knowledge_point_name')
+        knowledge_point_content = data.get('knowledge_point_content', '')  # 允许为空
+
+        # 提取教学设计 ID 和父节点 ID（由前端提供）
+        teaching_design_id = data.get('teaching_design_id')
+        parent_node_id = data.get('parent_node_id')  # 知识点的父节点 ID
+
+        if not question_type or not content or not correct_answer:
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        # 创建新的题目记录
+        new_question = Question(
+            course_id=course_id,
+            type=question_type,
+            content=content,
+            correct_answer=correct_answer,
+            difficulty=difficulty,
+            timing=timing,
+            is_public=is_public
+        )
+
+        # 如果提供了知识点 ID，则关联到该知识点
+        if knowledge_point_id:
+            # 验证知识点是否存在
+            knowledge_point = MindMapNode.query.get(knowledge_point_id)
+            if not knowledge_point:
+                return jsonify({'error': 'Knowledge point not found'}), 404
+            new_question.knowledge_point_id = knowledge_point_id
+        elif knowledge_point_name:
+            # 如果未提供知识点 ID，但提供了知识点名称，则创建新的知识点
+            if not teaching_design_id:
+                return jsonify({'error': 'Teaching design ID is required to create a new knowledge point'}), 400
+
+            # 验证教学设计是否存在
+            teaching_design = TeachingDesign.query.get(teaching_design_id)
+            if not teaching_design:
+                return jsonify({'error': 'Teaching design not found'}), 404
+
+            new_knowledge_point = MindMapNode(
+                teachingdesignid=teaching_design_id,
+                node_name=knowledge_point_name,
+                node_content=knowledge_point_content or f"Content for {knowledge_point_name}",  # 提供默认值或允许为空
+                parent_node_id=parent_node_id,  # 设置父节点 ID
+                is_leaf=True  # 默认为叶子节点
+            )
+            db.session.add(new_knowledge_point)
+            db.session.flush()  # 立即提交以获取生成的 ID
+
+            new_question.knowledge_point_id = new_knowledge_point.id
+
+            # 如果提供了父节点 ID，则更新父节点的 is_leaf 字段
+            if parent_node_id:
+                # 查询父节点
+                parent_node = MindMapNode.query.get(parent_node_id)
+                if parent_node:
+                    # 如果父节点 previously was a leaf node, update it to non-leaf
+                    if parent_node.is_leaf:
+                        parent_node.is_leaf = False
+                        db.session.add(parent_node)
+                        db.session.commit()
+
+                    # Update the teaching design's mindmap
+                    update_teaching_design_mindmap(teaching_design_id)
+
+        db.session.add(new_question)
+        db.session.commit()
+
+        return jsonify({
+            'message': 'Question created successfully',
+            'question_id': new_question.id
+        }), 201
 
     except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating question: {str(e)}")
         return jsonify({'error': str(e)}), 500
-    
-    
+
+def update_teaching_design_mindmap(teaching_design_id):
+    """
+    更新教学设计的思维导图
+    """
+    try:
+        # 查询教学设计
+        design = TeachingDesign.query.get(teaching_design_id)
+        if not design:
+            return
+
+        # 查询该教学设计的所有知识点
+        top_level_nodes = MindMapNode.query.filter_by(
+            teachingdesignid=teaching_design_id, 
+            parent_node_id=None
+        ).all()
+
+        # 递归构建思维导图
+        def build_mind_map(node):
+            node_data = {
+                "data": {  # 将节点信息包裹在 data 字段中
+                   "id": node.id,
+                   "name": node.node_name,
+                   "content": node.node_content,
+                   "is_leaf": node.is_leaf
+                },
+            "children": []
+            }
+            for child in node.children:
+                node_data["children"].append(build_mind_map(child))
+            return node_data
+
+        # 构建完整的思维导图
+        mind_map = []
+        for root_node in top_level_nodes:
+            mind_map.append(build_mind_map(root_node))
+
+        # 将思维导图存储到 TeachingDesign 的 mindmap 字段
+        design.mindmap = json.dumps(mind_map, ensure_ascii=False)
+        db.session.commit()
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating teaching design mindmap: {str(e)}")
+
+#为单个题目更新知识点
+@question_bp.route('/question/<int:question_id>/update_knowledge_point', methods=['PUT'])
+def update_question_knowledge_point(question_id):
+    """
+    修改单个题目所属的知识点
+    """
+    if not is_logged_in():
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        # 获取当前登录用户
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({'error': 'User not found'}), 404
+
+        # 查询要修改的题目
+        question = Question.query.get(question_id)
+        if not question:
+            return jsonify({'error': 'Question not found'}), 404
+
+        # 获取题目所属的课程
+        course = Course.query.get(question.course_id)
+        if not course:
+            return jsonify({'error': 'Course not found'}), 404
+
+        # 获取课程所属的课程班
+        course_class = Courseclass.query.filter(Courseclass.courses.contains(course)).first()
+        if not course_class:
+            return jsonify({'error': 'Course class not found'}), 404
+
+        # 检查当前用户是否是课程班的老师
+        if current_user not in course_class.teachers:
+            return jsonify({'error': 'You do not have permission to update this question'}), 403
+
+        # 获取请求中的 JSON 数据
+        data = request.json
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        # 提取知识点信息（可选）
+        knowledge_point_id = data.get('knowledge_point_id')
+        knowledge_point_name = data.get('knowledge_point_name')
+        knowledge_point_content = data.get('knowledge_point_content', '')  # 允许为空
+        teaching_design_id = data.get('teaching_design_id')
+        parent_node_id = data.get('parent_node_id')  # 知识点的父节点 ID
+
+        # 如果提供了知识点 ID，则关联到该知识点
+        if knowledge_point_id:
+            # 验证知识点是否存在
+            knowledge_point = MindMapNode.query.get(knowledge_point_id)
+            if not knowledge_point:
+                return jsonify({'error': 'Knowledge point not found'}), 404
+            question.knowledge_point_id = knowledge_point_id
+        elif knowledge_point_name:
+            # 如果未提供知识点 ID，但提供了知识点名称，则创建新的知识点
+            if not teaching_design_id:
+                return jsonify({'error': 'Teaching design ID is required to create a new knowledge point'}), 400
+
+            # 验证教学设计是否存在
+            teaching_design = TeachingDesign.query.get(teaching_design_id)
+            if not teaching_design:
+                return jsonify({'error': 'Teaching design not found'}), 404
+
+            new_knowledge_point = MindMapNode(
+                teachingdesignid=teaching_design_id,
+                node_name=knowledge_point_name,
+                node_content=knowledge_point_content or f"Content for {knowledge_point_name}",  # 提供默认值或允许为空
+                parent_node_id=parent_node_id,  # 设置父节点 ID
+                is_leaf=True  # 默认为叶子节点
+            )
+            db.session.add(new_knowledge_point)
+            db.session.flush()  # 立即提交以获取生成的 ID
+
+            question.knowledge_point_id = new_knowledge_point.id
+
+            # 如果提供了父节点 ID，则更新父节点的 is_leaf 字段
+            if parent_node_id:
+                # 查询父节点
+                parent_node = MindMapNode.query.get(parent_node_id)
+                if parent_node:
+                    # 如果父节点 previously was a leaf node, update it to non-leaf
+                    if parent_node.is_leaf:
+                        parent_node.is_leaf = False
+                        db.session.add(parent_node)
+                        db.session.commit()
+
+                    # Update the teaching design's mindmap
+                    update_teaching_design_mindmap(teaching_design_id)
+
+        # 提交更改
+        db.session.commit()
+
+        return jsonify({
+            'message': 'Question knowledge point updated successfully',
+            'question_id': question.id,
+            'knowledge_point_id': question.knowledge_point_id
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
 @question_bp.route('/question-page')
 def questiontest():
     return render_template('question.html')
