@@ -156,6 +156,7 @@ export default defineComponent({
       email: "",
       role: "",
       signature: "",
+      password: "",
       avatar: "",
       created_at: "",
     });
@@ -208,6 +209,8 @@ export default defineComponent({
       }
       try {
         // 这里应该是调用API修改密码
+        userInfo.value.password = passwordForm.value.newPassword;
+        await authStore.updateProfile(userInfo.value);
         message.success("密码修改成功");
         passwordForm.value = {
           currentPassword: "",

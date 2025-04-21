@@ -4,7 +4,6 @@ import LoginAregister from "../views/loginAregister.vue";
 import BasicLayout from "../layouts/BasicLayout.vue";
 import HomeView from "../views/HomeView.vue";
 import SmartPreparationView from "../views/SmartPreparationView.vue";
-import CommunityView from "../views/CommunityView.vue";
 import MyProfileView from "../views/MyProfile.vue";
 import { useAuthStore } from "@/stores/auth";
 const routes: Array<RouteRecordRaw> = [
@@ -104,8 +103,39 @@ const routes: Array<RouteRecordRaw> = [
       {
         path: "community",
         name: "community",
-        component: CommunityView,
-        meta: { menuKey: 4 },
+        component: () => import("@/views/CommunityView.vue"),
+        meta: { menuKey: 4, keepAlive: true },
+        children: [
+          {
+            path: "",
+            redirect: { name: "forum-home" },
+          },
+          {
+            path: "home",
+            name: "forum-home",
+            component: () => import("@/views/community/ComHomeView.vue"),
+          },
+          {
+            path: "post-editor",
+            name: "post-editor",
+            component: () => import("@/views/community/PostEditor.vue"),
+          },
+          {
+            path: "my-posts",
+            name: "my-posts",
+            component: () => import("@/views/community/MyPostView.vue"),
+          },
+          {
+            path: "favorites",
+            name: "favorites",
+            component: () => import("@/views/community/FavoritesView.vue"),
+          },
+          {
+            path: "posts/:id",
+            name: "post-detail",
+            component: () => import("@/views/community/PostDetailView.vue"),
+          },
+        ],
       },
       {
         path: "profile", // 修改为相对路径

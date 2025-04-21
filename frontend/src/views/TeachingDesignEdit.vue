@@ -1,118 +1,144 @@
 <template>
+  <a-breadcrumb separator=">">
+    <a-breadcrumb-item>
+      <router-link to="/home/smart-preparation">智慧备课</router-link>
+    </a-breadcrumb-item>
+    <a-breadcrumb-item>{{ designTitle }}</a-breadcrumb-item>
+  </a-breadcrumb>
   <div class="teaching-design-edit">
-    <!-- 主要内容区域 -->
-    <div class="content-container">
-      <!-- 左侧教学计划内容 -->
-      <div class="plan-editor">
-        <h3>教学设计内容</h3>
-        <div id="vditor" class="vditor-container"></div>
-      </div>
+    <a-tabs v-model:activeKey="activeTab">
+      <a-tab-pane key="edit" tab="教学设计">
+        <!-- 主要内容区域 -->
+        <div class="content-container">
+          <!-- 左侧教学计划内容 -->
+          <div class="plan-editor">
+            <h3>教学设计内容</h3>
+            <div id="vditor" class="vditor-container"></div>
+          </div>
 
-      <div class="analysis-section">
-        <div class="version-control">
-          <a-button type="primary" @click="saveVersion" :loading="saving" block>
-            保存修改
-          </a-button>
-          <a-button
-            type="primary"
-            @click="setDefaultVersion"
-            :loading="settingDefault"
-            :disabled="!selectedVersionId"
-          >
-            设为默认
-          </a-button>
-          <a-select
-            v-model:value="selectedVersionId"
-            style="width: 140px"
-            @change="handleVersionChange"
-          >
-            <a-select-option
-              v-for="version in designVersions"
-              :key="version.id"
-              :value="version.id"
-            >
-              <span>
-                版本 {{ version.version }}
-                <a-tag v-if="version.id === defaultVersionId" color="gold"
-                  >默认</a-tag
-                >
-              </span>
-            </a-select-option>
-          </a-select>
-        </div>
-        <!-- 上半部分：课前预习水平分析 -->
-        <div class="analysis-top">
-          <h3>课前预习水平分析</h3>
-          <a-textarea
-            v-model:value="currentVersion.analysis"
-            :rows="8"
-            placeholder="请输入分析内容"
-            class="analysis-textarea"
-          />
-        </div>
-
-        <!-- 下半部分：PPT资源 -->
-        <div class="ppt-resources">
-          <h3>教学设计PPT</h3>
-          <a-empty v-if="pptResources.length === 0" description="暂无PPT资源">
-            <a-button type="primary" @click="showTemplateModal">
-              <template #icon><file-ppt-outlined /></template>
-              生成PPT
-            </a-button>
-          </a-empty>
-
-          <a-spin :spinning="loadingPPT">
-            <div v-if="pptResources.length > 0" class="ppt-list">
-              <a-card
-                v-for="resource in pptResources"
-                :key="resource.id"
-                class="ppt-card"
+          <div class="analysis-section">
+            <div class="version-control">
+              <a-button
+                type="primary"
+                @click="saveVersion"
+                :loading="saving"
+                block
               >
-                <template #actions>
-                  <a-button type="link" @click="downloadPPT(resource)">
-                    下载
-                  </a-button>
-                </template>
-                <a-card-meta
-                  :title="resource.title"
-                  :description="resource.description"
+                保存修改
+              </a-button>
+              <a-button
+                type="primary"
+                @click="setDefaultVersion"
+                :loading="settingDefault"
+                :disabled="!selectedVersionId"
+              >
+                设为默认
+              </a-button>
+              <a-select
+                v-model:value="selectedVersionId"
+                style="width: 140px"
+                @change="handleVersionChange"
+              >
+                <a-select-option
+                  v-for="version in designVersions"
+                  :key="version.id"
+                  :value="version.id"
                 >
-                </a-card-meta>
-              </a-card>
+                  <span>
+                    版本 {{ version.version }}
+                    <a-tag v-if="version.id === defaultVersionId" color="gold"
+                      >默认</a-tag
+                    >
+                  </span>
+                </a-select-option>
+              </a-select>
             </div>
-          </a-spin>
+            <!-- 上半部分：课前预习水平分析 -->
+            <div class="analysis-top">
+              <h3>课前预习水平分析</h3>
+              <a-textarea
+                v-model:value="currentVersion.analysis"
+                :rows="8"
+                placeholder="请输入分析内容"
+                class="analysis-textarea"
+              />
+            </div>
+
+            <!-- 下半部分：PPT资源 -->
+            <div class="ppt-resources">
+              <h3>教学设计PPT</h3>
+              <a-empty
+                v-if="pptResources.length === 0"
+                description="暂无PPT资源"
+              >
+                <a-button type="primary" @click="showTemplateModal">
+                  <template #icon><file-ppt-outlined /></template>
+                  生成PPT
+                </a-button>
+              </a-empty>
+
+              <a-spin :spinning="loadingPPT">
+                <div v-if="pptResources.length > 0" class="ppt-list">
+                  <a-card
+                    v-for="resource in pptResources"
+                    :key="resource.id"
+                    class="ppt-card"
+                  >
+                    <template #actions>
+                      <a-button type="link" @click="downloadPPT(resource)">
+                        下载
+                      </a-button>
+                    </template>
+                    <a-card-meta
+                      :title="resource.title"
+                      :description="resource.description"
+                    >
+                    </a-card-meta>
+                  </a-card>
+                </div>
+              </a-spin>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-    <!-- PPT模板选择模态框 -->
-    <!-- 修改模板展示部分的模板 -->
-    <!-- 模态框部分 -->
-    <a-modal
-      v-model:visible="showPPTModal"
-      title="选择PPT模板"
-      @ok="handleGeneratePPT"
-      :confirm-loading="generatingPPT"
-      :width="800"
-      :body-style="{ padding: '16px', maxHeight: '60vh', overflowY: 'auto' }"
-      wrap-class-name="fixed-modal"
-    >
-      <div class="template-grid">
-        <div
-          v-for="template in pptTemplates"
-          :key="template.id"
-          class="template-item"
-          :class="{ selected: selectedTemplate?.id === template.id }"
-          @click="selectTemplate(template)"
+        <!-- PPT模板选择模态框 -->
+        <!-- 修改模板展示部分的模板 -->
+        <!-- 模态框部分 -->
+        <a-modal
+          v-model:visible="showPPTModal"
+          title="选择PPT模板"
+          @ok="handleGeneratePPT"
+          :confirm-loading="generatingPPT"
+          :width="800"
+          :body-style="{
+            padding: '16px',
+            maxHeight: '60vh',
+            overflowY: 'auto',
+          }"
+          wrap-class-name="fixed-modal"
         >
-          <a-image
-            :src="'http://localhost:5000/' + template.image_url"
-            class="template-preview"
-            :preview="false"
-          />
-          <div class="template-name">{{ template.name }}</div>
-        </div>
-      </div>
-    </a-modal>
+          <div class="template-grid">
+            <div
+              v-for="template in pptTemplates"
+              :key="template.id"
+              class="template-item"
+              :class="{ selected: selectedTemplate?.id === template.id }"
+              @click="selectTemplate(template)"
+            >
+              <a-image
+                :src="'http://localhost:5000/' + template.image_url"
+                class="template-preview"
+                :preview="false"
+              />
+              <div class="template-name">{{ template.name }}</div>
+            </div>
+          </div>
+        </a-modal>
+      </a-tab-pane>
+      <!-- 新增推荐资源标签页 -->
+      <a-tab-pane key="recommend" tab="推荐资源">
+        <teacher-recommendations :design-id="designId" />
+      </a-tab-pane>
+    </a-tabs>
   </div>
 </template>
 
@@ -120,7 +146,7 @@
 import { defineComponent, ref, onMounted, onBeforeUnmount } from "vue";
 import { useRoute } from "vue-router";
 import { message } from "ant-design-vue";
-import { FilePptOutlined, StarOutlined } from "@ant-design/icons-vue";
+import { FilePptOutlined } from "@ant-design/icons-vue";
 import {
   getDesignVersions,
   getDesignVersionDetail,
@@ -135,6 +161,7 @@ import {
   getAllPPTTemplates,
 } from "@/api/resource";
 import type { PPTTemplate, MultimediaResource } from "@/api/resource";
+import TeacherRecommendations from "@/components/TeacherRecommendations.vue";
 
 export interface TeachingDesignVersion {
   id: number;
@@ -151,10 +178,12 @@ export interface TeachingDesignVersion {
 
 export default defineComponent({
   name: "TeachingDesignEdit",
-  components: { FilePptOutlined },
+  components: { FilePptOutlined, TeacherRecommendations },
   setup() {
     const route = useRoute();
+    const activeTab = ref("edit");
     const designId = ref<number>(0);
+    const designTitle = ref<string>("");
     const designVersions = ref<TeachingDesignVersion[]>([]);
     const selectedVersionId = ref<number | null>(null);
     // 新增状态
@@ -307,6 +336,7 @@ export default defineComponent({
         if (isNaN(id)) throw new Error("无效的教学设计ID");
         designId.value = id;
         defaultVersionId.value = Number(route.query.default_version_id);
+        designTitle.value = route.query.title as string;
         initVditor();
         await fetchDesignVersions();
         await fetchPPTResources(defaultVersionId.value);
@@ -423,6 +453,8 @@ export default defineComponent({
 
     return {
       designId,
+      activeTab,
+      designTitle,
       designVersions,
       selectedVersionId,
       currentVersion,
@@ -452,9 +484,31 @@ export default defineComponent({
 </script>
 
 <style scoped>
+/* 面包屑导航样式 */
+.ant-breadcrumb {
+  padding-top: 16px;
+  padding-left: 24px; /* 上下间距和左间距 */
+  font-size: 16px; /* 字体大小 */
+  line-height: 1.5;
+}
+
+.ant-breadcrumb a {
+  transition: color 0.3s;
+  color: #1890ff; /* 链接颜色 */
+}
+
+.ant-breadcrumb a:hover {
+  color: #40a9ff !important; /* 鼠标悬停时的颜色 */
+}
+
+.ant-breadcrumb > span:last-child {
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.85); /* 当前页面颜色 */
+}
+
 .teaching-design-edit {
-  padding: 24px;
   background: inherit;
+  padding: 15px;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -470,9 +524,12 @@ export default defineComponent({
 }
 
 .plan-editor {
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: 84vh;
+  border-radius: 8px;
+  background-color: #f8f6ea;
 }
 
 .analysis-section {

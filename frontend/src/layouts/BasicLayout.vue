@@ -25,7 +25,7 @@
         mode="inline"
         @click="handleMenuClick"
       >
-        <a-menu-item key="1">
+        <a-menu-item v-if="auth.user?.role === 'teacher'" key="1">
           <HomeFilled />
           <span class="nav-text">主页</span>
         </a-menu-item>
@@ -37,7 +37,7 @@
           <ReconciliationFilled />
           <span class="nav-text">智能备课</span>
         </a-menu-item>
-        <a-menu-item key="4">
+        <a-menu-item v-if="auth.user?.role === 'teacher'" key="4">
           <SlackCircleFilled />
           <span class="nav-text">学习社区</span>
         </a-menu-item>
