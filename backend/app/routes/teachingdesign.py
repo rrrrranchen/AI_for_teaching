@@ -30,7 +30,10 @@ def calculate_node_color(knowledge_point_id):
         while stack:
             current_node_id = stack.pop()
             current_node = MindMapNode.query.get(current_node_id)
+            if not current_node:
+                continue
             nodes.append(current_node)
+            # 假设子节点关系存储在children字段
             for child in current_node.children:
                 stack.append(child.id)
         return nodes
@@ -42,29 +45,34 @@ def calculate_node_color(knowledge_point_id):
     question_ids = []
     for node in all_nodes:
         questions = Question.query.filter_by(knowledge_point_id=node.id).all()
-        for q in questions:
-            question_ids.append(q.id)
+        question_ids.extend(q.id for q in questions)
 
     # 如果没有相关题目，返回白色
     if not question_ids:
-        return '#ffffff'  # 白色
+        return '#ffffff'
 
     # 获取所有相关题目的学生作答情况
     answers = StudentAnswer.query.filter(StudentAnswer.question_id.in_(question_ids)).all()
 
-    # 如果没有学生作答，返回白色
+    # 如果没有学生作答，返回基准色#ff7373
     if not answers:
-        return '#ffffff'  # 白色
+        return '#ff7373'
 
-    # 计算平均正确率
+    # 计算平均正确率（限制在0-100范围）
     total_correct = sum(answer.correct_percentage for answer in answers)
-    avg_correct = total_correct / len(answers)
+    avg_correct = max(0, min(total_correct / len(answers), 100))
 
-    # 根据平均正确率设置颜色（从浅红色到白色）
-    # 计算红色通道值（0-255）
-    red_component = int(255 * (1 - avg_correct / 100))
-    # 构造十六进制颜色代码
-    return f'#{red_component:02x}ffffff'[:7]
+    # 颜色计算逻辑（从#ff7373到#ffffff）
+    # 红色通道固定为ff（255）
+    # 绿色和蓝色通道从0x73（115）到0xff（255）线性变化
+    base_gb = 115  # 对应#ff7373中的73
+    target_gb = 255  # 对应#ffffff中的ff
+    
+    # 计算当前绿色/蓝色值
+    gb_value = int(base_gb + (target_gb - base_gb) * (avg_correct / 100))
+    gb_hex = f'{gb_value:02x}'
+    
+    return f'#ff{gb_hex}{gb_hex}'  # 格式：#ff[GB][GB]
 
 def get_pre_class_questions_as_feedback(course_id):
     """
@@ -1046,9 +1054,9 @@ def get_teaching_design_mindmap(design_id):
             if not design.mindmap_updated_at or design.mindmap_updated_at < course.post_class_deadline:
                 mindmap_needs_update = True
 
-        # 如果需要更新思维导图
+         # 如果需要更新思维导图
         if mindmap_needs_update:
-            # 递归构建思维导图并添加颜色
+            # 修改后的递归构建函数
             def build_mind_map_with_colors(node, is_root=False):
                 node_data = {
                     "data": {
@@ -1059,24 +1067,27 @@ def get_teaching_design_mindmap(design_id):
                     "children": []
                 }
 
-                # 根节点颜色固定为白色，其他节点颜色动态计算
-                if is_root:
-                    node_data["data"]["fillColor"] = "#ffffff"  # 根节点颜色为白色
-                else:
-                    node_data["data"]["fillColor"] = calculate_node_color(node.id)  # 动态计算颜色
+                # 仅非根节点添加fillColor字段
+                if not is_root:
+                    node_data["data"]["fillColor"] = calculate_node_color(node.id)
 
+                # 递归处理子节点（自动标记为非根节点）
                 for child in node.children:
                     node_data["children"].append(build_mind_map_with_colors(child))
+                
                 return node_data
 
-            # 获取该教学设计的所有顶级节点
+            # 获取并构建顶级节点（标记为根节点）
             top_level_nodes = MindMapNode.query.filter_by(
                 teachingdesignid=design_id,
                 parent_node_id=None
             ).all()
 
-            # 构建完整的带有颜色的思维导图
-            mind_map_with_colors = []
+            # 构建完整的思维导图结构
+            mind_map_with_colors = [
+                build_mind_map_with_colors(root_node, is_root=True)
+                for root_node in top_level_nodes
+            ]
             for root_node in top_level_nodes:
                 mind_map_with_colors.append(build_mind_map_with_colors(root_node, is_root=True))
 
