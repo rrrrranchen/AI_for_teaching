@@ -139,6 +139,9 @@ def delete_question(question_id):
         if current_user not in course_class.teachers:
             return jsonify({'error': 'You do not have permission to delete this question'}), 403
 
+        # 删除与题目相关的所有学生作答记录
+        StudentAnswer.query.filter_by(question_id=question_id).delete()
+
         # 删除题目记录
         db.session.delete(question)
         db.session.commit()
@@ -151,7 +154,6 @@ def delete_question(question_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
-    
 
 # 查询单个课程的所有预习题目
 @question_bp.route('/prequestions/<int:course_id>', methods=['GET'])
