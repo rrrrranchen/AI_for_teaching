@@ -373,14 +373,18 @@ def generate_post_class_questions(lesson_plan_content: str, mind_map: Dict[str, 
     每个思维导图的知识叶子节点相关题目不少于两道，且难度不等。
     """
     
-
     valid_questions = []  # 存储所有有效题目
     processed_node_ids = set()  # 缓存已处理的节点ID
 
     try:
         # 收集思维导图中的所有叶子节点
         leaf_nodes = []
-        collect_leaf_nodes(mind_map, leaf_nodes)
+        
+        # 确保 mind_map 是一个列表且包含节点
+        if isinstance(mind_map, list) and len(mind_map) > 0 and "data" in mind_map[0]:
+            collect_leaf_nodes(mind_map[0], leaf_nodes)
+        else:
+            collect_leaf_nodes(mind_map, leaf_nodes)
         
         # 如果没有叶子节点，直接返回空列表
         if not leaf_nodes:
@@ -417,17 +421,24 @@ def generate_post_class_questions(lesson_plan_content: str, mind_map: Dict[str, 
         print(f"整体流程错误: {str(e)[:200]}")
         return []
 
+
 def collect_leaf_nodes(node: Dict[str, Any], leaf_nodes: List[Dict[str, Any]]):
     """递归收集思维导图中的所有叶子节点"""
-    if "children" not in node or len(node["children"]) == 0:
-        leaf_nodes.append({
-            "id": node["id"],
-            "content": node["content"],
-            "depth": node.get("depth", 0)
-        })
+    # 检查当前节点是否有子节点
+    if "children" not in node or len(node.get("children", [])) == 0:
+        # 如果没有子节点，且当前节点的 "data" 字段存在，则认为是叶子节点
+        if "data" in node and "id" in node["data"] and "text" in node["data"]:
+            leaf_nodes.append({
+                "id": node["data"]["id"],
+                "content": node["data"]["text"],
+                "note": node["data"].get("note", ""),
+                "depth": node.get("depth", 0)
+            })
     else:
-        for child in node["children"]:
+        # 递归处理子节点
+        for child in node.get("children", []):
             collect_leaf_nodes(child, leaf_nodes)
+
 
 def generate_questions_for_batch(batch_leaf_nodes: List[Dict[str, Any]], lesson_plan_content: str, processed_node_ids: set) -> List[Dict[str, Any]]:
     """为一批叶子节点生成题目"""
@@ -442,8 +453,11 @@ def generate_questions_for_batch(batch_leaf_nodes: List[Dict[str, Any]], lesson_
         try:
             # 构造用户消息
             user_message = f"""知识点ID：{node['id']}
-知识点内容：
+知识点内容（标题）：
 {node['content']}
+
+知识点内容（备注）：
+{node['note']}
 
 教案相关内容（供参考）：
 {lesson_plan_content}

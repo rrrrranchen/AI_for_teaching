@@ -414,7 +414,7 @@ def generate_post_class_questions_for_version(design_id, version_id):
         version_content = json.loads(version.content) if version.content else {}
         lesson_plan_content = version_content.get('plan_content', '')
 
-        # 5. 获取思维导图数据（假设存储在 teaching_design 的 mindmap 字段中）
+        # 5. 获取思维导图数据
         mind_map = json.loads(design.mindmap) if design.mindmap else {}
 
         # 6. 调用 AI 接口生成课后习题
