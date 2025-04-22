@@ -1061,9 +1061,9 @@ def get_teaching_design_mindmap(design_id):
 
                 # 根节点颜色固定为白色，其他节点颜色动态计算
                 if is_root:
-                    node_data["data"]["color"] = "#ffffff"  # 根节点颜色为白色
+                    node_data["data"]["backgroundColor"] = "#ffffff"  # 根节点颜色为白色
                 else:
-                    node_data["data"]["color"] = calculate_node_color(node.id)  # 动态计算颜色
+                    node_data["data"]["backgroundColor"] = calculate_node_color(node.id)  # 动态计算颜色
 
                 for child in node.children:
                     node_data["children"].append(build_mind_map_with_colors(child))
