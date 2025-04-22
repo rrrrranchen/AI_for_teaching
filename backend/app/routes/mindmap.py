@@ -109,6 +109,11 @@ def get_questions_by_knowledge_point(knowledge_point_id):
                                         'is_correct': opt == correct_option
                                     })
                                 statistics['options'] = options_stat
+                                
+                                # 计算选择题平均正确率
+                                correct_count = option_counts.get(correct_option, 0)
+                                avg_correct = (correct_count / total * 100) if total > 0 else 0
+                                statistics['average_correct_percentage'] = round(avg_correct, 2)
                             
                             elif q.type == 'fill':
                                 correct_count = 0
@@ -136,11 +141,19 @@ def get_questions_by_knowledge_point(knowledge_point_id):
                                         'percentage': round((other_cnt / total * 100), 2) if total > 0 else 0
                                     }
                                 })
+                                
+                                # 计算填空题平均正确率
+                                avg_correct = (correct_count / total * 100) if total > 0 else 0
+                                statistics['average_correct_percentage'] = round(avg_correct, 2)
                             
                             elif q.type == 'short_answer':
                                 ranges = {'0-25%': 0, '25-50%': 0, '50-75%': 0, '75-100%': 0}
+                                total = len(answers)
+                                sum_percentages = 0  # 新增用于存储总分值
+                                
                                 for ans in answers:
                                     perc = ans.correct_percentage
+                                    sum_percentages += perc  # 累加每个答案的正确率
                                     if perc <= 25:
                                         ranges['0-25%'] += 1
                                     elif perc <= 50:
@@ -149,13 +162,17 @@ def get_questions_by_knowledge_point(knowledge_point_id):
                                         ranges['50-75%'] += 1
                                     else:
                                         ranges['75-100%'] += 1
-                                total = len(answers)
+                                        
                                 score_ranges = [{
                                     'range': k,
                                     'count': v,
                                     'percentage': round((v / total * 100), 2) if total > 0 else 0
                                 } for k, v in ranges.items()]
                                 statistics['score_ranges'] = score_ranges
+                                
+                                # 计算简答题平均正确率
+                                avg_correct = (sum_percentages / total) if total > 0 else 0
+                                statistics['average_correct_percentage'] = round(avg_correct, 2)
                             
                             question_data['statistics'] = statistics
                         
