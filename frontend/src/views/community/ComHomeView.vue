@@ -276,6 +276,7 @@ const handleFavorite = async (post: ForumPost) => {
 .post-card {
   font-size: 13px;
   border: #e0e0e0 1px solid;
+  background-color: #e1f4fe;
   transition: all 0.3s ease;
 }
 

@@ -88,12 +88,25 @@
                       <a-button type="link" @click="downloadPPT(resource)">
                         下载
                       </a-button>
+                      <a
+                        target="_blank"
+                        :href="getPPTPreviewUrl(resource)"
+                        class="preview-link"
+                      >
+                        预览
+                      </a>
                     </template>
-                    <a-card-meta
-                      :title="resource.title"
-                      :description="resource.description"
-                    >
-                    </a-card-meta>
+                    <div class="ppt-card-content">
+                      <img
+                        src="@/assets/icons8-ms-powerpoint.svg"
+                        alt="PPT Icon"
+                        class="ppt-icon"
+                      />
+                      <a-card-meta
+                        :title="resource.title"
+                        :description="resource.description"
+                      ></a-card-meta>
+                    </div>
                   </a-card>
                 </div>
               </a-spin>
@@ -138,6 +151,10 @@
       <a-tab-pane key="recommend" tab="推荐资源">
         <teacher-recommendations :design-id="designId" />
       </a-tab-pane>
+      <!-- 新增思维导图标签页 -->
+      <a-tab-pane key="mindmap" tab="思维导图">
+        <MindMapEditor :design-id="designId" @update="handleMindMapUpdate" />
+      </a-tab-pane>
     </a-tabs>
   </div>
 </template>
@@ -162,6 +179,7 @@ import {
 } from "@/api/resource";
 import type { PPTTemplate, MultimediaResource } from "@/api/resource";
 import TeacherRecommendations from "@/components/TeacherRecommendations.vue";
+import MindMapEditor from "@/components/MindMapEditor.vue";
 
 export interface TeachingDesignVersion {
   id: number;
@@ -178,7 +196,11 @@ export interface TeachingDesignVersion {
 
 export default defineComponent({
   name: "TeachingDesignEdit",
-  components: { FilePptOutlined, TeacherRecommendations },
+  components: {
+    FilePptOutlined,
+    TeacherRecommendations,
+    MindMapEditor,
+  },
   setup() {
     const route = useRoute();
     const activeTab = ref("edit");
@@ -426,7 +448,13 @@ export default defineComponent({
       console.log("下载资源ppt:", resource);
       window.open("http://localhost:5000/" + resource.storage_path, "_blank");
     };
-
+    // 获取PPT预览URL
+    const getPPTPreviewUrl = (resource: MultimediaResource) => {
+      const pptUrl = encodeURIComponent(
+        `http://localhost:5000/${resource.storage_path}`
+      );
+      return `http://view.officeapps.live.com/op/view.aspx?src=${pptUrl}`;
+    };
     // 新增状态
     const settingDefault = ref(false);
 
@@ -449,6 +477,11 @@ export default defineComponent({
       } finally {
         settingDefault.value = false;
       }
+    };
+
+    // 新增处理思维导图更新的方法
+    const handleMindMapUpdate = async () => {
+      message.success("思维导图已更新");
     };
 
     return {
@@ -474,10 +507,11 @@ export default defineComponent({
       selectTemplate,
       handleGeneratePPT,
       downloadPPT,
-
+      getPPTPreviewUrl,
       settingDefault,
       defaultVersionId,
       setDefaultVersion,
+      handleMindMapUpdate,
     };
   },
 });
@@ -597,6 +631,34 @@ h3 {
 
 .ppt-card:hover {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* PPT卡片内容样式 */
+.ppt-card-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* PPT图标样式 */
+.ppt-icon {
+  width: 80px;
+  height: 80px;
+  flex-shrink: 0;
+}
+
+/* 卡片元信息样式调整 */
+:deep(.ppt-card .ant-card-meta) {
+  flex: 1;
+}
+
+:deep(.ppt-card .ant-card-meta-title) {
+  margin-bottom: 4px;
+}
+
+:deep(.ppt-card .ant-card-meta-description) {
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 12px;
 }
 
 /* 修改模态框样式 */

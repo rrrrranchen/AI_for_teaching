@@ -20,7 +20,7 @@
         <a-list-item class="favorite-item">
           <a-card hoverable class="post-card">
             <!-- 帖子信息 -->
-            <router-link :to="`/posts/${item.post_id}`">
+            <router-link :to="`/home/community/posts/${item.post_id}`">
               <h3 class="post-title">{{ item.post_title }}</h3>
               <div class="meta">
                 <div class="author-info">

@@ -175,4 +175,4 @@ database.py
 alembic.ini
 migrations/
 avatar/
-formattachments/
+forumattachments/

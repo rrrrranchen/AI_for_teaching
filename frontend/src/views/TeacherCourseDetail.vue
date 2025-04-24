@@ -30,13 +30,24 @@
           style="margin-bottom: 20px"
         >
           <template #extra>
-            <a-button type="link" @click="toggleCollapse" size="small">
-              <template #icon>
-                <UpOutlined v-if="!isCollapsed" />
-                <DownOutlined v-else />
-              </template>
-              {{ isCollapsed ? "展开" : "收起" }}
-            </a-button>
+            <a-space>
+              <a-button>添加题目</a-button>
+              <a-button
+                type="link"
+                @click="showDeadlineModal('preview')"
+                size="small"
+              >
+                <template #icon><CalendarOutlined /></template>
+                设置截止时间
+              </a-button>
+              <a-button type="link" @click="toggleCollapse" size="small">
+                <template #icon>
+                  <UpOutlined v-if="!isCollapsed" />
+                  <DownOutlined v-else />
+                </template>
+                {{ isCollapsed ? "展开" : "收起" }}
+              </a-button>
+            </a-space>
           </template>
 
           <a-table
@@ -113,18 +124,29 @@
           style="margin-bottom: 20px"
         >
           <template #extra>
-            <a-button type="link" @click="toggleCollapsePost" size="small">
-              <template #icon>
-                <UpOutlined v-if="!isCollapsedPost" />
-                <DownOutlined v-else />
-              </template>
-              {{ isCollapsedPost ? "展开" : "收起" }}
-            </a-button>
+            <a-space>
+              <a-button>添加题目</a-button>
+              <a-button
+                type="link"
+                @click="showDeadlineModal('post')"
+                size="small"
+              >
+                <template #icon><CalendarOutlined /></template>
+                设置截止时间
+              </a-button>
+              <a-button type="link" @click="toggleCollapsePost" size="small">
+                <template #icon>
+                  <UpOutlined v-if="!isCollapsedPost" />
+                  <DownOutlined v-else />
+                </template>
+                {{ isCollapsedPost ? "展开" : "收起" }}
+              </a-button>
+            </a-space>
           </template>
 
           <a-table
             v-show="!isCollapsedPost"
-            :columns="questionColumns"
+            :columns="postquestionColumns"
             :dataSource="postQuestions"
             :loading="loading"
             rowKey="id"
@@ -207,7 +229,27 @@
         </div>
       </a-tab-pane>
     </a-tabs>
-
+    <!-- 添加截止时间设置模态框 -->
+    <a-modal
+      v-model:visible="deadlineModal.visible"
+      :title="`设置${
+        deadlineModal.type === 'preview' ? '课前' : '课后'
+      }截止时间`"
+      @ok="handleSetDeadline"
+      @cancel="resetDeadlineModal"
+    >
+      <a-form layout="vertical">
+        <a-form-item label="截止时间">
+          <a-date-picker
+            v-model:value="deadlineModal.datetime"
+            show-time
+            format="YYYY-MM-DD HH:mm:ss"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            style="width: 100%"
+          />
+        </a-form-item>
+      </a-form>
+    </a-modal>
     <!-- 编辑题目模态框 -->
     <a-modal
       v-model:visible="editModalVisible"
@@ -238,7 +280,13 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, reactive, onMounted } from "vue";
+import {
+  defineComponent,
+  ref,
+  reactive,
+  onMounted,
+  onBeforeUnmount,
+} from "vue";
 import { useRoute } from "vue-router";
 import { message, Modal } from "ant-design-vue";
 import {
@@ -247,7 +295,13 @@ import {
   UpOutlined,
   DownOutlined,
   SyncOutlined,
+  CalendarOutlined,
 } from "@ant-design/icons-vue";
+import {
+  setPreviewDeadline,
+  setPostClassDeadline,
+  getCourseDetail,
+} from "@/api/course";
 import {
   questionApi,
   type Question,
@@ -263,6 +317,9 @@ import {
 import MarkdownIt from "markdown-it";
 import hljs from "highlight.js";
 import "highlight.js/styles/github.css";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+dayjs.extend(utc);
 
 export default defineComponent({
   name: "TeacherCourseDetail",
@@ -273,6 +330,7 @@ export default defineComponent({
     DownOutlined,
     SyncOutlined,
     TeachingDesignItem,
+    CalendarOutlined,
   },
   setup() {
     const route = useRoute();
@@ -364,6 +422,38 @@ export default defineComponent({
       },
     ];
 
+    // 表格列定义
+    const postquestionColumns = [
+      {
+        title: "知识点",
+        dataIndex: "knowledge_point_name",
+        key: "knowledge_point_name",
+        ellipsis: true,
+      },
+      {
+        title: "题目内容",
+        dataIndex: "content",
+        key: "content",
+        ellipsis: true,
+      },
+      {
+        title: "答案",
+        dataIndex: "correct_answer",
+        key: "correct_answer",
+        ellipsis: true,
+      },
+      {
+        title: "难度",
+        key: "difficulty",
+        width: 180,
+      },
+      {
+        title: "操作",
+        key: "actions",
+        width: 180,
+      },
+    ];
+
     // 初始化
     onMounted(async () => {
       try {
@@ -377,6 +467,7 @@ export default defineComponent({
         await Promise.all([
           fetchPreQuestions(),
           fetchPostQuestions(),
+          fetchDeadlines(),
           fetchTeachingDesigns(),
         ]);
         await loadCourseReport();
@@ -489,6 +580,8 @@ export default defineComponent({
         await questionApi.toggleQuestionPublic(questionId, isPublic);
         message.success("状态更新成功");
         await fetchPreQuestions();
+        // 或者直接重新获取数据
+        await fetchPostQuestions();
       } catch (error) {
         message.error("状态更新失败");
         console.error("状态更新错误:", error);
@@ -564,6 +657,77 @@ export default defineComponent({
       }
     };
 
+    const previewDeadline = ref<string | null>(null);
+    const postClassDeadline = ref<string | null>(null);
+    const deadlineModal = reactive({
+      visible: false,
+      type: "preview" as "preview" | "post",
+      datetime: null as string | null,
+    });
+
+    // 日期格式化方法（显示 UTC 时间）
+    const formatDateTime = (datetime: string | null) => {
+      return dayjs.utc(datetime).local().format("YYYY-MM-DD HH:mm:ss");
+    };
+
+    // 显示设置模态框
+    const showDeadlineModal = (type: "preview" | "post") => {
+      deadlineModal.type = type;
+      console.log("课前时间", previewDeadline.value);
+      deadlineModal.datetime =
+        type === "preview"
+          ? formatDateTime(previewDeadline.value)
+          : formatDateTime(postClassDeadline.value);
+      deadlineModal.visible = true;
+    };
+
+    // 处理设置截止时间
+    const handleSetDeadline = async () => {
+      if (!deadlineModal.datetime) {
+        message.warning("请选择截止时间");
+        return;
+      }
+
+      try {
+        // 将本地时间转换为 UTC 时间
+        const localTime = dayjs(deadlineModal.datetime);
+        const utcTime = localTime.utc().format("YYYY-MM-DD HH:mm:ss");
+
+        const apiMethod =
+          deadlineModal.type === "preview"
+            ? setPreviewDeadline
+            : setPostClassDeadline;
+
+        const { deadline } = await apiMethod(courseId.value, utcTime);
+
+        if (deadlineModal.type === "preview") {
+          previewDeadline.value = deadline;
+        } else {
+          postClassDeadline.value = deadline;
+        }
+
+        message.success("截止时间设置成功");
+        deadlineModal.visible = false;
+      } catch (error) {
+        message.error("设置失败");
+        console.error("设置截止时间错误:", error);
+      }
+    };
+
+    // 初始化时获取截止时间
+    const fetchDeadlines = async () => {
+      try {
+        const previewRes = await getCourseDetail(courseId.value);
+
+        if (previewRes.preview_deadline !== undefined)
+          previewDeadline.value = previewRes.preview_deadline.$date;
+        if (previewRes.post_class_deadline !== undefined)
+          postClassDeadline.value = previewRes.post_class_deadline.$date;
+      } catch (error) {
+        console.error("获取截止时间失败:", error);
+      }
+    };
+
     return {
       courseclassId,
       courseclassName,
@@ -575,6 +739,7 @@ export default defineComponent({
       teachingDesigns,
       currentQuestion,
       questionColumns,
+      postquestionColumns,
       addModalVisible,
       editModalVisible,
       addFormState,
@@ -596,6 +761,17 @@ export default defineComponent({
       handleUpdateCourseReport,
       updatingReport,
       renderedReport,
+      handleSetDeadline,
+      showDeadlineModal,
+      formatDateTime,
+      // formatDate,
+      previewDeadline,
+      postClassDeadline,
+      deadlineModal,
+      resetDeadlineModal() {
+        deadlineModal.datetime = null; // 清空已选择的时间
+        deadlineModal.visible = false;
+      },
     };
   },
 });

@@ -23,6 +23,7 @@
           :key="'pre-' + courseId"
           :questions="preQuestions"
           :loading="loading"
+          :deadline="previewDeadline"
           @submit="handlePreSubmit"
         />
       </a-tab-pane>
@@ -33,6 +34,7 @@
           :key="'post-' + courseId"
           :questions="postQuestions"
           :loading="loading"
+          :deadline="postClassDeadline"
           @submit="handlePostSubmit"
         />
       </a-tab-pane>
@@ -142,6 +144,7 @@ import { defineComponent, ref, computed, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { message } from "ant-design-vue";
 import { questionApi, type Question } from "@/api/questions";
+import { getCourseDetail } from "@/api/course";
 import {
   addStudentAnswers,
   type AddAnswersParams,
@@ -160,6 +163,7 @@ import {
   generatePostClassRecommendations,
   getPostClassRecommendations,
 } from "@/api/student_recommend";
+import dayjs from "dayjs";
 
 // 初始化Markdown解析器
 const md: any = new MarkdownIt({
@@ -194,20 +198,31 @@ export default defineComponent({
       (route.query.courseclassName as string) || "未知班级"
     );
 
+    // 截止时间状态
+    const previewDeadline = ref<string | null>(null);
+    const postClassDeadline = ref<string | null>(null);
+
     // 题目数据
     const preQuestions = ref<Question[]>([]);
     const postQuestions = ref<Question[]>([]);
     const loading = ref(false);
     const activeTab = ref("pre");
-
     // 加载题目数据
     const loadQuestions = async () => {
       try {
         loading.value = true;
-        const [preRes, postRes] = await Promise.all([
+        const [preRes, postRes, courseDetail] = await Promise.all([
           questionApi.getPreQuestions(courseId.value),
           questionApi.getPostQuestions(courseId.value),
+          getCourseDetail(courseId.value), // 新增获取课程详情
         ]);
+        console.log("截止时间：", courseDetail);
+        // 存储截止时间
+        if (courseDetail.preview_deadline != undefined)
+          previewDeadline.value = courseDetail.preview_deadline.$date;
+        if (courseDetail.post_class_deadline != undefined)
+          postClassDeadline.value = courseDetail.post_class_deadline.$date;
+
         preQuestions.value = preRes.filter((q) => q.is_public);
         postQuestions.value = postRes.filter((q) => q.is_public);
       } catch (error) {
@@ -238,6 +253,16 @@ export default defineComponent({
       type: "pre" | "post"
     ) => {
       try {
+        // 获取当前类型的截止时间
+        const deadline =
+          type === "pre" ? previewDeadline.value : postClassDeadline.value;
+
+        // 最终时间验证
+        if (dayjs().isAfter(dayjs(deadline))) {
+          message.error("已超过截止时间，无法提交");
+          return;
+        }
+
         const params: AddAnswersParams = {
           courseclass_id: courseclassId.value,
           answers: answers.map((a) => ({
@@ -412,6 +437,8 @@ export default defineComponent({
       generatingPost,
       generatePreRecommend,
       generatePostRecommend,
+      previewDeadline,
+      postClassDeadline,
     };
   },
 });

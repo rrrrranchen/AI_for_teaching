@@ -1,328 +1,435 @@
 <template>
-  <div class="mind-map-container">
-    <div ref="mindMapContainerRef" class="mind-map"></div>
+  <div class="mind-map-editor-container">
     <div
-      v-if="showContextMenu"
-      class="context-menu"
-      :style="{ top: menuPosition.y + 'px', left: menuPosition.x + 'px' }"
+      class="editor-main"
+      :style="{
+        width: showDetail ? '60vh' : '100vh',
+        overflow: showDetail ? 'hidden' : 'visible',
+      }"
     >
-      <ul>
-        <li @click="addChildNode">添加子节点</li>
-        <li @click="addSameNode">添加同级节点</li>
-        <li @click="removeNode">删除节点</li>
-        <li @click="copyNode">复制节点</li>
-        <li @click="pasteNode">粘贴节点</li>
-      </ul>
+      <div class="toolbar">
+        <a-button type="primary" @click="generateMindMap" :loading="generating">
+          <template #icon><ReloadOutlined /></template>
+          生成思维导图
+        </a-button>
+        <a-button type="primary" @click="saveMindMap" :loading="saving">
+          <template #icon><SaveOutlined /></template>
+          保存修改
+        </a-button>
+      </div>
+      <div v-if="loading" class="loading-container">
+        <a-spin tip="加载思维导图中..." />
+      </div>
+      <div v-else-if="mindMapData" class="mind-map-content">
+        <MindMapViewer
+          ref="mindMapViewer"
+          :data="mindMapData"
+          :editable="true"
+          @node-click="handleNodeClick"
+        />
+      </div>
+      <div v-else class="empty-container">
+        <a-empty description="暂无思维导图数据">
+          <a-button type="primary" @click="generateMindMap">
+            生成思维导图
+          </a-button>
+        </a-empty>
+      </div>
+    </div>
+
+    <!-- 右侧详情面板 -->
+    <div v-if="showDetail" class="detail-panel">
+      <div class="panel-header">
+        <h3>{{ currentNodeText }}</h3>
+        <a-button type="text" @click="closePanel">
+          <template #icon><CloseOutlined /></template>
+        </a-button>
+      </div>
+
+      <div class="detail-panel-content">
+        <a-tabs v-model:activeKey="activeTab">
+          <a-tab-pane key="questions" tab="关联题目" class="questions-tab">
+            <a-spin :spinning="detailLoading">
+              <div style="height: 100%; display: flex; flex-direction: column">
+                <div
+                  class="content-scrollable"
+                  style="flex: 1; overflow-y: auto"
+                >
+                  <QuestionStats
+                    v-if="currentNodeData"
+                    :questions="allQuestions"
+                  />
+                  <a-empty v-else description="暂无关联题目数据" />
+                </div>
+              </div>
+            </a-spin>
+          </a-tab-pane>
+          <a-tab-pane key="analysis" tab="AI分析">
+            <a-spin :spinning="analysisLoading">
+              <div style="height: 100%; display: flex; flex-direction: column">
+                <div
+                  class="content-scrollable"
+                  style="flex: 1; overflow-y: auto"
+                >
+                  <div v-if="aiAnalysis" class="analysis-content">
+                    <p class="analysis-text">
+                      {{ aiAnalysis.analysis_report }}
+                    </p>
+                    <p class="analysis-time">
+                      生成时间: {{ formatTime(aiAnalysis.timestamp) }}
+                    </p>
+                  </div>
+                  <div
+                    v-else-if="analysisChecked && !aiAnalysis"
+                    class="analysis-actions"
+                  >
+                    <a-button
+                      type="primary"
+                      @click="getAIAnalysis"
+                      :loading="analysisLoading"
+                    >
+                      生成AI分析报告
+                    </a-button>
+                  </div>
+                  <a-empty v-else description="正在检查分析报告..." />
+                </div>
+              </div>
+            </a-spin>
+          </a-tab-pane>
+        </a-tabs>
+      </div>
     </div>
   </div>
 </template>
 
-<script setup>
-import { ref, onMounted } from "vue";
-import MindMap from "simple-mind-map";
-import MiniMap from "simple-mind-map/src/plugins/MiniMap.js";
-import Watermark from "simple-mind-map/src/plugins/Watermark.js";
-import KeyboardNavigation from "simple-mind-map/src/plugins/KeyboardNavigation.js";
-import ExportPDF from "simple-mind-map/src/plugins/ExportPDF.js";
-import ExportXMind from "simple-mind-map/src/plugins/ExportXMind.js";
-import Export from "simple-mind-map/src/plugins/Export.js";
-import Drag from "simple-mind-map/src/plugins/Drag.js";
-import Select from "simple-mind-map/src/plugins/Select.js";
-import RichText from "simple-mind-map/src/plugins/RichText.js";
-import AssociativeLine from "simple-mind-map/src/plugins/AssociativeLine.js";
-import TouchEvent from "simple-mind-map/src/plugins/TouchEvent.js";
-import NodeImgAdjust from "simple-mind-map/src/plugins/NodeImgAdjust.js";
-import SearchPlugin from "simple-mind-map/src/plugins/Search.js";
-import Painter from "simple-mind-map/src/plugins/Painter.js";
-import Formula from "simple-mind-map/src/plugins/Formula.js";
+<script>
+import {
+  ReloadOutlined,
+  SaveOutlined,
+  CloseOutlined,
+} from "@ant-design/icons-vue";
+import {
+  generateMindMap as apiGenerateMindMap,
+  updateMindMap as apiUpdateMindMap,
+  getMindMap as apiGetMindMap,
+} from "@/api/teachingdesign";
+import mindmapApi from "@/api/mindmap";
+import MindMapViewer from "./MindMapViewer.vue";
+import dayjs from "dayjs";
+import QuestionStats from "./QuestionStats.vue";
 
-// 注册插件
-MindMap.usePlugin(MiniMap)
-  .usePlugin(Watermark)
-  .usePlugin(Drag)
-  .usePlugin(KeyboardNavigation)
-  .usePlugin(ExportPDF)
-  .usePlugin(ExportXMind)
-  .usePlugin(Export)
-  .usePlugin(Select)
-  .usePlugin(AssociativeLine)
-  .usePlugin(NodeImgAdjust)
-  .usePlugin(TouchEvent)
-  .usePlugin(SearchPlugin)
-  .usePlugin(Painter)
-  .usePlugin(Formula);
-
-const mindMapContainerRef = ref(null);
-let mindMap = null;
-const showContextMenu = ref(false);
-const menuPosition = ref({ x: 0, y: 0 });
-let currentNode = null;
-
-// 示例数据
-const mindData = {
-  data: {
-    id: 92,
-    text: "TCP技术知识点",
-    note: "",
+export default {
+  name: "MindMapEditor",
+  components: {
+    ReloadOutlined,
+    SaveOutlined,
+    CloseOutlined,
+    MindMapViewer,
+    QuestionStats,
   },
-  children: [
-    {
-      data: {
-        id: 93,
-        text: "TCP协议基础",
-        note: "",
-      },
-      children: [
+  computed: {
+    allQuestions() {
+      if (!this.currentNodeData) return [];
+      return this.currentNodeData.flatMap((leaf) =>
+        leaf.questions.map((q) => ({
+          ...q,
+          knowledge_point_name: leaf.knowledge_point_name,
+        }))
+      );
+    },
+  },
+  props: {
+    designId: {
+      type: Number,
+      required: true,
+    },
+  },
+  data() {
+    return {
+      mindMapData: null,
+      loading: false,
+      generating: false,
+      saving: false,
+
+      // 右侧面板相关状态
+      showDetail: false,
+      activeTab: "questions",
+      currentNodeId: null,
+      currentNodeText: "",
+      currentNodeData: null,
+      aiAnalysis: null,
+      detailLoading: false,
+      analysisLoading: false,
+      analysisChecked: false, // 新增，表示是否已检查过分析报告
+
+      // 表格列配置
+      questionColumns: [
         {
-          data: {
-            id: 94,
-            text: "TCP定义与特性",
-            note: "- **面向连接的传输层协议**\n- **可靠性传输机制**\n- **流量控制功能**\n- **拥塞控制功能**",
+          title: "题目类型",
+          dataIndex: "type",
+          key: "type",
+          filters: [
+            { text: "选择题", value: "choice" },
+            { text: "填空题", value: "fill" },
+            { text: "简答题", value: "short_answer" },
+          ],
+          onFilter: (value, record) => record.type === value,
+          render: (type) => {
+            const typeMap = {
+              choice: "选择题",
+              fill: "填空题",
+              short_answer: "简答题",
+            };
+            return typeMap[type] || type;
           },
-          children: [],
         },
         {
-          data: {
-            id: 95,
-            text: "TCP与UDP对比",
-            note: "- **可靠性（TCP） vs 高效率（UDP）**\n- **面向连接（TCP） vs 无连接（UDP）**\n- **数据有序性（TCP） vs 无序性（UDP）**",
-          },
-          children: [],
+          title: "题目内容",
+          dataIndex: "content",
+          key: "content",
+          ellipsis: true,
         },
         {
-          data: {
-            id: 96,
-            text: "协议栈位置",
-            note: "- **传输层协议**\n- **基于IP协议工作**",
-          },
-          children: [],
+          title: "难度",
+          dataIndex: "difficulty",
+          key: "difficulty",
         },
       ],
+    };
+  },
+  methods: {
+    async fetchMindMap() {
+      try {
+        this.loading = true;
+        const response = await apiGetMindMap(this.designId);
+        this.mindMapData = response.mindmap;
+      } catch (error) {
+        this.$message.error("获取思维导图失败");
+        console.error("获取思维导图错误:", error);
+      } finally {
+        this.loading = false;
+      }
     },
-    {
-      data: {
-        id: 97,
-        text: "TCP连接管理",
-        note: "",
-      },
-      children: [
-        {
-          data: {
-            id: 98,
-            text: "三次握手建立连接",
-            note: "- **报文交换序列：SYN → SYN-ACK → ACK**\n- **序列号（Sequence Number）作用：标识数据字节流**\n- **确认号（Acknowledgment Number）作用：确认接收到的数据**\n- **连接状态：**\n  - 半连接状态（SYN_RECEIVED）\n  - 全连接状态（ESTABLISHED）",
-          },
-          children: [],
-        },
-        {
-          data: {
-            id: 99,
-            text: "四次挥手断开连接",
-            note: "- **报文交换序列：FIN → ACK → FIN → ACK**\n- **TIME_WAIT状态：**\n  - 持续时间：2MSL（Maximum Segment Lifetime）\n  - 作用：确保最后一个ACK到达对端\n- **异常断开处理机制**",
-          },
-          children: [],
-        },
-      ],
+    async generateMindMap() {
+      try {
+        this.generating = true;
+        const response = await apiGenerateMindMap(this.designId);
+        this.mindMapData = response.data.mind_map;
+        this.$message.success("思维导图生成成功");
+        this.$emit("update");
+      } catch (error) {
+        this.$message.error("生成思维导图失败");
+        console.error("生成思维导图错误:", error);
+      } finally {
+        this.generating = false;
+      }
     },
-    {
-      data: {
-        id: 100,
-        text: "TCP数据传输机制",
-        note: "",
-      },
-      children: [
-        {
-          data: {
-            id: 101,
-            text: "可靠性保证机制",
-            note: "- **确认应答（ACK）机制**\n- **超时重传机制**\n- **数据排序功能**",
-          },
-          children: [],
-        },
-        {
-          data: {
-            id: 102,
-            text: "流量控制",
-            note: "- **滑动窗口协议原理**\n- **窗口类型：**\n  - 接收窗口（rwnd）\n  - 发送窗口（cwnd）",
-          },
-          children: [],
-        },
-        {
-          data: {
-            id: 103,
-            text: "拥塞控制",
-            note: "- **慢启动算法（Slow Start）**\n- **拥塞避免算法（Congestion Avoidance）**\n- **快速重传（Fast Retransmit）**\n- **快速恢复（Fast Recovery）**",
-          },
-          children: [],
-        },
-      ],
+    async saveMindMap() {
+      try {
+        this.saving = true;
+        const data = this.$refs.mindMapViewer.getMindMapData();
+        await apiUpdateMindMap(this.designId, data);
+        this.$message.success("思维导图保存成功");
+        this.$emit("update");
+      } catch (error) {
+        this.$message.error("保存思维导图失败");
+        console.error("保存思维导图错误:", error);
+      } finally {
+        this.saving = false;
+      }
     },
-    {
-      data: {
-        id: 104,
-        text: "TCP报文关键字段",
-        note: "- **序列号（32位）**\n- **确认号（32位）**\n- **窗口大小字段（16位）**\n- **控制标志位：**\n  - SYN\n  - ACK\n  - FIN\n  - RST",
-      },
-      children: [],
+
+    // 节点点击处理
+    async handleNodeClick({ nodeId, nodeText }) {
+      this.currentNodeId = nodeId;
+      this.currentNodeText = nodeText;
+      this.showDetail = true;
+      this.activeTab = "questions";
+      this.detailLoading = true;
+      this.analysisChecked = false; // 重置检查状态
+      this.aiAnalysis = null; // 重置分析数据
+
+      try {
+        // 并行获取题目和AI分析
+        const [questionsRes, analysisRes] = await Promise.all([
+          mindmapApi.getKnowledgeQuestions(nodeId),
+          this.tryGetAIAnalysis(nodeId), // 尝试获取分析报告
+        ]);
+
+        this.currentNodeData = questionsRes.leaf_questions;
+        this.aiAnalysis = analysisRes; // 如果有分析报告则赋值
+      } catch (error) {
+        this.$message.error("获取数据失败");
+        console.error("获取数据错误:", error);
+      } finally {
+        this.detailLoading = false;
+        this.analysisChecked = true; // 标记已检查
+      }
     },
-    {
-      data: {
-        id: 105,
-        text: "性能优化相关",
-        note: "",
-      },
-      children: [
-        {
-          data: {
-            id: 106,
-            text: "窗口大小调整策略",
-            note: "",
-          },
-          children: [],
-        },
-        {
-          data: {
-            id: 107,
-            text: "拥塞控制算法选择",
-            note: "- **TCP Tahoe**\n- **TCP Reno**",
-          },
-          children: [],
-        },
-        {
-          data: {
-            id: 108,
-            text: "MSL（Maximum Segment Lifetime）参数配置",
-            note: "",
-          },
-          children: [],
-        },
-      ],
+
+    async tryGetAIAnalysis(knowledgePointId) {
+      try {
+        this.analysisLoading = true;
+        const response = await mindmapApi.getAIAnalysis(knowledgePointId);
+        return response;
+      } catch (error) {
+        // 404表示没有分析报告，忽略这个错误
+        if (error.response?.status !== 404) {
+          console.error("获取AI分析错误:", error);
+        }
+        return null;
+      } finally {
+        this.analysisLoading = false;
+      }
     },
-    {
-      data: {
-        id: 109,
-        text: "诊断工具与技术",
-        note: "",
-      },
-      children: [
-        {
-          data: {
-            id: 110,
-            text: "Wireshark抓包分析",
-            note: "- **报文类型识别**\n- **状态转换跟踪**",
-          },
-          children: [],
-        },
-        {
-          data: {
-            id: 111,
-            text: "常见问题诊断",
-            note: "- **连接超时分析**\n- **传输速率下降分析**",
-          },
-          children: [],
-        },
-      ],
+
+    // 获取AI分析
+    async getAIAnalysis() {
+      if (!this.currentNodeId) return;
+
+      this.analysisLoading = true;
+      try {
+        const response = await mindmapApi.generateAIAnalysis(
+          this.currentNodeId
+        );
+        this.aiAnalysis = response;
+        this.$message.success("AI分析生成成功");
+      } catch (error) {
+        this.$message.error("生成AI分析失败");
+        console.error("AI分析错误:", error);
+      } finally {
+        this.analysisLoading = false;
+      }
     },
-  ],
-};
+    // 关闭面板
+    closePanel() {
+      this.showDetail = false;
+      this.currentNodeId = null;
+      this.currentNodeText = "";
+      this.currentNodeData = null;
+      this.aiAnalysis = null;
+    },
 
-// 初始化思维导图
-onMounted(() => {
-  mindMap = new MindMap({
-    el: mindMapContainerRef.value,
-    data: mindData,
-    editable: true, // 启用编辑模式
-  });
-
-  // 节点右键事件
-  mindMap.on("node_contextmenu", (e, node) => {
-    if (e.which === 3) {
-      menuPosition.value.x = e.clientX + 10;
-      menuPosition.value.y = e.clientY + 10;
-      showContextMenu.value = true;
-      currentNode = node;
-    }
-  });
-
-  // 点击空白处关闭菜单
-  mindMap.on("draw_click", () => {
-    showContextMenu.value = false;
-  });
-});
-
-// 添加子节点
-const addChildNode = () => {
-  if (mindMap && currentNode) {
-    mindMap.execCommand("INSERT_CHILD_NODE");
-    showContextMenu.value = false;
-  }
-};
-
-// 添加同级节点
-const addSameNode = () => {
-  if (mindMap && currentNode) {
-    mindMap.execCommand("INSERT_NODE");
-    showContextMenu.value = false;
-  }
-};
-
-// 删除节点
-const removeNode = () => {
-  if (mindMap && currentNode) {
-    mindMap.execCommand("REMOVE_NODE");
-    showContextMenu.value = false;
-  }
-};
-
-// 复制节点
-const copyNode = () => {
-  if (mindMap && currentNode) {
-    mindMap.renderer.copy();
-    showContextMenu.value = false;
-  }
-};
-
-// 粘贴节点
-const pasteNode = () => {
-  if (mindMap && currentNode) {
-    mindMap.renderer.paste();
-    showContextMenu.value = false;
-  }
+    // 格式化时间
+    formatTime(timestamp) {
+      return dayjs(timestamp).format("YYYY-MM-DD HH:mm:ss");
+    },
+  },
+  mounted() {
+    this.fetchMindMap();
+  },
+  watch: {
+    designId(newVal) {
+      if (newVal) {
+        this.fetchMindMap();
+      }
+    },
+  },
 };
 </script>
 
 <style scoped>
-.mind-map-container {
-  position: relative;
+.mind-map-editor-container {
+  display: flex;
+  height: 83vh;
+  background: #efffe0;
+  border-radius: 10px;
+  overflow: hidden;
 }
 
-.mind-map {
-  width: 100%;
-  height: calc(100vh - 190px);
+.editor-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0; /* 防止flex布局溢出 */
+  border-radius: 8px;
 }
 
-.context-menu {
-  position: fixed;
-  background-color: white;
-  border: 1px solid #ccc;
-  box-shadow: 0px 2px 10px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
+.toolbar {
   padding: 10px;
-  border-radius: 4px;
+  background: #f5ffeb;
+  border-bottom: 1px solid #aef66a;
+  display: flex;
+  gap: 10px;
 }
 
-.context-menu ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+.loading-container,
+.empty-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
 }
 
-.context-menu li {
-  padding: 8px 12px;
-  cursor: pointer;
+.mind-map-content {
+  flex: 1;
+  position: relative;
+  background: #fff;
+  min-height: 500px;
+  transition: width 0.3s ease;
 }
 
-.context-menu li:hover {
-  background-color: #f0f0f0;
+/* 右侧详情面板样式 */
+.detail-panel {
+  width: 40%;
+  border-left: 2px solid #e3e3e3;
+  display: flex;
+  flex-direction: column;
+  background: #fbfced;
+  min-height: 0; /* 防止flex布局溢出 */
+}
+
+.panel-header {
+  padding: 16px;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.content-scrollable {
+  height: 100%;
+  overflow-y: auto;
+  padding-right: 8px;
+  box-sizing: border-box;
+}
+
+.leaf-question {
+  margin-bottom: 20px;
+}
+
+.leaf-question:last-child {
+  margin-bottom: 0;
+}
+
+.knowledge-content {
+  color: #666;
+  margin-bottom: 12px;
+}
+
+.analysis-content {
+  padding: 16px;
+}
+
+.analysis-text {
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.analysis-time {
+  color: #999;
+  text-align: right;
+  margin-top: 16px;
+}
+
+.analysis-actions {
+  padding: 16px;
+  text-align: center;
+}
+
+/* 调整标签位置 */
+.detail-panel ::v-deep .ant-tabs-nav {
+  margin-left: 16px; /* 向右移动16px */
 }
 </style>
