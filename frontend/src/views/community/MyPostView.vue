@@ -42,7 +42,7 @@
               </div>
 
               <!-- 帖子内容 -->
-              <router-link :to="`/posts/${item.id}`">
+              <router-link :to="`/home/community/posts/${item.id}`">
                 <h3 class="post-title">{{ item.title }}</h3>
               </router-link>
 

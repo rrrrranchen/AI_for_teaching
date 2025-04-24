@@ -20,11 +20,14 @@
                 <template #cover>
                   <img alt="example" src="../assets/aiforedu.png" />
                 </template>
-                <a-card-meta title="智能备课"></a-card-meta>
+                <a-card-meta
+                  title="智能备课"
+                  description="一键只能备课，轻松应对课堂"
+                ></a-card-meta>
                 <!-- 原有智能备课内容 -->
-                <a-list
+                <!-- <a-list
                   item-layout="horizontal"
-                  :data-source="teachingDesigns.slice(0, 3)"
+                  :data-source="teachingDesigns.slice(0, 1)"
                 >
                   <template #renderItem="{ item }">
                     <a-list-item>
@@ -41,7 +44,7 @@
                       </router-link>
                     </a-list-item>
                   </template>
-                </a-list>
+                </a-list> -->
                 <template #actions>
                   <a-button
                     type="primary"
@@ -228,7 +231,7 @@ export default defineComponent({
 
 .left-section {
   padding: 2vh;
-  background-color: rgb(212, 248, 235);
+  background-color: #d4f8eb;
   height: 94vh;
   border-radius: 16px;
 }

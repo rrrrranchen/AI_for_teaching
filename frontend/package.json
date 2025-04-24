@@ -12,7 +12,9 @@
     "axios": "^1.8.4",
     "core-js": "^3.8.3",
     "dayjs": "^1.11.13",
+    "dayjs-plugin-utc": "^0.1.2",
     "dompurify": "^3.2.5",
+    "echarts": "^5.6.0",
     "file-saver": "^2.0.5",
     "lodash": "^4.17.21",
     "markdown-it": "^14.1.0",
@@ -24,6 +26,7 @@
     "v-md-editor": "^1.0.6",
     "vditor": "^3.10.9",
     "vue": "^3.2.13",
+    "vue-echarts": "^7.0.3",
     "vue-router": "^4.0.3",
     "vue3-markdown-it": "^1.0.10"
   },

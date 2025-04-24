@@ -17,8 +17,12 @@ export interface ForumPost {
   author_id: number;
   authorname: string;
   author_avatar: string;
-  created_at: string;
-  updated_at?: string;
+  created_at: {
+    $date: string;
+  };
+  updated_at?: {
+    $date: string;
+  };
   view_count: number;
   like_count: number;
   favorite_count: number;
@@ -34,9 +38,14 @@ export interface ForumComment {
   id: number;
   content: string;
   author_id: number;
+  author_name: string;
+  author_avatar: string;
   post_id: number;
   parent_id?: number;
-  created_at: string;
+  created_at: {
+    $date: string;
+  };
+  replies?: ForumComment[];
 }
 
 export interface ForumFavorite {

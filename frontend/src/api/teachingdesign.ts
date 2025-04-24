@@ -47,6 +47,48 @@ interface UpdateVersionParams {
   level?: string;
 }
 
+// ======================== 类型定义 ========================
+export interface MindMapNode {
+  data: {
+    id: number;
+    text: string;
+    note?: string;
+    backgroundColor?: string;
+  };
+  children: MindMapNode[];
+}
+
+export interface GenerateMindMapResponse {
+  code: number;
+  message: string;
+  data: {
+    design_id: number;
+    mind_map: MindMapNode[];
+  };
+}
+
+export interface UpdateMindMapParams {
+  mind_map: MindMapNode[];
+}
+
+export interface UpdateMindMapResponse {
+  code: number;
+  message: string;
+  data: {
+    design_id: number;
+    mind_map: MindMapNode[];
+    stats: {
+      updated_nodes: number;
+      new_nodes: number;
+    };
+  };
+}
+
+export interface GetMindMapResponse {
+  mindmap: MindMapNode[] | null;
+  timestamp: string;
+}
+
 // 公用接口
 //
 //
@@ -137,3 +179,44 @@ export const migrateCourseDesigns = async (
   );
   return response.data.data;
 };
+
+/**
+ * 生成并存储思维导图
+ * @param designId 教学设计ID
+ */
+export async function generateMindMap(
+  designId: number
+): Promise<GenerateMindMapResponse> {
+  const response: AxiosResponse = await api.post(
+    `/generatemindmap/${designId}`
+  );
+  return response.data;
+}
+
+/**
+ * 更新思维导图数据
+ * @param designId 教学设计ID
+ * @param mindMap 思维导图数据
+ */
+export async function updateMindMap(
+  designId: number,
+  mindMap: MindMapNode[]
+): Promise<UpdateMindMapResponse> {
+  const response: AxiosResponse = await api.post(`/updatemindmap/${designId}`, {
+    mind_map: mindMap,
+  });
+  return response.data;
+}
+
+/**
+ * 获取教学设计的思维导图
+ * @param designId 教学设计ID
+ */
+export async function getMindMap(
+  designId: number
+): Promise<GetMindMapResponse> {
+  const response: AxiosResponse = await api.get(
+    `/teaching-design/${designId}/mindmap`
+  );
+  return response.data;
+}
