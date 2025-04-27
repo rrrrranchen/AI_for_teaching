@@ -184,7 +184,7 @@ export default defineComponent({
       try {
         creating.value = true;
         const newItem = await createCourseclass(newClass.value);
-        courseClasses.value.unshift(newItem);
+        await loadData();
         message.success("创建成功");
         createVisible.value = false;
         newClass.value = { name: "", description: "" };

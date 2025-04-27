@@ -392,7 +392,8 @@ const submitComment = async () => {
     const comment = await forumApi.addComment(post.value.id, {
       content: newComment.value,
     });
-    comments.value.push(comment);
+    const postId = Number(route.params.id);
+    comments.value = await forumApi.getComments(postId);
     newComment.value = "";
     message.success("评论发表成功");
   } catch (error) {

@@ -179,7 +179,8 @@ export default defineComponent({
         const newClass = await joinCourseclassByCode({
           invite_code: inviteCode.value,
         });
-        courseClasses.value.unshift(newClass);
+        // 重新加载完整数据而不是直接添加
+        await loadData();
         message.success("加入成功");
         joinVisible.value = false;
         inviteCode.value = "";
