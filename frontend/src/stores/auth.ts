@@ -59,7 +59,9 @@ export const useAuthStore = defineStore(
         console.log(response.data);
         if (response.status === 200) {
           await checkAuth();
-          router.push("/home"); // 登录成功后跳转首页
+          if (user.value?.role === "teacher")
+            router.push("/home"); // 登录成功后跳转首页
+          else router.push("/home/my-class");
         }
       } catch (err: any) {
         error.value = err.response?.data?.message || "登录失败，请重试";
