@@ -192,7 +192,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# 假设 User 和 ForumPost 模型已经定义
+
 
 @forum_bp.route('/posts', methods=['GET'])
 def get_all_posts():
@@ -268,7 +268,6 @@ def get_all_posts():
         return jsonify({'error': '服务器内部错误'}), 500
 
 
-# 假设 User 和 ForumPost 模型已经定义
 
 @forum_bp.route('/posts/<int:post_id>', methods=['GET'])
 def get_post(post_id):

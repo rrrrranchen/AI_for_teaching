@@ -10,6 +10,7 @@ from app.models.course import Course
 from app.models.user import User
 from app.models.relationship import teacher_class,student_class,course_courseclass
 from app.models.question import Question
+from app.utils.file_upload import upload_file_courseclass
 courseclass_bp = Blueprint('courseclass', __name__)
 
 # 检查用户是否登录
@@ -143,9 +144,10 @@ def create_courseclass():
             return jsonify({'error': 'Only teachers can create course classes'}), 403
 
         # 获取请求数据
-        data = request.json
+        data = request.form
         name = data.get('name')
         description = data.get('description')
+        image_file = request.files.get('image')  # 获取上传的图片文件
 
         if not name:
             return jsonify({'error': 'Name is required'}), 400
@@ -155,6 +157,14 @@ def create_courseclass():
 
         # 创建新的课程班
         new_courseclass = Courseclass(name=name, description=description, invite_code=invite_code)
+
+        # 上传图片并保存路径
+        if image_file:
+            image_path = upload_file_courseclass(image_file)
+            new_courseclass.image_path = image_path
+        else:
+            new_courseclass.image_path = 'static/uploads/courseclass/default.jpg'  # 使用默认图片路径
+
         db.session.add(new_courseclass)
         db.session.flush()  # 获取 new_courseclass.id
 
@@ -172,7 +182,8 @@ def create_courseclass():
             'name': new_courseclass.name,
             'description': new_courseclass.description,
             'created_at': new_courseclass.created_at,
-            'invite_code': new_courseclass.invite_code  # 返回邀请码
+            'invite_code': new_courseclass.invite_code,
+            'image_path': new_courseclass.image_path  # 返回图片路径
         }), 201
     except IntegrityError as e:
         db.session.rollback()
@@ -180,6 +191,7 @@ def create_courseclass():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+    
 
 # 更新课程班信息
 @courseclass_bp.route('/courseclasses/<int:courseclass_id>', methods=['PUT'])
@@ -195,21 +207,34 @@ def update_courseclass(courseclass_id):
         if not courseclass:
             return jsonify({'error': 'CourseClass not found'}), 404
 
+        # 获取请求数据
         data = request.json
         name = data.get('name')
         description = data.get('description')
+        image_file = request.files.get('image')  # 获取上传的图片文件
 
+        # 更新课程班信息
         if name:
             courseclass.name = name
         if description:
             courseclass.description = description
+
+        # 更新图片
+        if image_file:
+            image_path = upload_file_courseclass(image_file)
+            courseclass.image_path = image_path
+        else:
+            # 如果没有上传新图片，保持原图片路径
+            pass
+
         db.session.commit()
 
         return jsonify({
             'id': courseclass.id,
             'name': courseclass.name,
             'description': courseclass.description,
-            'created_at': courseclass.created_at
+            'created_at': courseclass.created_at,
+            'image_path': courseclass.image_path  # 返回更新后的图片路径
         }), 200
     except Exception as e:
         db.session.rollback()

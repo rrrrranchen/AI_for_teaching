@@ -33,7 +33,7 @@ def register():
     new_user = User(
         username=data['username'],
         email=data['email'],
-        role=role,  # 设置用户角色
+        role=role,  
         signature=data.get('signature')  # 个性签名（可选字段）
     )
     new_user.set_password(data['password'])  # 设置密码哈希
