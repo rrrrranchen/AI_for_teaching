@@ -81,6 +81,7 @@ def get_courseclasses():
                 'description': courseclass.description,
                 'created_at': courseclass.created_at,
                 'invite_code': courseclass.invite_code,
+                'image_path' : courseclass.image_path,
                 'teachers': [
                     {'id': teacher.id, 'username': teacher.username,'avatar':teacher.avatar}
                     for teacher in courseclass.teachers
@@ -119,6 +120,7 @@ def get_courseclass(courseclass_id):
             'description': courseclass.description,
             'created_at': courseclass.created_at,
             'invite_code': courseclass.invite_code,  # 返回邀请码
+            'image_path' : courseclass.image_path,
             'teachers': [
                     {'id': teacher.id, 'username': teacher.username, 'avatar': teacher.avatar}
                     for teacher in courseclass.teachers
@@ -147,6 +149,7 @@ def create_courseclass():
         data = request.form
         name = data.get('name')
         description = data.get('description')
+        is_public = data.get('is_public', False)  # 获取是否公开字段，默认值为 False
         image_file = request.files.get('image')  # 获取上传的图片文件
 
         if not name:
@@ -156,7 +159,12 @@ def create_courseclass():
         invite_code = generate_invite_code()
 
         # 创建新的课程班
-        new_courseclass = Courseclass(name=name, description=description, invite_code=invite_code)
+        new_courseclass = Courseclass(
+            name=name,
+            description=description,
+            invite_code=invite_code,
+            is_public=is_public  # 设置是否公开字段
+        )
 
         # 上传图片并保存路径
         if image_file:
@@ -183,7 +191,8 @@ def create_courseclass():
             'description': new_courseclass.description,
             'created_at': new_courseclass.created_at,
             'invite_code': new_courseclass.invite_code,
-            'image_path': new_courseclass.image_path  # 返回图片路径
+            'image_path': new_courseclass.image_path,  # 返回图片路径
+            'is_public': new_courseclass.is_public  # 返回是否公开字段
         }), 201
     except IntegrityError as e:
         db.session.rollback()
@@ -349,7 +358,7 @@ def remove_courses_from_courseclass(courseclass_id):
         return jsonify({'error': str(e)}), 500
 
 
-#
+
 @courseclass_bp.route('/courseclasses/<int:courseclass_id>/courses', methods=['GET'])
 def get_courses_by_courseclass(courseclass_id):
     if not is_logged_in():
