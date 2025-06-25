@@ -19,6 +19,7 @@ from app.routes.human_management import human_management_bp
 from app.routes.mindmap import mindmap_bp
 from app.routes.resource_management import resource_management_bp
 from app.routes.courseclass_management import courseclass_management_bp
+from app.routes.ppt_templates_management import ppt_templates_management_bp
 from app.routes.sreen import sreen_bp
 from app.utils.database import init_db
 from config import Config
@@ -52,4 +53,5 @@ def create_app():
     app.register_blueprint(resource_management_bp)
     app.register_blueprint(sreen_bp)
     app.register_blueprint(courseclass_management_bp)
+    app.register_blueprint(ppt_templates_management_bp)
     return app

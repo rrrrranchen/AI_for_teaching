@@ -208,7 +208,7 @@ def update_courseclass(courseclass_id):
             return jsonify({'error': 'CourseClass not found'}), 404
 
         # 获取请求数据
-        data = request.json
+        data = request.form
         name = data.get('name')
         description = data.get('description')
         image_file = request.files.get('image')  # 获取上传的图片文件
