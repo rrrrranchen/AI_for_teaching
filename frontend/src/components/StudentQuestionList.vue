@@ -1,5 +1,13 @@
 <template>
   <div class="question-list">
+    <div v-if="isDeadlinePassed" class="deadline-alert">
+      <a-alert
+        message="已超过截止时间，无法继续提交答案"
+        type="warning"
+        show-icon
+        banner
+      />
+    </div>
     <a-spin :spinning="loading">
       <a-empty v-if="filteredQuestions.length === 0" description="暂无题目" />
 
@@ -7,6 +15,12 @@
         <!-- 当前题目显示 -->
         <div class="current-question">
           <a-card :title="`题目 ${currentIndex + 1}`">
+            <!-- 添加截止时间显示 -->
+            <template #extra>
+              <div class="deadline-info" v-if="deadline">
+                截止时间：{{ formatDate(deadline) }}
+              </div>
+            </template>
             <!-- 题目内容 -->
             <div class="question-content">
               <div class="meta-info">
@@ -27,7 +41,9 @@
                 <a-radio-group
                   v-if="currentQuestion.type === 'choice'"
                   v-model:value="currentAnswer"
-                  :disabled="!!currentQuestion.studentAnswer"
+                  :disabled="
+                    isDeadlinePassed || !!currentQuestion.studentAnswer
+                  "
                 >
                   <a-radio
                     v-for="(option, index) in parsedContent.options"
@@ -42,6 +58,9 @@
                 <!-- 其他题型 -->
                 <template v-else>
                   <a-textarea
+                    :disabled="
+                      isDeadlinePassed || !!currentQuestion.studentAnswer
+                    "
                     v-if="!currentQuestion.studentAnswer"
                     v-model:value="currentAnswer"
                     :placeholder="'请输入答案'"
@@ -111,6 +130,7 @@
 <script lang="ts">
 import { defineComponent, PropType, ref, computed, watch } from "vue";
 import { Question } from "@/api/questions";
+import dayjs from "dayjs";
 
 export default defineComponent({
   name: "StudentQuestionList",
@@ -120,6 +140,10 @@ export default defineComponent({
       required: true,
     },
     loading: Boolean,
+    deadline: {
+      type: String as PropType<string | null>,
+      default: null,
+    },
   },
   emits: ["submit", "update-answer"],
 
@@ -155,7 +179,11 @@ export default defineComponent({
     );
 
     // 答案有效性检查
-    const isAnswerValid = computed(() => currentAnswer.value.trim().length > 0);
+    // 修改提交按钮禁用逻辑
+    const isAnswerValid = computed(() => {
+      if (isDeadlinePassed.value) return false;
+      return currentAnswer.value.trim().length > 0;
+    });
 
     // 是否是最后一题
     const isLastQuestion = computed(
@@ -208,6 +236,38 @@ export default defineComponent({
       currentAnswer.value = answersCache.value[newVal?.id] || "";
     });
 
+    // 添加时间处理逻辑
+    const isDeadlinePassed = computed(() => {
+      if (!props.deadline) return false;
+      return dayjs().isAfter(dayjs(props.deadline));
+    });
+
+    interface MongoDate {
+      $date: string;
+    }
+    type CreatedAtType = string | MongoDate | Date | null | undefined;
+    const formatDate = (date: CreatedAtType): string => {
+      if (!date) return "未知时间";
+
+      let dateStr: string;
+
+      if (typeof date === "string") {
+        dateStr = date;
+      } else if ("$date" in date) {
+        dateStr = date.$date;
+      } else if (date instanceof Date) {
+        dateStr = date.toISOString();
+      } else {
+        return "无效日期格式";
+      }
+
+      try {
+        return new Date(dateStr).toLocaleString();
+      } catch {
+        return "无效日期格式";
+      }
+    };
+
     return {
       currentIndex,
       currentAnswer,
@@ -225,6 +285,8 @@ export default defineComponent({
         short_answer: "简答题",
       },
       parseContent: (text: string) => text.replace(/\n/g, "<br>"),
+      isDeadlinePassed,
+      formatDate,
     };
   },
 });

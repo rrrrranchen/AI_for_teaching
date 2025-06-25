@@ -19,7 +19,7 @@ class ChineseGrader:
         self.BASE_DIR = os.path.dirname(os.path.abspath(__file__))
         self.cc = OpenCC('t2s')
         self._init_resources()
-        self.model_path = r'C:\Users\13925\.cache\huggingface\hub\paraphrase-multilingual-MiniLM-L12-v2'
+        self.model_path = r'C:\\Users\13925\\.cache\\huggingface\\hub\\paraphrase-multilingual-MiniLM-L12-v2'
         
         # 初始化模型
         try:

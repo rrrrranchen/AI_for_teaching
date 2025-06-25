@@ -33,7 +33,7 @@
       </a>
       <div class="dashboard-image-container">
         <img
-          src="https://pagedone.io/asset/uploads/1691054543.png"
+          src="@/assets/fs_system.png"
           alt="Dashboard image"
           class="dashboard-image"
         />

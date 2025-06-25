@@ -87,6 +87,42 @@
               </div>
             </a-space>
           </div>
+
+          <div
+            class="teacher-actions"
+            v-if="
+              courseclassDetail?.teachers?.some(
+                (t) => t.id === authStore.user?.id
+              )
+            "
+          >
+            <a-space>
+              <a-button type="primary" @click="showEditModal">
+                <edit-outlined />
+                编辑班级
+              </a-button>
+              <a-button danger @click="handleDeleteClass">
+                <delete-outlined />
+                删除班级
+              </a-button>
+            </a-space>
+          </div>
+          <!-- 编辑课程班模态框 -->
+          <a-modal
+            v-model:visible="editVisible"
+            title="编辑课程班"
+            @ok="handleEditSubmit"
+            :confirm-loading="editing"
+          >
+            <a-form layout="vertical" :model="editForm">
+              <a-form-item label="班级名称" required>
+                <a-input v-model:value="editForm.name" />
+              </a-form-item>
+              <a-form-item label="班级描述">
+                <a-textarea v-model:value="editForm.description" :rows="4" />
+              </a-form-item>
+            </a-form>
+          </a-modal>
         </div>
 
         <!-- 标签页区域 -->
@@ -275,11 +311,13 @@
 
 <script lang="ts">
 import { defineComponent, ref, onMounted, computed } from "vue";
-import { message } from "ant-design-vue";
+import { message, Modal } from "ant-design-vue";
 import { useRouter, useRoute } from "vue-router";
 import {
   getCourseclassDetail,
   getStudentsByCourseclass,
+  updateCourseclass,
+  deleteCourseclass,
 } from "@/api/courseclass";
 import {
   getCoursesByCourseclass,
@@ -297,7 +335,9 @@ import {
   BookOutlined,
   DeleteOutlined,
   SyncOutlined,
+  EditOutlined,
 } from "@ant-design/icons-vue";
+import { useAuthStore } from "@/stores/auth";
 
 import { getClassAnalysisReport, updateClassReport } from "@/api/studentanswer";
 import MarkdownIt from "markdown-it";
@@ -315,6 +355,7 @@ export default defineComponent({
     BookOutlined,
     DeleteOutlined,
     SyncOutlined,
+    EditOutlined,
   },
   setup() {
     const route = useRoute();
@@ -572,6 +613,54 @@ export default defineComponent({
         return "无效日期格式";
       }
     };
+
+    const authStore = useAuthStore();
+    const editVisible = ref(false);
+    const editing = ref(false);
+    const editForm = ref({
+      name: "",
+      description: "",
+    });
+
+    // 提交编辑
+    const handleEditSubmit = async () => {
+      try {
+        editing.value = true;
+        const updated = await updateCourseclass(courseclassId.value, {
+          name: editForm.value.name,
+          description: editForm.value.description,
+        });
+
+        courseclassDetail.value = updated;
+        message.success("更新成功");
+        editVisible.value = false;
+        router.push(route.path);
+      } catch (error) {
+        message.error("更新失败");
+      } finally {
+        editing.value = false;
+      }
+    };
+
+    // 删除课程班
+    const handleDeleteClass = () => {
+      Modal.confirm({
+        title: "确认删除？",
+        content: "此操作将永久删除该课程班及所有关联数据",
+        okText: "确认",
+        okType: "danger",
+        cancelText: "取消",
+        async onOk() {
+          try {
+            await deleteCourseclass(courseclassId.value);
+            message.success("删除成功");
+            router.push("/home/my-class");
+          } catch (error) {
+            message.error("删除失败");
+          }
+        },
+      });
+    };
     return {
       handleCourseClick,
       courseclassId,
@@ -603,6 +692,13 @@ export default defineComponent({
       handleUpdateReport,
       updatingReport,
       renderedReport,
+      authStore,
+      editVisible,
+      editing,
+      editForm,
+      showEditModal: () => (editVisible.value = true),
+      handleEditSubmit,
+      handleDeleteClass,
     };
   },
 });
@@ -1037,5 +1133,16 @@ export default defineComponent({
   background: #f6f8fa;
   padding: 16px;
   border-radius: 6px;
+}
+
+/* 在style部分新增 */
+.teacher-actions {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px dashed #f0f0f0;
+}
+
+.teacher-actions .ant-btn {
+  margin-right: 8px;
 }
 </style>

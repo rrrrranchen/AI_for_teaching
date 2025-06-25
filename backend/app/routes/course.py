@@ -67,7 +67,9 @@ def get_course(course_id):
             'name': course.name,
             'description': course.description,
             'created_at': course.created_at,
-            'courseclasses': [{'id': cc.id, 'name': cc.name} for cc in course.courseclasses]
+            'courseclasses': [{'id': cc.id, 'name': cc.name} for cc in course.courseclasses],
+            'preview_deadline': course.preview_deadline,
+            'post_class_deadline': course.post_class_deadline,
         }
         return jsonify(result), 200
     except Exception as e:

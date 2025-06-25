@@ -2,7 +2,7 @@
   <a-col :span="8">
     <a-card hoverable>
       <template #cover>
-        <img alt="example" src="https://example.com/teaching-design.png" />
+        <img alt="example" src="@/assets/aiforedu.png" />
       </template>
       <a-card-meta
         title="教学设计生成"

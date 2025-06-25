@@ -130,6 +130,7 @@
 
 <script lang="ts">
 import { defineComponent, ref, computed, onMounted } from "vue";
+import { useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import {
   PlusOutlined,
@@ -144,6 +145,7 @@ export default defineComponent({
   name: "TeacherMyClassView",
   components: { PlusOutlined, UserOutlined, CopyOutlined },
   setup() {
+    const router = useRouter();
     const authStore = useAuthStore();
     const loading = ref(false);
     const searchKeyword = ref("");
@@ -182,10 +184,11 @@ export default defineComponent({
       try {
         creating.value = true;
         const newItem = await createCourseclass(newClass.value);
-        courseClasses.value.unshift(newItem);
+        await loadData();
         message.success("创建成功");
         createVisible.value = false;
         newClass.value = { name: "", description: "" };
+        router.push("/home/my-class");
       } catch (err) {
         message.error("创建失败");
       } finally {

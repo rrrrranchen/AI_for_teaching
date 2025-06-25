@@ -135,9 +135,9 @@ export default defineComponent({
   name: "PreQuestionCard",
   setup() {
     const cardData = reactive({
-      title: "课前习题生成",
-      description: "根据课程内容自动生成预习题目",
-      image: "https://example.com/pre-class.png",
+      title: "课前水平检测习题生成",
+      description: "根据课程内容自动生成课前水平检测题目",
+      image: require("@/assets/prequestion.png"),
       buttonText: "开始生成",
     });
 
