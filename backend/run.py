@@ -17,5 +17,5 @@ if __name__ == "__main__":
     port = 5000       # 后端运行端口
     
     # 启动 Flask 应用
-    app.run(host=host, port=port, debug=True)
+    app.run(host=host, port=port, debug=True, use_reloader=False)
     

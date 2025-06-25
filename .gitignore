@@ -174,3 +174,5 @@ cython_debug/
 database.py
 alembic.ini
 migrations/
+avatar/
+forumattachments/

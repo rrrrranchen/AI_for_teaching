@@ -23,6 +23,9 @@ export interface Question {
   timing: QuestionTiming;
   is_public?: boolean;
   studentAnswer?: StudentAnswer;
+  knowledge_point_id?: number;
+  knowledge_point_name?: string;
+  knowledge_point_content?: string;
 }
 
 /**
@@ -57,6 +60,28 @@ export interface StudentAnswer {
   answer: string;
   correct_percentage: number;
   submitted_at: string;
+}
+
+// 新增类型定义
+/**
+ * 热力图数据项
+ */
+export interface HeatmapDataItem {
+  x: number; // 题目序号
+  y: number; // 难度等级
+  value: number; // 平均正确率（0-1）
+  original_id: number; // 原始题目ID
+}
+
+/**
+ * 高频错误题目项
+ */
+export interface ErrorRankingItem {
+  rank: number; // 排名
+  question_id: number; // 题目ID
+  content: string; // 题目内容摘要
+  error_rate: number; // 错误率（0-1）
+  common_errors: string[]; // 常见错误答案
 }
 
 // ======================== 问题API ========================
@@ -171,14 +196,41 @@ export const questionApi = {
   },
 
   /**
-   * 批量删除问题 (扩展示例)
+   * 获取课程热力图数据
+   * @param courseId 课程ID
    */
-  // async batchDeleteQuestions(questionIds: number[]): Promise<number[]> {
-  //   const results = await Promise.all(
-  //     questionIds.map((id) => this.deleteQuestion(id))
-  //   );
-  //   return results.map((r) => r.question_id);
-  // },
+  async getCourseHeatmapData(courseId: number): Promise<{
+    heatmap_data: HeatmapDataItem[];
+    course_name: string;
+  }> {
+    const response: AxiosResponse = await api.get(
+      `/course/${courseId}/heatmap_data`
+    );
+    return response.data;
+  },
+
+  /**
+   * 获取课程高频错误排行
+   * @param courseId 课程ID
+   * @param topN 返回数量
+   */
+  async getCourseErrorRanking(
+    courseId: number,
+    topN = 10
+  ): Promise<{
+    ranking: ErrorRankingItem[];
+    threshold: number;
+  }> {
+    const response: AxiosResponse = await api.get(
+      `/course/${courseId}/error_ranking`,
+      {
+        params: {
+          top_n: topN,
+        },
+      }
+    );
+    return response.data;
+  },
 };
 
 export default questionApi;

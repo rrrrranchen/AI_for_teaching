@@ -1,6 +1,10 @@
 import api from "@/request";
 import type { AxiosResponse } from "axios";
 
+interface MongoDate {
+  $date: string;
+}
+
 // 课程基础类型
 export interface Course {
   id: number;
@@ -9,6 +13,8 @@ export interface Course {
   created_at: string;
   courseclass_id?: number;
   has_public_questions?: boolean;
+  preview_deadline?: MongoDate; // 添加课前习题截止时间
+  post_class_deadline?: MongoDate; // 添加课后习题截止时间
 }
 
 // 创建课程参数
@@ -81,6 +87,27 @@ export const updateCourse = async (
   return response.data;
 };
 
+// 设置课前习题截止时间
+export const setPreviewDeadline = async (
+  courseId: number,
+  deadline: string
+): Promise<{ message: string; deadline: string }> => {
+  const response: AxiosResponse<{ message: string; deadline: string }> =
+    await api.post(`/courses/${courseId}/set_preview_deadline`, { deadline });
+  return response.data;
+};
+
+// 设置课后习题截止时间
+export const setPostClassDeadline = async (
+  courseId: number,
+  deadline: string
+): Promise<{ message: string; deadline: string }> => {
+  const response: AxiosResponse<{ message: string; deadline: string }> =
+    await api.post(`/courses/${courseId}/set_post_class_deadline`, {
+      deadline,
+    });
+  return response.data;
+};
 // // 创建课程参数
 // interface CreateCourseParams {
 //   name: string;

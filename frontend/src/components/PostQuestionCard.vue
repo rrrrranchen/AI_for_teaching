@@ -2,7 +2,7 @@
   <a-col :span="8">
     <a-card hoverable>
       <template #cover>
-        <img alt="example" src="https://example.com/post-class.png" />
+        <img alt="example" src="@/assets/postquestion.png" />
       </template>
       <a-card-meta
         title="课后习题生成"
