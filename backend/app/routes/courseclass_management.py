@@ -3,8 +3,10 @@ from app.utils.database import db
 from app.models.user import User
 from app.models.courseclass import Courseclass
 from app.models.course import Course
+from app.routes.courseclass import generate_invite_code
+from app.utils.file_upload import upload_file_courseclass
 
-courseclass_management_bp = Blueprint('courseclass', __name__)
+courseclass_management_bp = Blueprint('courseclass_management', __name__)
 
 def is_logged_in():
     return 'user_id' in session
@@ -89,3 +91,74 @@ def query_courseclasses():
         courseclass_list.append(courseclass_data)
 
     return jsonify(courseclass_list), 200
+
+
+@courseclass_management_bp.route('/admin/update_courseclass/<int:courseclass_id>', methods=['PUT'])
+def update_courseclass(courseclass_id):
+    if not is_logged_in():
+        return jsonify({'error': 'Unauthorized'}), 401
+    try:
+        courseclass = Courseclass.query.get(courseclass_id)
+        if not courseclass:
+            return jsonify({'error': 'CourseClass not found'}), 404
+
+        # 获取请求数据
+        data = request.form
+        name = data.get('name')
+        description = data.get('description')
+        image_file = request.files.get('image')  # 获取上传的图片文件
+
+        # 更新课程班信息
+        if name:
+            courseclass.name = name
+        if description:
+            courseclass.description = description
+
+        # 更新图片
+        if image_file:
+            image_path = upload_file_courseclass(image_file)
+            courseclass.image_path = image_path
+        else:
+            # 如果没有上传新图片，保持原图片路径
+            pass
+
+        db.session.commit()
+
+        return jsonify({
+            'id': courseclass.id,
+            'name': courseclass.name,
+            'description': courseclass.description,
+            'created_at': courseclass.created_at,
+            'image_path': courseclass.image_path  # 返回更新后的图片路径
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@courseclass_management_bp.route('/admin/delete_courseclasses', methods=['DELETE'])
+def delete_courseclasses():
+    """批量删除课程班"""
+    data = request.get_json()
+    courseclass_ids = data.get('courseclass_ids', [])
+
+    if not courseclass_ids:
+        return jsonify({'message': 'No course class IDs provided'}), 400
+
+    # 查询所有要删除的课程班
+    courseclasses = Courseclass.query.filter(Courseclass.id.in_(courseclass_ids)).all()
+
+    # 删除每个课程班及其关联关系
+    for courseclass in courseclasses:
+        # 先删除关联关系
+        courseclass.teachers = []
+        courseclass.students = []
+        courseclass.courses = []
+
+    # 批量删除课程班
+    Courseclass.query.filter(Courseclass.id.in_(courseclass_ids)).delete()
+
+    # 提交事务
+    db.session.commit()
+
+    return jsonify({'message': 'Course classes deleted successfully'}), 200
+
