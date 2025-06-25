@@ -13,3 +13,4 @@ class Config:
         'medium': (800, 800),
         'large': (1200, 1200)
     }
+

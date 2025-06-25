@@ -56,7 +56,7 @@ def calculate_node_color(knowledge_point_id):
 
     # 如果没有学生作答，返回基准色#ff7373
     if not answers:
-        return '#ff7373'
+        return '#ffffff'
 
     # 计算平均正确率（限制在0-100范围）
     total_correct = sum(answer.correct_percentage for answer in answers)

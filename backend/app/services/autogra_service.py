@@ -43,7 +43,7 @@ class ChineseGrader:
         self._ensure_file('stopwords_cn.txt')
         self._ensure_file('synonyms.txt')
         
-        # 加载自定义词典
+        # 加载自定义词典                                ``
         jieba.load_userdict(os.path.join(self.BASE_DIR, 'custom_words.txt'))
         
         # 加载停用词
