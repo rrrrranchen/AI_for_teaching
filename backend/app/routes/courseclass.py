@@ -145,13 +145,14 @@ def create_courseclass():
         if not current_user or current_user.role != 'teacher':
             return jsonify({'error': 'Only teachers can create course classes'}), 403
 
-        # 获取请求数据
+ #        获取请求数据
         data = request.form
         name = data.get('name')
         description = data.get('description')
-        is_public = data.get('is_public', False)  # 获取是否公开字段，默认值为 False
+        is_public_str = data.get('is_public', 'false')  # 获取是否公开字段，默认值为 'false'
+        is_public = is_public_str.lower() == 'true'  # 将字符串转换为布尔值
         image_file = request.files.get('image')  # 获取上传的图片文件
-
+        
         if not name:
             return jsonify({'error': 'Name is required'}), 400
 
@@ -200,7 +201,6 @@ def create_courseclass():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
-    
 
 # 更新课程班信息
 @courseclass_bp.route('/courseclasses/<int:courseclass_id>', methods=['PUT'])
@@ -533,6 +533,3 @@ def search_courseclasses():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
-@courseclass_bp.route('/courseclass')
-def courseclasspage():
-    return render_template('courseclass.html')

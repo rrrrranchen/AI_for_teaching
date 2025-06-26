@@ -5,6 +5,7 @@ from app.models.courseclass import Courseclass
 from app.models.course import Course
 from app.routes.courseclass import generate_invite_code
 from app.utils.file_upload import upload_file_courseclass
+from app.services.rank import generate_public_courseclass_ranking
 
 courseclass_management_bp = Blueprint('courseclass_management', __name__)
 
@@ -162,3 +163,48 @@ def delete_courseclasses():
 
     return jsonify({'message': 'Course classes deleted successfully'}), 200
 
+@courseclass_management_bp.route('/public_courseclass_ranking', methods=['GET'])
+def get_public_courseclass_ranking():
+    """
+    获取公开课程班排行榜
+    返回前10个推荐指数最高的公开课程班
+    """
+    try:
+        # 获取所有公开课程班并按推荐指数排序
+        public_classes = Courseclass.query.filter_by(is_public=True).all()
+        
+        if not public_classes:
+            return jsonify([]), 200
+        
+        # 获取排行榜数据
+        ranking = generate_public_courseclass_ranking()
+        
+        # 只取前10名
+        top_10 = ranking[:10]
+        
+        # 构造返回数据
+        result = []
+        for rank, courseclass in enumerate(top_10, start=1):
+            # 获取课程班详细信息
+            cc = Courseclass.query.get(courseclass['class_id'])
+            
+            result.append({
+                'rank': rank,
+                'id': cc.id,
+                'name': cc.name,
+                'description': cc.description[:100] + "..." if cc.description else "",
+                'image_path': cc.image_path,
+                'invite_code': cc.invite_code,
+                'recommend_index': round(courseclass['recommend_index'], 1),
+                'stars': courseclass['stars'],
+                'student_count': courseclass['student_count'],
+                'teacher_count': courseclass['teacher_count'],
+                'course_count': courseclass['course_count'],
+                'avg_accuracy': round(courseclass['avg_accuracy'], 1),
+                'activity_ratio': round(courseclass['activity_ratio'], 1)
+            })
+        
+        return jsonify(result), 200
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

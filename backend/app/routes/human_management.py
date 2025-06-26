@@ -1,7 +1,10 @@
+from datetime import datetime, timedelta
 from flask import Blueprint, g, jsonify, request, session
+from sqlalchemy import distinct, func
 from app.utils.database import db
 from app.models.user import User
 
+from app.models.relationship import student_class,teacher_class,course_courseclass
 human_management_bp = Blueprint('human_management', __name__)
 
 def is_logged_in():
@@ -218,3 +221,5 @@ def add_user():
             'created_at': new_user.created_at.isoformat()
         }
     }), 201
+
+
