@@ -4,6 +4,7 @@ import time
 import uuid
 # 定义 uploads 目录路径
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+UPLOAD_FOLDER_PPTTEMPLATE=os.path.join(project_root,'static','template')
 UPLOAD_FOLDER = os.path.join(project_root, 'static', 'uploads','avatar')
 UPLOAD_FOLDER_FORUM=os.path.join(project_root, 'static', 'uploads','forum')
 UPLOAD_FOLDER_COURSECLASS=os.path.join(project_root,'static','uploads','courseclass')
