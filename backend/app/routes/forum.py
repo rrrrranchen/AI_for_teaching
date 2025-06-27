@@ -780,6 +780,8 @@ def search_posts_route():
 # 获取当前登录用户的所有帖子
 @forum_bp.route('/users/posts', methods=['GET'])
 def get_user_posts():
+
+
     try:
         current_user = get_current_user()
         if not current_user:
@@ -804,3 +806,15 @@ def get_user_posts():
     except Exception as e:
         logger.error(f"获取用户帖子失败: {str(e)}")
         return jsonify({'error': '服务器内部错误'}), 500
+    
+
+@forum_bp.route('/get_alltags', methods=['GET'])
+def get_alltags():
+    # 查询数据库获取所有标签
+    tags = ForumTag.query.all()
+    
+    # 将标签对象列表转换为字典列表
+    tag_list = [{'id': tag.id, 'name': tag.name} for tag in tags]
+    
+    # 返回 JSON 格式的数据
+    return jsonify(tag_list)
