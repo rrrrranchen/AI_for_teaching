@@ -1,6 +1,6 @@
 import random
 import string
-from flask import Blueprint, render_template, request, jsonify, session
+from flask import Blueprint, current_app, render_template, request, jsonify, session
 from pymysql import IntegrityError
 from sqlalchemy import func, select
 from werkzeug.security import check_password_hash
@@ -11,6 +11,7 @@ from app.models.user import User
 from app.models.relationship import teacher_class,student_class,course_courseclass
 from app.models.question import Question
 from app.utils.file_upload import upload_file_courseclass
+from app.services.rank import generate_class_recommend_ranking, generate_public_courseclass_ranking
 courseclass_bp = Blueprint('courseclass', __name__)
 
 # 检查用户是否登录
@@ -533,3 +534,73 @@ def search_courseclasses():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
+#查询课程班级学生综合指数排行榜
+@courseclass_bp.route('/query_student_rank/<int:courseclass_id>', methods=['GET'])
+def query_student_rank(courseclass_id):
+    """
+    查询课程班级学生综合指数排行榜接口
+    返回按综合评分排序的学生排行榜
+    
+    参数:
+        courseclass_id: 课程班级ID
+        
+    返回:
+        JSON格式的响应，包含:
+        - code: 状态码(200表示成功)
+        - message: 状态信息
+        - data: 学生排行榜数据列表
+    """
+    try:
+        # 调用生成排行榜的函数
+        ranking_data = generate_class_recommend_ranking(courseclass_id)
+        
+        # 检查是否返回了错误响应
+        if isinstance(ranking_data, tuple) and "error" in ranking_data[0]:
+            return jsonify({
+                "code": 404,
+                "message": ranking_data[0]["error"],
+                "data": None
+            }), 404
+        
+        # 成功响应
+        return jsonify({
+            "code": 200,
+            "message": "Success",
+            "data": ranking_data
+        })
+    except Exception as e:
+        # 捕获并处理意外错误
+        current_app.logger.error(f"Error querying student rank: {str(e)}")
+        return jsonify({
+            "code": 500,
+            "message": f"Internal server error: {str(e)}",
+            "data": None
+        }), 500
+    
+
+@courseclass_bp.route('/query_courseclass_rank', methods=['GET'])
+def query_courseclass_rank():
+
+    try:
+        ranking_data = generate_public_courseclass_ranking()
+        
+        if not ranking_data:
+            return jsonify({
+                "code": 404,
+                "message": "No public course classes found",
+                "data": None
+            }), 404
+            
+        return jsonify({
+            "code": 200,
+            "message": "Success",
+            "data": ranking_data
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error generating course class ranking: {str(e)}")
+        return jsonify({
+            "code": 500,
+            "message": f"Internal server error: {str(e)}",
+            "data": None
+        }), 500

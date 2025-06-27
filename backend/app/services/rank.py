@@ -6,6 +6,7 @@ from app.models.question import Question
 from app.models.studentanswer import StudentAnswer
 from app.models.relationship import course_courseclass,student_class,teacher_class
 from app.models.course import Course
+from app.models.user import User
 
 def generate_class_recommend_ranking(class_id):
     """
@@ -184,57 +185,56 @@ def generate_public_courseclass_ranking():
     class_ids = [c.id for c in public_classes]
     
     # 预计算基础指标
-    # 1. 学生数量
+    # 1. 学生数量 (使用students关系直接获取)
     student_counts = (
         db.session.query(
             Courseclass.id,
-            func.count(distinct(student_class.c.student_id)).label('student_count')
+            func.count(distinct(User.id)).label('student_count')
         )
-        .join(student_class, Courseclass.id == student_class.c.courseclass_id)
+        .join(Courseclass.students)
         .group_by(Courseclass.id)
         .filter(Courseclass.id.in_(class_ids))
         .all()
     )
     student_count_dict = {c.id: c.student_count for c in student_counts}
 
-    # 2. 教师数量
+    # 2. 教师数量 (使用teachers关系直接获取)
     teacher_counts = (
         db.session.query(
             Courseclass.id,
-            func.count(distinct(teacher_class.c.teacher_id)).label('teacher_count')
+            func.count(distinct(User.id)).label('teacher_count')
         )
-        .join(teacher_class, Courseclass.id == teacher_class.c.courseclass_id)
+        .join(Courseclass.teachers)
         .group_by(Courseclass.id)
         .filter(Courseclass.id.in_(class_ids))
         .all()
     )
     teacher_count_dict = {c.id: c.teacher_count for c in teacher_counts}
 
-    # 3. 课程数量
+    # 3. 课程数量 (使用courses关系直接获取)
     course_counts = (
         db.session.query(
             Courseclass.id,
-            func.count(distinct(course_courseclass.c.course_id)).label('course_count')
+            func.count(distinct(Course.id)).label('course_count')
         )
-        .join(course_courseclass, Courseclass.id == course_courseclass.c.courseclass_id)
+        .join(Courseclass.courses)
         .group_by(Courseclass.id)
         .filter(Courseclass.id.in_(class_ids))
         .all()
     )
     course_count_dict = {c.id: c.course_count for c in course_counts}
     
-    # 4. 题目数量
+    # 4. 题目数量 (通过courses关系间接获取)
     question_counts = (
-    db.session.query(
-        Courseclass.id,
-        func.count(distinct(Question.id)).label('question_count')
-    )
-    .join(course_courseclass, Courseclass.id == course_courseclass.c.courseclass_id)
-    .join(Course, course_courseclass.c.course_id == Course.id)
-    .join(Question, Course.id == Question.course_id)
-    .group_by(Courseclass.id)
-    .filter(Courseclass.id.in_(class_ids))
-    .all()
+        db.session.query(
+            Courseclass.id,
+            func.count(distinct(Question.id)).label('question_count')
+        )
+        .join(Courseclass.courses)
+        .join(Question, Course.id == Question.course_id)
+        .group_by(Courseclass.id)
+        .filter(Courseclass.id.in_(class_ids))
+        .all()
     )
     question_count_dict = {c.id: c.question_count for c in question_counts}
     
@@ -272,17 +272,15 @@ def generate_public_courseclass_ranking():
         (StudentAnswer.question_id == latest_answers_subq.c.question_id) &
         (StudentAnswer.answered_at == latest_answers_subq.c.latest_time)
     ).group_by(StudentAnswer.class_id).all()
-    accuracy_dict = {a.class_id: a.avg_accuracy for a in avg_accuracy}
+    accuracy_dict = {a.class_id: float(a.avg_accuracy) if a.avg_accuracy else 0.0 for a in avg_accuracy}  # 转换为float
     
     # 7. 教学资源丰富度（图片、描述等）
     resource_score = db.session.query(
         Courseclass.id,
         func.coalesce(func.length(Courseclass.description), 0).label('desc_length'),
-        func.case(
-            (Courseclass.image_path.isnot(None), 1),
-            else_=0
-        ).label('has_image')
+        (Courseclass.image_path.isnot(None)).cast(db.Integer).label('has_image')
     ).filter(Courseclass.id.in_(class_ids)).all()
+    
     resource_dict = {}
     for r in resource_score:
         # 描述长度(0-1) + 是否有图片(0或1) = 总分(0-2)
@@ -300,8 +298,8 @@ def generate_public_courseclass_ranking():
         course_count = course_count_dict.get(cid, 0)
         question_count = question_count_dict.get(cid, 0)
         recent_activity = activity_dict.get(cid, 0)
-        avg_accuracy = accuracy_dict.get(cid, 0)
-        resource_score = resource_dict.get(cid, 0)
+        avg_accuracy = accuracy_dict.get(cid, 0.0)  # 使用float类型
+        resource_score = resource_dict.get(cid, 0.0)  # 使用float类型
         
         # 活跃学生比例（最近一周有答题的学生比例）
         active_students = db.session.query(
@@ -314,19 +312,11 @@ def generate_public_courseclass_ranking():
         activity_ratio = active_students / student_count_val
         
         # ====== 计算推荐指数 ======
-        # 权重分配：
-        # - 学生规模: 15% (log10缩放)
-        # - 师生比: 10% (教师/学生)
-        # - 课程资源: 20% (课程+题目数量)
-        # - 活跃度: 20% (活跃学生比例+近期答题数)
-        # - 学习效果: 25% (平均正确率)
-        # - 教学资源: 10% (描述、图片等)
-        
-        # 1. 学生规模指标（使用对数缩放）
+        # 1. 学生规模指标（使用平方根缩放）
         size_score = min(1.0, (student_count ** 0.5) / 10)
         
         # 2. 师生比指标
-        teacher_ratio = min(1.0, teacher_count / (student_count_val / 20))  # 1:20为基准
+        teacher_ratio = min(1.0, teacher_count / (student_count_val / 20 + 1e-6))  # 1:20为基准，加小量避免除零
         
         # 3. 课程资源指标
         resource_quantity = min(1.0, (course_count + question_count / 10) / 10)
@@ -335,12 +325,12 @@ def generate_public_courseclass_ranking():
         activity_score = min(1.0, activity_ratio * 0.7 + min(1.0, recent_activity / 100) * 0.3)
         
         # 5. 学习效果指标
-        learning_score = avg_accuracy / 100  # 正确率转为0-1
+        learning_score = avg_accuracy / 100.0  # 正确率转为0-1，使用浮点数除法
         
         # 6. 教学资源丰富度
-        teaching_resource = resource_score / 2  # 归一化到0-1
+        teaching_resource = resource_score / 2.0  # 归一化到0-1
         
-        # 计算综合推荐指数
+        # 计算综合推荐指数（全部使用浮点数运算）
         recommend_index = (
             0.15 * size_score +
             0.10 * teacher_ratio +
@@ -361,9 +351,9 @@ def generate_public_courseclass_ranking():
             "teacher_count": teacher_count,
             "course_count": course_count,
             "question_count": question_count,
-            "avg_accuracy": avg_accuracy,
-            "activity_ratio": activity_ratio * 100,  # 转为百分比
-            "recommend_index": recommend_index * 100  # 转为0-100分
+            "avg_accuracy": round(avg_accuracy, 1) if avg_accuracy else 0.0,
+            "activity_ratio": round(activity_ratio * 100, 1),  # 转为百分比
+            "recommend_index": round(recommend_index * 100, 1)  # 转为0-100分
         })
     
     # 按推荐指数排序
@@ -374,10 +364,11 @@ def generate_public_courseclass_ranking():
     )
     
     # 添加星级评价（1-5星）
-    max_index = max(c["recommend_index"] for c in sorted_classes) or 100
-    for c in sorted_classes:
-        # 计算星级（0-5）
-        stars = round(c["recommend_index"] / max_index * 5, 1)
-        c["stars"] = min(5.0, stars)  # 不超过5星
+    if sorted_classes:  # 检查非空
+        max_index = max(c["recommend_index"] for c in sorted_classes) or 100
+        for c in sorted_classes:
+            # 计算星级（0-5）
+            stars = round(c["recommend_index"] / max_index * 5, 1)
+            c["stars"] = min(5.0, max(1.0, stars))  # 限制在1-5星范围内
     
     return sorted_classes
