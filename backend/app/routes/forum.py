@@ -53,8 +53,7 @@ def search_posts(keyword):
         ForumPost.content.ilike(f'%{keyword}%').desc()
     ).all()
     return posts
-
-
+#上传附件路由
 @forum_bp.route('/attachments', methods=['POST'])
 def upload_attachment():
     try:
@@ -204,8 +203,12 @@ def get_all_posts():
         if sort_by not in ['like_count', 'favorite_count', 'view_count', 'composite', 'created_at']:
             return jsonify({'error': '无效的排序参数'}), 400
 
-        # 获取帖子列表
-        posts = ForumPost.query.all()
+        # 获取帖子列表，并预加载附件、作者信息和标签
+        posts = ForumPost.query.options(
+            joinedload(ForumPost.attachments),
+            joinedload(ForumPost.author),
+            joinedload(ForumPost.tags)
+        ).all()
 
         # 定义权重系数
         alpha = 1.0  # 点赞数权重
@@ -230,11 +233,18 @@ def get_all_posts():
         else:
             posts.sort(key=lambda post: getattr(post, sort_by), reverse=True)
 
-        current_user_id = get_current_user().id
+        current_user_id = session.get('user_id')
 
         # 构建返回数据
         post_data = []
         for post in posts:
+            # 查找第一个图片附件
+            first_image_attachment = None
+            for attachment in post.attachments:
+                if attachment.file_path.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
+                    first_image_attachment = attachment.file_path
+                    break
+
             # 查询当前用户是否点赞了该帖子
             is_liked = False
             if current_user_id:
@@ -254,22 +264,24 @@ def get_all_posts():
                 'title': post.title,
                 'content': post.content,
                 'author_id': post.author_id,
-                'authorname': User.query.get(post.author_id).username,
+                'authorname': post.author.username,
+                'author_avatar': post.author.avatar,
                 'created_at': post.created_at,
                 'updated_at': post.updated_at,
                 'view_count': post.view_count,
                 'like_count': post.like_count,
                 'favorite_count': post.favorite_count,
                 'is_liked': is_liked,
-                'is_favorited': is_favorited
+                'is_favorited': is_favorited,
+                'first_image': first_image_attachment,
+                'tags': [tag.name for tag in post.tags]
             })
 
         return jsonify(post_data), 200
     except Exception as e:
         logger.error(f"获取帖子列表失败: {str(e)}")
         return jsonify({'error': '服务器内部错误'}), 500
-
-
+    
 
 @forum_bp.route('/posts/<int:post_id>', methods=['GET'])
 def get_post(post_id):
@@ -729,26 +741,42 @@ def get_user_favorites():
             return jsonify({'error': '请先登录'}), 401
 
         user_id = current_user.id
-        # 使用 joinedload 加载帖子信息
-        favorites = ForumFavorite.query.options(joinedload(ForumFavorite.post)).filter_by(user_id=user_id).all()
+        # 使用 joinedload 加载帖子信息、附件、标签和作者信息
+        favorites = ForumFavorite.query.options(
+            joinedload(ForumFavorite.post).joinedload(ForumPost.attachments),
+            joinedload(ForumFavorite.post).joinedload(ForumPost.tags),
+            joinedload(ForumFavorite.post).joinedload(ForumPost.author)
+        ).filter_by(user_id=user_id).all()
 
         # 构建返回数据
-        favorite_data = [{
-            'id': favorite.id,
-            'post_id': favorite.post_id,
-            'post_title': favorite.post.title,  # 帖子标题
-            'author_id': favorite.post.author_id,  # 帖子作者ID
-            'author_name': User.query.get(favorite.post.author_id).username,
-            'created_at': favorite.created_at,
-            'tags': [tag.name for tag in favorite.post.tags]  # 添加帖子的标签
-        } for favorite in favorites]
+        favorite_data = []
+        for favorite in favorites:
+            post = favorite.post
+            # 查找第一个图片附件
+            first_image_attachment = None
+            for attachment in post.attachments:
+                if attachment.file_path.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
+                    first_image_attachment = attachment.file_path
+                    break
+
+            favorite_data.append({
+                'id': favorite.id,
+                'post_id': post.id,
+                'post_title': post.title,
+                'author_id': post.author_id,
+                'author_name': post.author.username,
+                'author_avatar': post.author.avatar,
+                'created_at': favorite.created_at,
+                'tags': [tag.name for tag in post.tags],
+                'first_image': first_image_attachment
+            })
 
         return jsonify(favorite_data), 200
     except Exception as e:
         logger.error(f"获取用户收藏失败: {str(e)}")
         return jsonify({'error': '服务器内部错误'}), 500
     
-
+# 查询帖子
 @forum_bp.route('/posts/search', methods=['GET'])
 def search_posts_route():
     try:
@@ -756,29 +784,50 @@ def search_posts_route():
         if not keyword:
             return jsonify({'error': '缺少搜索关键词'}), 400
 
-        # 调用搜索方法
-        posts = search_posts(keyword)
+        # 调用搜索方法并预加载附件
+        posts = ForumPost.query.join(ForumPost.tags).options(
+            joinedload(ForumPost.attachments),
+            joinedload(ForumPost.author)
+        ).filter(
+            or_(
+                ForumPost.title.ilike(f'%{keyword}%'),
+                ForumPost.content.ilike(f'%{keyword}%'),
+                ForumTag.name.ilike(f'%{keyword}%')
+            )
+        ).order_by(
+            ForumPost.title.ilike(f'%{keyword}%').desc(),
+            ForumTag.name.ilike(f'%{keyword}%').desc(),
+            ForumPost.content.ilike(f'%{keyword}%').desc()
+        ).all()
 
         # 构建返回数据
-        post_data = [{
-            'id': post.id,
-            'title': post.title,
-            
-            'author_id': post.author_id,
-            'created_at': post.created_at,
-            'author_name': User.query.get(post.author_id).username,
-            'view_count': post.view_count,
-            'like_count': post.like_count,
-            'favorite_count': post.favorite_count,
-            'tags': [tag.name for tag in post.tags]
-        } for post in posts]
+        post_data = []
+        for post in posts:
+            # 查找第一个图片附件
+            first_image_attachment = None
+            for attachment in post.attachments:
+                if attachment.file_path.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
+                    first_image_attachment = attachment.file_path
+                    break
+
+            post_data.append({
+                'id': post.id,
+                'title': post.title,
+                'author_id': post.author_id,
+                'created_at': post.created_at,
+                'author_name': post.author.username,
+                'view_count': post.view_count,
+                'like_count': post.like_count,
+                'favorite_count': post.favorite_count,
+                'tags': [tag.name for tag in post.tags],
+                'first_image': first_image_attachment  # 添加第一个图片附件路径
+            })
 
         return jsonify(post_data), 200
     except Exception as e:
         logger.error(f"搜索帖子失败: {str(e)}")
         return jsonify({'error': '服务器内部错误'}), 500
     
-
 # 获取当前登录用户的所有帖子
 @forum_bp.route('/users/posts', methods=['GET'])
 def get_user_posts():
@@ -790,19 +839,33 @@ def get_user_posts():
             return jsonify({'error': '请先登录'}), 401
 
         user_id = current_user.id
-        posts = ForumPost.query.filter_by(author_id=user_id).all()
+        # 预加载附件和标签
+        posts = ForumPost.query.options(
+            joinedload(ForumPost.attachments),
+            joinedload(ForumPost.tags)
+        ).filter_by(author_id=user_id).all()
 
-        post_data = [ {
-            'id': post.id,
-            'title': post.title,
-            'author_name': User.query.get(post.author_id).username,
-            'created_at': post.created_at,
-            'updated_at': post.updated_at,
-            'view_count': post.view_count,
-            'like_count': post.like_count,
-            'favorite_count': post.favorite_count,
-            'tags': [tag.name for tag in post.tags]
-        } for post in posts]
+        post_data = []
+        for post in posts:
+            # 查找第一个图片附件
+            first_image_attachment = None
+            for attachment in post.attachments:
+                if attachment.file_path.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
+                    first_image_attachment = attachment.file_path
+                    break
+
+            post_data.append({
+                'id': post.id,
+                'title': post.title,
+                'author_name': current_user.username,
+                'created_at': post.created_at,
+                'updated_at': post.updated_at,
+                'view_count': post.view_count,
+                'like_count': post.like_count,
+                'favorite_count': post.favorite_count,
+                'tags': [tag.name for tag in post.tags],
+                'first_image': first_image_attachment  # 添加第一个图片附件路径
+            })
 
         return jsonify(post_data), 200
     except Exception as e:
