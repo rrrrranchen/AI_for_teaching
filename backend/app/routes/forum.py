@@ -278,15 +278,9 @@ def get_all_posts():
                 'first_image': first_image_attachment,
                 'tags': [tag.name for tag in post.tags]
             })
-        recommended_designs_response = get_recommended_designs()
-        if recommended_designs_response[1] == 200:
-            recommended_designs = recommended_designs_response[0].json
-        else:
-            recommended_designs = []
             
         return jsonify({
-            'posts': post_data,
-            'recommended_designs': recommended_designs
+            'posts': post_data
         }), 200
     except Exception as e:
         logger.error(f"获取帖子列表失败: {str(e)}")
