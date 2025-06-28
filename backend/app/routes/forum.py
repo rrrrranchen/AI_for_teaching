@@ -53,6 +53,7 @@ def search_posts(keyword):
         ForumPost.content.ilike(f'%{keyword}%').desc()
     ).all()
     return posts
+#上传附件路由
 @forum_bp.route('/attachments', methods=['POST'])
 def upload_attachment():
     try:
@@ -772,7 +773,7 @@ def get_user_favorites():
         logger.error(f"获取用户收藏失败: {str(e)}")
         return jsonify({'error': '服务器内部错误'}), 500
     
-
+# 查询帖子
 @forum_bp.route('/posts/search', methods=['GET'])
 def search_posts_route():
     try:
@@ -824,7 +825,7 @@ def search_posts_route():
         logger.error(f"搜索帖子失败: {str(e)}")
         return jsonify({'error': '服务器内部错误'}), 500
     
-
+# 获取当前登录用户的所有帖子
 @forum_bp.route('/users/posts', methods=['GET'])
 def get_user_posts():
     try:
