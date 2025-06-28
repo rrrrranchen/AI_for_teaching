@@ -203,10 +203,11 @@ def get_all_posts():
         if sort_by not in ['like_count', 'favorite_count', 'view_count', 'composite', 'created_at']:
             return jsonify({'error': '无效的排序参数'}), 400
 
-        # 获取帖子列表，并预加载附件和作者信息
+        # 获取帖子列表，并预加载附件、作者信息和标签
         posts = ForumPost.query.options(
             joinedload(ForumPost.attachments),
-            joinedload(ForumPost.author)
+            joinedload(ForumPost.author),
+            joinedload(ForumPost.tags)
         ).all()
 
         # 定义权重系数
@@ -264,6 +265,7 @@ def get_all_posts():
                 'content': post.content,
                 'author_id': post.author_id,
                 'authorname': post.author.username,
+                'author_avatar': post.author.avatar,
                 'created_at': post.created_at,
                 'updated_at': post.updated_at,
                 'view_count': post.view_count,
@@ -271,16 +273,15 @@ def get_all_posts():
                 'favorite_count': post.favorite_count,
                 'is_liked': is_liked,
                 'is_favorited': is_favorited,
-                'first_image': first_image_attachment,  # 添加第一个图片附件路径
-                'tags': [tag.name for tag in post.tags]  # 添加标签信息
+                'first_image': first_image_attachment,
+                'tags': [tag.name for tag in post.tags]
             })
 
         return jsonify(post_data), 200
     except Exception as e:
         logger.error(f"获取帖子列表失败: {str(e)}")
         return jsonify({'error': '服务器内部错误'}), 500
-
-
+    
 
 @forum_bp.route('/posts/<int:post_id>', methods=['GET'])
 def get_post(post_id):
@@ -740,10 +741,11 @@ def get_user_favorites():
             return jsonify({'error': '请先登录'}), 401
 
         user_id = current_user.id
-        # 使用 joinedload 加载帖子信息和附件
+        # 使用 joinedload 加载帖子信息、附件、标签和作者信息
         favorites = ForumFavorite.query.options(
             joinedload(ForumFavorite.post).joinedload(ForumPost.attachments),
-            joinedload(ForumFavorite.post).joinedload(ForumPost.tags)
+            joinedload(ForumFavorite.post).joinedload(ForumPost.tags),
+            joinedload(ForumFavorite.post).joinedload(ForumPost.author)
         ).filter_by(user_id=user_id).all()
 
         # 构建返回数据
@@ -762,10 +764,11 @@ def get_user_favorites():
                 'post_id': post.id,
                 'post_title': post.title,
                 'author_id': post.author_id,
-                'author_name': User.query.get(post.author_id).username,
+                'author_name': post.author.username,
+                'author_avatar': post.author.avatar,
                 'created_at': favorite.created_at,
                 'tags': [tag.name for tag in post.tags],
-                'first_image': first_image_attachment  # 添加第一个图片附件路径
+                'first_image': first_image_attachment
             })
 
         return jsonify(favorite_data), 200
