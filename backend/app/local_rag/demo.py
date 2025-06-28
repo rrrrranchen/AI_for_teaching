@@ -159,7 +159,12 @@ class RAGSystem:
             documents = []
             for label in label_names:
                 label_path = os.path.join(UNSTRUCTURED_FILE_PATH, label)
-                documents.extend(SimpleDirectoryReader(label_path).load_data())
+                docs = SimpleDirectoryReader(label_path).load_data()
+                
+                # 为每个文档添加知识库名称元数据
+                for doc in docs:
+                    doc.metadata["db_name"] = db_name
+                documents.extend(docs)
             
             index = VectorStoreIndex.from_documents(documents)
             db_path = os.path.join(DB_PATH, db_name)
@@ -188,7 +193,12 @@ class RAGSystem:
             documents = []
             for table in table_names:
                 table_path = os.path.join(STRUCTURED_FILE_PATH, table)
-                documents.extend(SimpleDirectoryReader(table_path).load_data())
+                docs = SimpleDirectoryReader(table_path).load_data()
+                
+                # 为每个文档添加知识库名称元数据
+                for doc in docs:
+                    doc.metadata["db_name"] = db_name
+                documents.extend(docs)
             
             nodes = []
             for doc in documents:
@@ -197,7 +207,8 @@ class RAGSystem:
                     node = TextNode(text=chunk)
                     node.metadata = {
                         'source': doc.get_doc_id(),
-                        'file_name': doc.metadata['file_name']
+                        'file_name': doc.metadata['file_name'],
+                        'db_name': doc.metadata['db_name']  # 保留知识库名称
                     }
                     nodes.append(node)
             
@@ -223,29 +234,54 @@ class RAGSystem:
     
     # ================= RAG聊天功能 =================
     
-    def _retrieve_chunks(self, query: str, db_name: str, similarity_threshold: float, chunk_cnt: int) -> Tuple[str, str]:
+    def _retrieve_chunks_from_multiple_dbs(
+        self, 
+        query: str, 
+        db_names: List[str], 
+        similarity_threshold: float, 
+        chunk_cnt: int
+    ) -> Tuple[str, str]:
         """
-        从知识库检索相关文本块
+        从多个知识库检索相关文本块
         :param query: 查询文本
-        :param db_name: 知识库名称
+        :param db_names: 知识库名称列表
         :param similarity_threshold: 相似度阈值
         :param chunk_cnt: 返回的文本块数量
         :return: (用于模型提示的文本, 用于显示的召回文本)
         """
         try:
             dashscope_rerank = DashScopeRerank(top_n=chunk_cnt, return_documents=True)
-            storage_context = StorageContext.from_defaults(
-                persist_dir=os.path.join(DB_PATH, db_name)
-            )
-            index = load_index_from_storage(storage_context)
-            retriever_engine = index.as_retriever(similarity_top_k=20)
+            all_nodes = []
             
-            # 获取相关文本块
-            retrieve_chunk = retriever_engine.retrieve(query)
+            # 从所有知识库中检索节点
+            for db_name in db_names:
+                storage_context = StorageContext.from_defaults(
+                    persist_dir=os.path.join(DB_PATH, db_name)
+                )
+                index = load_index_from_storage(storage_context)
+                retriever_engine = index.as_retriever(similarity_top_k=20)
+                
+                # 获取相关文本块
+                retrieve_chunk = retriever_engine.retrieve(query)
+                
+                # 为每个节点添加知识库名称（如果元数据中不存在）
+                for node in retrieve_chunk:
+                    if "db_name" not in node.metadata:
+                        node.metadata["db_name"] = db_name
+                
+                all_nodes.extend(retrieve_chunk)
+            
+            # 如果没有检索到任何节点
+            if not all_nodes:
+                return "", ""
+            
+            # 对所有节点进行重排序
             try:
-                results = dashscope_rerank.postprocess_nodes(retrieve_chunk, query_str=query)
+                results = dashscope_rerank.postprocess_nodes(all_nodes, query_str=query)
             except Exception:
-                results = retrieve_chunk[:chunk_cnt]
+                # 如果重排序失败，按原始分数排序并取前chunk_cnt个
+                all_nodes.sort(key=lambda x: x.score, reverse=True)
+                results = all_nodes[:chunk_cnt]
             
             # 构建模型提示文本
             model_context = ""
@@ -254,8 +290,10 @@ class RAGSystem:
             
             for i, result in enumerate(results):
                 if result.score >= similarity_threshold:
-                    model_context += f"## {i+1}:\n{result.text}\n\n"
-                    display_context += f"## {i+1}:\n{result.text}\nscore: {round(result.score, 2)}\n\n"
+                    # 确保知识库名称存在
+                    db_source = result.metadata.get("db_name", "未知知识库")
+                    model_context += f"## {i+1} (来自: {db_source}):\n{result.text}\n\n"
+                    display_context += f"## {i+1} (来自: {db_source}):\n{result.text}\nscore: {round(result.score, 2)}\n\n"
             
             return model_context, display_context
         except Exception as e:
@@ -295,7 +333,7 @@ class RAGSystem:
     def chat_stream(
         self,
         query: str,
-        db_name: str = "default",
+        db_names: List[str] = ["default"],
         model: str = "qwen-max",
         temperature: float = 0.85,
         max_tokens: int = 4068,
@@ -306,9 +344,9 @@ class RAGSystem:
         thinking_mode: bool = False
     ) -> Generator[Tuple[str, str, str], None, None]:
         """
-        流式RAG聊天，支持DeepSeek-Reasoner思维链
+        流式RAG聊天，支持从多个知识库检索
         :param query: 用户查询
-        :param db_name: 知识库名称
+        :param db_names: 知识库名称列表
         :param model: 模型名称
         :param temperature: 温度参数
         :param max_tokens: 最大token数
@@ -333,9 +371,9 @@ class RAGSystem:
         # 初始化OpenAI客户端
         client = OpenAI(api_key=config["api_key"], base_url=config["base_url"])
         
-        # 从知识库检索相关内容
-        model_context, display_chunks = self._retrieve_chunks(
-            query, db_name, similarity_threshold, chunk_cnt
+        # 从多个知识库检索相关内容
+        model_context, display_chunks = self._retrieve_chunks_from_multiple_dbs(
+            query, db_names, similarity_threshold, chunk_cnt
         )
         
         # 返回召回文本
@@ -425,7 +463,7 @@ if __name__ == "__main__":
 
 # 思考模式（DeepSeek-Reasoner）
     for token, chunks, status in rag.chat_stream(
-        "适配器模式是什么？",db_name="设计模式",model="deepseek-reasoner",
+        "OO设计基本原则的开闭原则？",db_names=["设计模式","复习整理"],model="deepseek-reasoner",
         thinking_mode=True
     ):
         if status == "chunks":

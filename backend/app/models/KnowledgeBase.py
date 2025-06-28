@@ -10,6 +10,7 @@ class KnowledgeBase(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
     categories = db.relationship('Category', back_populates='knowledge_base', lazy='joined')
+    is_public = db.Column(db.Boolean, default=False)
 
     def __repr__(self):
         return f'<KnowledgeBase {self.name}>'
