@@ -13,6 +13,9 @@ class TeachingDesign(db.Model):
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
     mindmap = db.Column(db.Text,nullable=True)
     mindmap_updated_at = db.Column(db.DateTime, nullable=True)  # 添加此字段
+    is_public = db.Column(db.Boolean, default=False)  # 是否公开
+    is_recommended = db.Column(db.Boolean, default=False)  # 是否推荐
+    recommend_time = db.Column(db.DateTime)  # 推荐时间
     # 关系定义
     course = db.relationship('Course', back_populates='teaching_designs')
     versions = db.relationship('TeachingDesignVersion', back_populates='design', cascade='all, delete-orphan')

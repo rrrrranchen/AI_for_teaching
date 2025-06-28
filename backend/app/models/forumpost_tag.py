@@ -1,5 +1,4 @@
 from datetime import datetime
-from bson import ObjectId
 from app.utils.database import db
 from app.models.forumcomment import ForumComment
 from app.models.forumattachment import ForumAttachment

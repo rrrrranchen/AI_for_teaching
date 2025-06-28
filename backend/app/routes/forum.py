@@ -4,7 +4,7 @@ import random
 import string
 import uuid
 from venv import logger
-from flask import Blueprint, render_template, request, jsonify, session
+from flask import Blueprint, json, render_template, request, jsonify, session
 from pymysql import IntegrityError
 from sqlalchemy import func, select
 from werkzeug.security import check_password_hash
@@ -21,6 +21,8 @@ from app.models.forumfavorite import ForumFavorite
 from app.models.forumpostlike import ForumPostLike
 from werkzeug.utils import secure_filename
 from sqlalchemy.orm import joinedload
+from app.models.teachingdesignversion import TeachingDesignVersion
+from app.models.teaching_design import TeachingDesign
 forum_bp=Blueprint('forum',__name__)
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -276,8 +278,16 @@ def get_all_posts():
                 'first_image': first_image_attachment,
                 'tags': [tag.name for tag in post.tags]
             })
-
-        return jsonify(post_data), 200
+        recommended_designs_response = get_recommended_designs()
+        if recommended_designs_response[1] == 200:
+            recommended_designs = recommended_designs_response[0].json
+        else:
+            recommended_designs = []
+            
+        return jsonify({
+            'posts': post_data,
+            'recommended_designs': recommended_designs
+        }), 200
     except Exception as e:
         logger.error(f"获取帖子列表失败: {str(e)}")
         return jsonify({'error': '服务器内部错误'}), 500
@@ -883,3 +893,40 @@ def get_alltags():
     
     # 返回 JSON 格式的数据
     return jsonify(tag_list)
+
+@forum_bp.route('/recommended_designs', methods=['GET'])
+def get_recommended_designs():
+    try:
+        # 获取推荐的公开教学设计（按推荐时间倒序，限制数量）
+        recommended_designs = TeachingDesign.query.filter(
+            TeachingDesign.is_public == True,
+            TeachingDesign.is_recommended == True
+        ).order_by(
+            TeachingDesign.recommend_time.desc()
+        ).limit(5).all()  # 限制获取5个
+
+        # 构建返回数据
+        designs_data = []
+        for design in recommended_designs:
+            # 获取当前版本
+            current_version = TeachingDesignVersion.query.get(design.current_version_id)
+            version_content = json.loads(current_version.content) if current_version and current_version.content else {}
+            
+            # 获取作者信息
+            author = User.query.get(design.creator_id)
+            
+            designs_data.append({
+                'id': design.id,
+                'title': design.title,
+                'course_id': design.course_id,
+                'author_id': design.creator_id,
+                'author_name': author.username if author else "未知用户",
+                'author_avatar': author.avatar if author else None,
+                'version_content': version_content.get('plan_content', '')[:200] + '...',  # 截取部分内容
+                'recommend_time': design.recommend_time.isoformat() if design.recommend_time else None
+            })
+
+        return jsonify(designs_data), 200
+    except Exception as e:
+        logger.error(f"获取推荐教学设计失败: {str(e)}")
+        return jsonify({'error': '服务器内部错误'}), 500

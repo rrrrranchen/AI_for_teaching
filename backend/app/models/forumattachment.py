@@ -1,5 +1,4 @@
 from datetime import datetime
-from bson import ObjectId
 from app.utils.database import db
 
 class ForumAttachment(db.Model):
