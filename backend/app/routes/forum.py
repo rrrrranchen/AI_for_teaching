@@ -53,6 +53,8 @@ def search_posts(keyword):
         ForumPost.content.ilike(f'%{keyword}%').desc()
     ).all()
     return posts
+
+
 @forum_bp.route('/attachments', methods=['POST'])
 def upload_attachment():
     try:
@@ -310,8 +312,8 @@ def get_post(post_id):
             'title': post.title,
             'content': post.content,
             'author_id': post.author_id,
-            'author_name': post.author.username,  # 假设作者对象已经加载
-            'author_avatar': post.author.avatar,  # 假设作者对象已经加载
+            'author_name': post.author.username,  
+            'author_avatar': post.author.avatar,  
             'created_at': post.created_at,
             'updated_at': post.updated_at,
             'view_count': post.view_count,
