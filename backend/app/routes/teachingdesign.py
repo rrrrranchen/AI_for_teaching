@@ -3,7 +3,6 @@ from datetime import datetime
 import os
 import uuid
 from venv import logger
-from bson import ObjectId
 from flask import Blueprint, app, current_app, json, make_response, redirect, render_template, request, jsonify, send_file, session
 from jwt import InvalidKeyError
 from pymysql import IntegrityError
@@ -1104,3 +1103,65 @@ def get_teaching_design_mindmap(design_id):
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@teachingdesign_bp.route('/design/<int:design_id>/set_visibility', methods=['PUT'])
+def set_design_visibility(design_id):
+    try:
+        # 1. 验证用户
+        current_user = get_current_user()
+        if not current_user:
+            logger.error("未获取到当前用户")
+            return jsonify(code=401, message="请先登录"), 401
+            
+        if current_user.role != 'teacher':
+            logger.error(f"用户无权限: {current_user.id}")
+            return jsonify(code=403, message="无操作权限"), 403
+
+        # 2. 获取教学设计
+        design = TeachingDesign.query.get(design_id)
+        
+        if not design:
+            logger.error(f"教学设计不存在: {design_id}")
+            return jsonify(code=404, message="教学设计不存在"), 404
+        
+        # 3. 验证是否是作者
+        if design.creator_id != current_user.id:
+            logger.error(f"用户{current_user.id}尝试操作他人教学设计{design_id}")
+            return jsonify(code=403, message="只能操作自己的教学设计"), 403
+
+        # 4. 获取请求数据
+        data = request.get_json()
+        if not data:
+            logger.error("请求数据为空")
+            return jsonify(code=400, message="缺少必要参数"), 400
+
+        # 记录接收到的数据
+        logger.info(f"接收到的更新数据: {data}")
+
+        # 5. 更新状态
+        if 'is_public' in data and 'is_recommended' in data:
+            design.is_public = bool(data['is_public'])
+            logger.info(f"更新is_public为: {design.is_public}")
+            if data['is_recommended']:
+                design.is_recommended = True
+                design.recommend_time = datetime.utcnow()
+                logger.info("设置为推荐教学设计")
+            else:
+                design.is_recommended = False
+                design.recommend_time = None
+                logger.info("取消推荐教学设计")
+
+        db.session.commit()
+        logger.info("数据库更新成功")
+
+        return jsonify(code=200, message="状态更新成功", data={
+            "design_id": design.id,
+            "is_public": design.is_public,
+            "is_recommended": design.is_recommended,
+            "recommend_time": design.recommend_time.isoformat() if design.recommend_time else None
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"更新教学设计可见性失败: {str(e)}", exc_info=True)
+        return jsonify(code=500, message=f"服务器内部错误: {str(e)}"), 500
