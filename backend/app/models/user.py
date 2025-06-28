@@ -9,6 +9,9 @@ from app.models.student_recommend import StudentRecommend
 from app.models.TeacherOperationLog import TeacherOperationLog
 from app.models.StudentOperationLog import StudentOperationLog
 from app.models.AdminOperationLog import AdminOperationLog
+from app.models.KnowledgeBase import KnowledgeBase
+from app.models.Category import Category
+from app.models.CategoryFile import CategoryFile
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)

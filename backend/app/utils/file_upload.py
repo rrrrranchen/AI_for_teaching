@@ -4,6 +4,7 @@ import time
 import uuid
 # 定义 uploads 目录路径
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+UPLOAD_FOLDER_KNOWLEDGE=os.path.join(project_root,'static','knowledge')
 UPLOAD_FOLDER_PPTTEMPLATE=os.path.join(project_root,'static','template')
 UPLOAD_FOLDER = os.path.join(project_root, 'static', 'uploads','avatar')
 UPLOAD_FOLDER_FORUM=os.path.join(project_root, 'static', 'uploads','forum')
@@ -87,6 +88,42 @@ def upload_file_ppt_template(file):
         
         # 返回相对于静态目录的路径
         relative_path = os.path.join('static', 'template', unique_filename)
+        return relative_path
+    else:
+        raise ValueError("不支持的文件类型")
+    
+def create_user_category_folder(user_id, category_id):
+    """创建用户类目文件夹，并返回文件夹路径"""
+    folder_name = f"user_{user_id}_category_{category_id}"
+    folder_path = os.path.join(UPLOAD_FOLDER_KNOWLEDGE,'category',folder_name)
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+    relative_path = os.path.join('static','knowledge','category',folder_name)
+    return relative_path
+
+def create_knowledge_base_folder(knowledge_base_id):
+    """创建知识库文件夹，并返回文件夹路径"""
+    folder_name = f"knowledge_base_{knowledge_base_id}"
+    folder_path = os.path.join(UPLOAD_FOLDER,'base', folder_name)
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+    relative_path=os.path.join('static','knowledge','base',folder_name)
+    return relative_path
+
+def upload_file_to_folder(file, folder_path):
+    """上传文件到指定文件夹，并返回文件路径。如果文件名重复，则不允许上传"""
+    if file:
+        filename = secure_filename(file.filename)
+        file_path = os.path.join(folder_path, filename)
+        
+        # 检查文件是否已存在
+        if os.path.exists(file_path):
+            raise ValueError("文件名重复，不允许上传")
+        
+        file.save(file_path)
+        
+        # 返回相对于静态目录的路径
+        relative_path = os.path.join('static', 'uploads', os.path.basename(folder_path), filename)
         return relative_path
     else:
         raise ValueError("不支持的文件类型")

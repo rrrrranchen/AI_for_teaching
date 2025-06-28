@@ -12,6 +12,7 @@ class Category(db.Model):
     knowledge_base_id = db.Column(db.Integer, db.ForeignKey('knowledge_base.id'), nullable=False)
     knowledge_base = db.relationship('KnowledgeBase', back_populates='categories', lazy='joined')
     category_files = db.relationship('CategoryFile', back_populates='category', lazy='joined')
+    is_public = db.Column(db.Boolean, default=False)
 
     def __repr__(self):
         return f'<Category {self.name}>'
