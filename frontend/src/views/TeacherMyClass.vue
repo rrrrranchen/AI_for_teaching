@@ -10,7 +10,7 @@
         margin: 20px;
       "
     >
-      <div style="font-weight: bold; font-size: 24px; margin-left: 10px">
+      <div style="font-weight: bold; font-size: 20px; margin-left: 10px">
         我的班级
       </div>
       <div style="display: flex; align-items: center">
@@ -115,13 +115,40 @@
       title="新建课程班"
       @ok="handleCreate"
       :confirm-loading="creating"
+      width="600px"
     >
       <a-form layout="vertical" :model="newClass" :rules="rules">
         <a-form-item label="课程班名称" name="name">
           <a-input v-model:value="newClass.name" />
         </a-form-item>
+
         <a-form-item label="课程班描述">
           <a-textarea v-model:value="newClass.description" :rows="4" />
+        </a-form-item>
+
+        <a-form-item label="课程班封面">
+          <a-upload
+            v-model:file-list="fileList"
+            list-type="picture-card"
+            :before-upload="beforeUpload"
+            :max-count="1"
+            accept="image/*"
+          >
+            <div v-if="!fileList.length">
+              <plus-outlined />
+              <div class="ant-upload-text">上传封面</div>
+            </div>
+          </a-upload>
+        </a-form-item>
+
+        <a-form-item label="课程班可见性" name="is_public">
+          <a-radio-group v-model:value="newClass.is_public">
+            <a-radio :value="true">公开</a-radio>
+            <a-radio :value="false">私有</a-radio>
+          </a-radio-group>
+          <div class="text-gray-500 text-xs mt-1">
+            公开的课程班可以被所有用户搜索到，私有的课程班只能通过邀请码加入
+          </div>
         </a-form-item>
       </a-form>
     </a-modal>
@@ -138,8 +165,13 @@ import {
   CopyOutlined,
 } from "@ant-design/icons-vue";
 import { useAuthStore } from "@/stores/auth";
-import { getAllCourseclasses, createCourseclass } from "@/api/courseclass";
+import {
+  getAllCourseclasses,
+  createCourseclass,
+  type CreateCourseclassParams,
+} from "@/api/courseclass";
 import type { Courseclass } from "@/api/courseclass";
+import type { UploadProps, UploadFile } from "ant-design-vue";
 
 export default defineComponent({
   name: "TeacherMyClassView",
@@ -150,6 +182,7 @@ export default defineComponent({
     const loading = ref(false);
     const searchKeyword = ref("");
     const courseClasses = ref<Courseclass[]>([]);
+    const fileList = ref<UploadFile[]>([]);
 
     // 创建相关
     const createVisible = ref(false);
@@ -157,10 +190,24 @@ export default defineComponent({
     const newClass = ref({
       name: "",
       description: "",
+      is_public: true, // 默认公开
     });
 
     const rules = {
       name: [{ required: true, message: "请输入课程班名称" }],
+      is_public: [{ required: true, message: "请选择课程班可见性" }],
+    };
+
+    const beforeUpload: UploadProps["beforeUpload"] = (file) => {
+      const isImage = file.type.startsWith("image/");
+      if (!isImage) {
+        message.error("只能上传图片文件!");
+      }
+      const isLt5M = file.size / 1024 / 1024 < 5;
+      if (!isLt5M) {
+        message.error("图片大小不能超过5MB!");
+      }
+      return isImage && isLt5M;
     };
 
     const filteredClasses = computed(() => {
@@ -183,20 +230,68 @@ export default defineComponent({
     const handleCreate = async () => {
       try {
         creating.value = true;
-        const newItem = await createCourseclass(newClass.value);
+        const formData = new FormData();
+        formData.append("name", newClass.value.name);
+        formData.append("description", newClass.value.description);
+        formData.append("is_public", String(newClass.value.is_public));
+
+        // 正确处理文件
+        if (fileList.value.length > 0) {
+          const fileObj = fileList.value[0];
+
+          // 确保获取到原生 File 对象
+          if (fileObj.originFileObj instanceof File) {
+            formData.append("image", fileObj.originFileObj);
+
+            // 详细调试信息
+            console.log("文件信息:", {
+              name: fileObj.originFileObj.name,
+              size: fileObj.originFileObj.size,
+              type: fileObj.originFileObj.type,
+            });
+          } else {
+            console.error("无法获取原生文件对象:", fileObj);
+            message.error("文件处理错误，请重新选择图片");
+            return;
+          }
+        }
+
+        // 打印 FormData 内容（实际发送的数据）
+        console.group("FormData 内容");
+        for (const [key, value] of formData.entries()) {
+          if (key === "image") {
+            const file = value as File;
+            console.log(`${key}: ${file.name} (${file.size} bytes)`);
+          } else {
+            console.log(`${key}: ${value}`);
+          }
+        }
+        console.groupEnd();
+
+        const newItem = await createCourseclass(formData);
+
         await loadData();
         message.success("创建成功");
         createVisible.value = false;
-        newClass.value = { name: "", description: "" };
+        resetForm();
         router.push("/home/my-class");
       } catch (err) {
         message.error("创建失败");
+        console.error("创建失败详情:", err);
       } finally {
         creating.value = false;
       }
     };
 
-    // 复制功能实现
+    const resetForm = () => {
+      newClass.value = {
+        name: "",
+        description: "",
+        is_public: true,
+      };
+      fileList.value = [];
+    };
+
     const copyInviteCode = async (code: string) => {
       try {
         await navigator.clipboard.writeText(code);
@@ -216,7 +311,9 @@ export default defineComponent({
       createVisible,
       creating,
       newClass,
+      fileList,
       rules,
+      beforeUpload,
       handleCreate,
       showCreateModal: () => (createVisible.value = true),
       handleSearch: () => loadData(),

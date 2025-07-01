@@ -10,6 +10,8 @@ export interface TeachingDesign {
   default_version_id?: number;
   created_at: string;
   updated_at?: string;
+  is_public: boolean;
+  is_recommended: boolean;
 }
 
 // 教学设计版本类型
@@ -219,4 +221,34 @@ export async function getMindMap(
     `/teaching-design/${designId}/mindmap`
   );
   return response.data;
+}
+
+// 教学设计可见性状态类型
+export interface TeachingDesignVisibility {
+  design_id: number;
+  is_public: boolean;
+  is_recommended: boolean;
+  recommend_time?: string;
+}
+
+// 设置教学设计可见性参数
+interface SetDesignVisibilityParams {
+  is_public: boolean;
+  is_recommended: boolean;
+}
+
+/**
+ * 设置教学设计的公开和推荐状态
+ * @param designId 教学设计ID
+ * @param params 可见性参数
+ */
+export async function setDesignVisibility(
+  designId: number,
+  params: SetDesignVisibilityParams
+): Promise<TeachingDesignVisibility> {
+  const response: AxiosResponse = await api.put(
+    `/design/${designId}/set_visibility`,
+    params
+  );
+  return response.data.data;
 }

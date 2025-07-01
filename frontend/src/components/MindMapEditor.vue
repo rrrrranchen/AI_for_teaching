@@ -332,9 +332,9 @@ export default {
 .mind-map-editor-container {
   display: flex;
   height: 83vh;
-  background: #efffe0;
   border-radius: 10px;
   overflow: hidden;
+  border: 5px solid #c8e5fb;
 }
 
 .editor-main {
@@ -347,8 +347,7 @@ export default {
 
 .toolbar {
   padding: 10px;
-  background: #f5ffeb;
-  border-bottom: 1px solid #aef66a;
+  border-bottom: 2px solid #cfe7f9;
   display: flex;
   gap: 10px;
 }

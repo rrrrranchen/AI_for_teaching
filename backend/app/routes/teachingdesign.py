@@ -601,7 +601,9 @@ def get_teaching_design(design_id):
             "creator_id": design.creator_id,
             "default_version_id": design.current_version_id,
             "created_at": design.created_at.isoformat() if design.created_at else None,
-            "updated_at": design.updated_at.isoformat() if design.updated_at else None
+            "updated_at": design.updated_at.isoformat() if design.updated_at else None,
+            "is_public": design.is_public,
+            "is_recommended": design.is_recommended,
         }
 
         return jsonify(code=200, message="查询成功", data=design_data), 200

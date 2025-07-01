@@ -1,10 +1,20 @@
 <template>
-  <a-breadcrumb separator=">">
-    <a-breadcrumb-item>
-      <router-link to="/home/smart-preparation">智慧备课</router-link>
-    </a-breadcrumb-item>
-    <a-breadcrumb-item>{{ designTitle }}</a-breadcrumb-item>
-  </a-breadcrumb>
+  <div class="header-container">
+    <a-breadcrumb separator=">">
+      <a-breadcrumb-item>
+        <router-link to="/home/smart-preparation">智慧备课</router-link>
+      </a-breadcrumb-item>
+      <a-breadcrumb-item>{{ design?.title }}</a-breadcrumb-item>
+    </a-breadcrumb>
+    <a-switch
+      checked-children="已公开"
+      un-checked-children="未公开"
+      :checked="isPublic"
+      :loading="togglingVisibility"
+      @change="toggleVisibility"
+      class="visibility-switch"
+    />
+  </div>
   <div class="teaching-design-edit">
     <a-tabs v-model:activeKey="activeTab">
       <a-tab-pane key="edit" tab="教学设计">
@@ -36,7 +46,7 @@
               </a-button>
               <a-select
                 v-model:value="selectedVersionId"
-                style="width: 140px"
+                style="width: 150px"
                 @change="handleVersionChange"
               >
                 <a-select-option
@@ -167,8 +177,12 @@ import { FilePptOutlined } from "@ant-design/icons-vue";
 import {
   getDesignVersions,
   getDesignVersionDetail,
+  getDesignDetail,
   updateDesignVersion,
   updateTeachingDesign,
+  setDesignVisibility,
+  type TeachingDesignVersion,
+  type TeachingDesign,
 } from "@/api/teachingdesign";
 import Vditor from "vditor";
 import "vditor/dist/index.css";
@@ -181,19 +195,6 @@ import type { PPTTemplate, MultimediaResource } from "@/api/resource";
 import TeacherRecommendations from "@/components/TeacherRecommendations.vue";
 import MindMapEditor from "@/components/MindMapEditor.vue";
 
-export interface TeachingDesignVersion {
-  id: number;
-  design_id: number;
-  version: string;
-  plan_content?: string;
-  analysis?: string;
-  recommendation_score: number;
-  level: string;
-  created_at: string;
-  updated_at?: string;
-  author_id: number;
-}
-
 export default defineComponent({
   name: "TeachingDesignEdit",
   components: {
@@ -204,8 +205,8 @@ export default defineComponent({
   setup() {
     const route = useRoute();
     const activeTab = ref("edit");
+    const design = ref<TeachingDesign>();
     const designId = ref<number>(0);
-    const designTitle = ref<string>("");
     const designVersions = ref<TeachingDesignVersion[]>([]);
     const selectedVersionId = ref<number | null>(null);
     // 新增状态
@@ -358,8 +359,8 @@ export default defineComponent({
         if (isNaN(id)) throw new Error("无效的教学设计ID");
         designId.value = id;
         defaultVersionId.value = Number(route.query.default_version_id);
-        designTitle.value = route.query.title as string;
         initVditor();
+        await fetchDesignDetail(); // 新增
         await fetchDesignVersions();
         await fetchPPTResources(defaultVersionId.value);
       } catch (err) {
@@ -484,10 +485,48 @@ export default defineComponent({
       message.success("思维导图已更新");
     };
 
+    // 在 setup() 中添加以下代码
+    const isPublic = ref(false);
+    const togglingVisibility = ref(false);
+
+    // 获取当前教学设计的状态
+    const fetchDesignDetail = async () => {
+      try {
+        design.value = await getDesignDetail(designId.value);
+        isPublic.value = design.value.is_public;
+        console.log(
+          "获取教学设计详情成功:",
+          isPublic.value,
+          design.value.is_public
+        );
+      } catch (error) {
+        message.error("获取教学设计详情失败");
+      }
+    };
+
+    // 切换可见性状态
+    const toggleVisibility = async (checked: boolean) => {
+      try {
+        togglingVisibility.value = true;
+        await setDesignVisibility(designId.value, {
+          is_public: checked,
+          is_recommended: checked, // 同时设置推荐状态
+        });
+        isPublic.value = !isPublic.value;
+        message.success(checked ? "已设为公开" : "已设为私有");
+      } catch (error) {
+        message.error("状态切换失败");
+        // 恢复原来的状态
+        isPublic.value = !checked;
+      } finally {
+        togglingVisibility.value = false;
+      }
+    };
+
     return {
+      design,
       designId,
       activeTab,
-      designTitle,
       designVersions,
       selectedVersionId,
       currentVersion,
@@ -512,12 +551,24 @@ export default defineComponent({
       defaultVersionId,
       setDefaultVersion,
       handleMindMapUpdate,
+      isPublic,
+      togglingVisibility,
+      toggleVisibility,
     };
   },
 });
 </script>
 
 <style scoped>
+.header-container {
+  display: flex;
+  justify-content: space-between;
+}
+
+.visibility-switch {
+  margin-top: 24px;
+  margin-right: 24px;
+}
 /* 面包屑导航样式 */
 .ant-breadcrumb {
   padding-top: 16px;
@@ -563,7 +614,7 @@ export default defineComponent({
   flex-direction: column;
   height: 84vh;
   border-radius: 8px;
-  background-color: #f8f6ea;
+  background-color: #e2f4ff;
 }
 
 .analysis-section {

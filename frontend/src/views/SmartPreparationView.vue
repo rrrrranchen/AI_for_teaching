@@ -10,7 +10,9 @@
       </a-col>
       <a-col :span="24" class="bottom-section">
         <div class="teaching-design-container">
-          <h3>我的教学设计</h3>
+          <h1 style="font-weight: bold; font-size: 20px; margin-top: 10px">
+            我的教学设计
+          </h1>
           <div class="teaching-design-cards" v-if="teachingDesigns.length > 0">
             <TeachingDesignItem
               v-for="design in teachingDesigns"

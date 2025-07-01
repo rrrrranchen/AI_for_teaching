@@ -2,7 +2,7 @@
   <a-layout has-sider>
     <a-layout-sider
       theme="light"
-      :width="250"
+      :width="240"
       :collapsedWidth="90"
       :style="{
         overflow: 'auto',
@@ -42,7 +42,6 @@
           <span class="nav-text">学习社区</span>
         </a-menu-item>
       </a-menu>
-      <!-- 用户信息区域 - 固定在侧边栏底部 -->
       <div
         class="user-info-container"
         :style="{
@@ -75,7 +74,7 @@
     </a-layout-sider>
     <a-layout
       :style="{
-        marginLeft: collapsed ? '90px' : '250px',
+        marginLeft: collapsed ? '90px' : '240px',
         transition: 'margin 0.2s',
       }"
     >
@@ -102,15 +101,34 @@
               :key="$route.fullPath"
             />
           </router-view>
+          <!-- 悬浮按钮 -->
+          <a-float-button
+            type="primary"
+            :style="{
+              right: '48px',
+              bottom: '48px',
+            }"
+            @click="showAIChatDialog"
+          >
+            <template #icon>
+              <QuestionCircleOutlined />
+            </template>
+          </a-float-button>
         </div>
       </a-layout-content>
     </a-layout>
+
+    <!-- AI聊天对话框 -->
+    <AIChatDialog v-model:visible="showAIChat" />
   </a-layout>
 </template>
+
 <script lang="ts" setup>
-import { ref, watch } from "vue";
+import { ref, watch, nextTick } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
+import { message } from "ant-design-vue";
+import AIChatDialog from "@/components/AIChatDialog.vue";
 
 const auth = useAuthStore();
 
@@ -120,12 +138,23 @@ import {
   ReconciliationFilled,
   SlackCircleFilled,
   UserOutlined,
+  QuestionCircleOutlined,
 } from "@ant-design/icons-vue";
+
 const collapsed = ref<boolean>(false);
 const selectedKeys = ref<string[]>(["1"]);
-
+const showAIChat = ref<boolean>(false);
+const userInput = ref<string>("");
+const chatMessages = ref<Array<{ role: string; content: string }>>([]);
+const isLoading = ref<boolean>(false);
+const messagesContainer = ref<HTMLElement | null>(null);
+const showAIChatDialog = () => {
+  collapsed.value = true;
+  showAIChat.value = true;
+};
 const router = useRouter();
 const route = useRoute();
+
 // 根据当前路由设置选中的菜单项
 watch(
   () => route.meta.menuKey,
@@ -156,21 +185,92 @@ const handleMenuClick = ({ key }: { key: string }) => {
     case "4":
       router.push("/home/community");
       break;
-    // 其他菜单项...
   }
 };
 
 const goToProfile = () => {
   router.push("/home/profile");
 };
+
+// 切换AI聊天窗口
+const toggleAIChat = () => {
+  collapsed.value = true;
+  showAIChat.value = !showAIChat.value;
+  if (showAIChat.value) {
+    // 可以在这里添加初始欢迎消息
+    if (chatMessages.value.length === 0) {
+      chatMessages.value.push({
+        role: "assistant",
+        content: "您好！我是DeepSeek AI助手，有什么可以帮您的吗？",
+      });
+    }
+    scrollToBottom();
+  }
+};
+
+// 发送消息
+const sendMessage = async () => {
+  if (!userInput.value.trim()) return;
+
+  const userMessage = userInput.value;
+  chatMessages.value.push({ role: "user", content: userMessage });
+  userInput.value = "";
+  isLoading.value = true;
+
+  scrollToBottom();
+
+  try {
+    // 这里调用DeepSeek API
+    const response = await callDeepSeekAPI(userMessage);
+    chatMessages.value.push({ role: "assistant", content: response });
+  } catch (error) {
+    message.error("获取AI回复失败");
+    console.error("API调用错误:", error);
+    chatMessages.value.push({
+      role: "assistant",
+      content: "抱歉，获取回复时出现错误，请稍后再试。",
+    });
+  } finally {
+    isLoading.value = false;
+    scrollToBottom();
+  }
+};
+
+// 调用DeepSeek API的示例函数
+const callDeepSeekAPI = async (prompt: string): Promise<string> => {
+  // 实际使用时替换为真实的API调用
+  // 示例代码，模拟API响应
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      const responses = [
+        "根据您的问题，我建议您可以尝试以下方法...",
+        "这是一个很好的问题，让我为您详细解释...",
+        "在教育领域，这个问题通常可以通过...来解决",
+        "我理解您的困惑，让我们一步步分析这个问题...",
+        "基于我的知识库，关于这个问题的最佳实践是...",
+      ];
+      resolve(responses[Math.floor(Math.random() * responses.length)]);
+    }, 1500);
+  });
+};
+
+// 滚动到消息底部
+const scrollToBottom = () => {
+  nextTick(() => {
+    if (messagesContainer.value) {
+      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+    }
+  });
+};
 </script>
+
 <style scoped>
 .logo {
   height: 96px;
   background: transparent;
   display: flex;
   align-items: center;
-  padding-left: 24px; /* 增加左侧内边距 */
+  padding-left: 24px;
   overflow: hidden;
 }
 
@@ -178,7 +278,7 @@ const goToProfile = () => {
   width: 60px;
   height: 60px;
   object-fit: contain;
-  margin-right: 12px; /* 只保留右侧外边距 */
+  margin-right: 12px;
 }
 
 .system-name {
@@ -190,37 +290,33 @@ const goToProfile = () => {
   transition: opacity 0.3s;
 }
 
-/* 折叠状态调整 */
 .ant-layout-sider-collapsed .logo {
-  padding-left: 12px; /* 折叠后减少左侧间距 */
-  justify-content: flex-start; /* 确保折叠后仍然左对齐 */
+  padding-left: 12px;
+  justify-content: flex-start;
 }
 
 .ant-layout-sider-collapsed .system-name {
   display: none;
 }
+
 .site-layout .site-layout-background {
   background: #fff;
 }
 
-/* 修改 light 主题侧边栏背景色 */
 :deep(.ant-layout-sider-light) {
-  background-color: #f9fbff !important; /* 改为浅灰色背景 */
-  border-right: 1px solid #f9fbff !important; /* 添加右边框 */
+  background-color: #f9fbff !important;
+  border-right: 1px solid #f9fbff !important;
 }
 
-/* 修改 light 主题菜单样式 */
 :deep(.ant-menu-light) {
-  background-color: transparent !important; /* 透明背景 */
+  background-color: transparent !important;
 }
 
-/* 核心修复：确保过渡作用在文字元素上 */
 .ant-menu-item .nav-text {
   display: inline-block;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* 明确指定过渡属性 */
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* 方案一：添加动画轨迹 */
 .ant-menu-item:hover .nav-text {
   animation: textSlide 0.2s forwards;
 }
@@ -247,21 +343,20 @@ const goToProfile = () => {
 }
 
 :deep(.ant-menu.ant-menu-root .ant-menu-item) {
-  height: 72px !important; /* 增加高度 */
-  line-height: 72px !important; /* 保持垂直居中 */
-  font-size: 20px !important; /* 增大字体 */
+  height: 72px !important;
+  line-height: 72px !important;
+  font-size: 20px !important;
   transition: all 0.3s ease !important;
   border-radius: 20px !important;
-  margin: 4px 4px !important; /* 增加水平边距避免圆角被裁剪 */
+  margin: 4px 4px !important;
 
   .anticon {
-    font-size: 24px !important; /* 图标大小 */
-    margin-right: 18px !important; /* 图标与文字间距 */
+    font-size: 24px !important;
+    margin-right: 18px !important;
     margin-left: 0px !important;
   }
 }
 
-/* 新增用户信息区域样式 */
 .user-info-container {
   padding: 16px;
   background: inherit;
@@ -294,7 +389,6 @@ const goToProfile = () => {
   background-color: rgba(0, 0, 0, 0.04);
 }
 
-/* 响应式调整头像大小 */
 .nav-avatar {
   flex-shrink: 0;
   transition: all 0.3s;
@@ -302,13 +396,11 @@ const goToProfile = () => {
   border: none;
 }
 
-/* 确保在折叠状态下头像居中 */
 .ant-layout-sider-collapsed .user-info {
   justify-content: center;
   padding: 8px 0;
 }
 
-/* 确保在折叠状态下用户名完全隐藏 */
 .ant-layout-sider-collapsed .username {
   display: none;
 }
@@ -319,12 +411,96 @@ const goToProfile = () => {
 
 .g-card {
   background: #edf6fbcc no-repeat center center fixed;
-  background-size: cover; /* 添加这一行 */
+  background-size: cover;
   border-radius: 16px;
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
   width: 100%;
   height: 100%;
   overflow: hidden;
   margin: 10px;
+}
+
+/* AI聊天窗口样式 */
+.ai-chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 500px;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  background-color: #fafafa;
+}
+
+.message {
+  margin-bottom: 16px;
+}
+
+.message-content {
+  display: flex;
+  align-items: flex-start;
+  max-width: 90%;
+  margin: 0 auto;
+}
+
+.ai-avatar,
+.user-avatar {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 8px;
+}
+
+.ai-avatar {
+  background-color: #1890ff;
+  color: white;
+}
+
+.user-avatar {
+  background-color: #f0f0f0;
+  color: #666;
+}
+
+.text-content {
+  padding: 12px 16px;
+  border-radius: 18px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.message.assistant .text-content {
+  background-color: #e6f7ff;
+  color: #333;
+  margin-left: 8px;
+}
+
+.message.user .text-content {
+  background-color: #1890ff;
+  color: white;
+  margin-right: 8px;
+}
+
+.message.user {
+  justify-content: flex-end;
+}
+
+.message.user .message-content {
+  flex-direction: row-reverse;
+}
+
+.chat-input {
+  padding: 16px;
+  border-top: 1px solid #f0f0f0;
+  background-color: white;
+}
+
+:deep(.ant-input-search-button) {
+  height: 40px !important;
 }
 </style>

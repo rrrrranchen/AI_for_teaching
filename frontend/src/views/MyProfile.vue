@@ -3,41 +3,58 @@
     <a-card :bordered="false" class="profile-card">
       <!-- 头部信息区 -->
       <div class="profile-header">
-        <a-upload
-          name="avatar"
-          list-type="picture-card"
-          class="avatar-uploader"
-          :show-upload-list="false"
-          :before-upload="beforeUpload"
-          :customRequest="customRequest"
-          @change="handleAvatarChange"
-        >
-          <img
-            v-if="userInfo.avatar"
-            :src="'http://localhost:5000/' + userInfo.avatar"
-            alt="头像"
-            class="avatar"
-          />
-          <div v-else>
-            <loading-outlined v-if="uploading" />
-            <plus-outlined v-else />
-            <div class="ant-upload-text">上传头像</div>
-          </div>
-        </a-upload>
+        <!-- 头像和基本信息放在一个flex容器中 -->
+        <div class="header-main">
+          <a-upload
+            name="avatar"
+            list-type="picture-card"
+            class="avatar-uploader"
+            :show-upload-list="false"
+            :before-upload="beforeUpload"
+            :customRequest="customRequest"
+            @change="handleAvatarChange"
+          >
+            <img
+              v-if="userInfo.avatar"
+              :src="'http://localhost:5000/' + userInfo.avatar"
+              alt="头像"
+              class="avatar"
+            />
+            <div v-else class="avatar-placeholder">
+              <loading-outlined v-if="uploading" />
+              <plus-outlined v-else />
+              <div class="ant-upload-text">上传头像</div>
+            </div>
+          </a-upload>
 
-        <div class="profile-basic">
-          <h1>{{ userInfo.username }}</h1>
-          <div class="user-meta">
-            <span
-              ><user-outlined />
-              {{ userInfo.role === "teacher" ? "教师" : "学生" }}</span
-            >
-            <span><mail-outlined /> {{ userInfo.email }}</span>
-            <span><calendar-outlined /> 注册于 {{ userInfo.created_at }}</span>
+          <div class="profile-basic">
+            <h1>{{ userInfo.username }}</h1>
+            <div class="user-meta">
+              <a-tag
+                :color="userInfo.role === 'teacher' ? 'blue' : 'green'"
+                class="role-tag"
+              >
+                <template #icon><user-outlined /></template>
+                {{ userInfo.role === "teacher" ? "教师" : "学生" }}
+              </a-tag>
+              <span class="meta-item"
+                ><mail-outlined /> {{ userInfo.email }}</span
+              >
+              <span class="meta-item"
+                ><calendar-outlined /> 注册于 {{ userInfo.created_at }}</span
+              >
+            </div>
           </div>
         </div>
+
+        <!-- 退出按钮单独放置 -->
         <div class="profile-actions">
-          <a-button type="primary" danger @click="handleLogout">
+          <a-button
+            type="primary"
+            danger
+            @click="handleLogout"
+            class="logout-btn"
+          >
             <template #icon><logout-outlined /></template>
             退出登录
           </a-button>
@@ -45,76 +62,115 @@
       </div>
 
       <!-- 标签页 -->
-      <a-tabs v-model:activeKey="activeKey" class="profile-tabs">
+      <a-tabs v-model:activeKey="activeKey" class="profile-tabs" type="card">
         <a-tab-pane key="1" tab="个人资料">
-          <a-form
-            :model="userInfo"
-            :label-col="{ span: 4 }"
-            :wrapper-col="{ span: 14 }"
-          >
-            <a-form-item label="用户名">
-              <a-input v-model:value="userInfo.username" disabled />
-            </a-form-item>
-            <a-form-item label="电子邮箱">
-              <a-input v-model:value="userInfo.email" />
-            </a-form-item>
-            <a-form-item label="个性签名">
-              <a-textarea
-                v-model:value="userInfo.signature"
-                placeholder="介绍一下自己..."
-                :rows="4"
-              />
-            </a-form-item>
-            <a-form-item label="角色">
-              <a-select v-model:value="userInfo.role" disabled>
-                <a-select-option value="student">学生</a-select-option>
-                <a-select-option value="teacher">教师</a-select-option>
-              </a-select>
-            </a-form-item>
-            <a-form-item :wrapper-col="{ span: 14, offset: 4 }">
-              <a-button type="primary" @click="updateProfile"
-                >保存修改</a-button
-              >
-            </a-form-item>
-          </a-form>
+          <div class="tab-content">
+            <a-form
+              :model="userInfo"
+              :label-col="{ span: 4 }"
+              :wrapper-col="{ span: 14 }"
+              layout="horizontal"
+            >
+              <a-form-item label="用户名">
+                <a-input
+                  v-model:value="userInfo.username"
+                  disabled
+                  class="form-input"
+                />
+              </a-form-item>
+              <a-form-item label="电子邮箱">
+                <a-input v-model:value="userInfo.email" class="form-input" />
+              </a-form-item>
+              <a-form-item label="个性签名">
+                <a-textarea
+                  v-model:value="userInfo.signature"
+                  placeholder="介绍一下自己..."
+                  :rows="4"
+                  class="form-textarea"
+                />
+              </a-form-item>
+              <a-form-item label="角色">
+                <a-select
+                  v-model:value="userInfo.role"
+                  disabled
+                  class="form-select"
+                >
+                  <a-select-option value="student">学生</a-select-option>
+                  <a-select-option value="teacher">教师</a-select-option>
+                </a-select>
+              </a-form-item>
+              <a-form-item :wrapper-col="{ span: 14, offset: 4 }">
+                <a-button
+                  type="primary"
+                  @click="updateProfile"
+                  class="save-btn"
+                >
+                  <template #icon><save-outlined /></template>
+                  保存修改
+                </a-button>
+              </a-form-item>
+            </a-form>
+          </div>
         </a-tab-pane>
 
         <a-tab-pane key="2" tab="账号安全" force-render>
-          <a-form
-            :model="passwordForm"
-            :label-col="{ span: 4 }"
-            :wrapper-col="{ span: 14 }"
-          >
-            <a-form-item label="当前密码">
-              <a-input-password v-model:value="passwordForm.currentPassword" />
-            </a-form-item>
-            <a-form-item label="新密码">
-              <a-input-password v-model:value="passwordForm.newPassword" />
-            </a-form-item>
-            <a-form-item label="确认密码">
-              <a-input-password v-model:value="passwordForm.confirmPassword" />
-            </a-form-item>
-            <a-form-item :wrapper-col="{ span: 14, offset: 4 }">
-              <a-button type="primary" @click="changePassword"
-                >修改密码</a-button
-              >
-            </a-form-item>
-          </a-form>
+          <div class="tab-content">
+            <a-form
+              :model="passwordForm"
+              :label-col="{ span: 4 }"
+              :wrapper-col="{ span: 14 }"
+              layout="horizontal"
+            >
+              <a-form-item label="当前密码">
+                <a-input-password
+                  v-model:value="passwordForm.currentPassword"
+                  class="form-input"
+                />
+              </a-form-item>
+              <a-form-item label="新密码">
+                <a-input-password
+                  v-model:value="passwordForm.newPassword"
+                  class="form-input"
+                />
+              </a-form-item>
+              <a-form-item label="确认密码">
+                <a-input-password
+                  v-model:value="passwordForm.confirmPassword"
+                  class="form-input"
+                />
+              </a-form-item>
+              <a-form-item :wrapper-col="{ span: 14, offset: 4 }">
+                <a-button
+                  type="primary"
+                  @click="changePassword"
+                  class="save-btn"
+                >
+                  <template #icon><lock-outlined /></template>
+                  修改密码
+                </a-button>
+              </a-form-item>
+            </a-form>
+          </div>
         </a-tab-pane>
 
-        <a-tab-pane key="3" tab="其他信息">
-          <div class="other-info">
-            <a-descriptions bordered>
-              <a-descriptions-item label="最后登录时间"
-                >2023-06-15 14:30:22</a-descriptions-item
-              >
-              <a-descriptions-item label="登录IP"
-                >192.168.1.100</a-descriptions-item
-              >
-              <a-descriptions-item label="账号状态">
-                <a-tag color="green">正常</a-tag>
-              </a-descriptions-item>
-            </a-descriptions>
+        <a-tab-pane key="3" tab="登录记录">
+          <div class="tab-content">
+            <div class="other-info">
+              <a-descriptions bordered :column="1">
+                <a-descriptions-item label="最后登录时间">
+                  <span class="info-value">2023-06-15 14:30:22</span>
+                </a-descriptions-item>
+                <a-descriptions-item label="登录IP">
+                  <span class="info-value">192.168.1.100</span>
+                </a-descriptions-item>
+                <a-descriptions-item label="账号状态">
+                  <a-tag color="green" class="status-tag">正常</a-tag>
+                </a-descriptions-item>
+                <a-descriptions-item label="登录设备">
+                  <span class="info-value">Windows 10 / Chrome 114</span>
+                </a-descriptions-item>
+              </a-descriptions>
+            </div>
           </div>
         </a-tab-pane>
       </a-tabs>
@@ -131,6 +187,8 @@ import {
   PlusOutlined,
   LoadingOutlined,
   LogoutOutlined,
+  SaveOutlined,
+  LockOutlined,
 } from "@ant-design/icons-vue";
 import { message } from "ant-design-vue";
 import { useAuthStore } from "@/stores/auth";
@@ -144,6 +202,8 @@ export default defineComponent({
     PlusOutlined,
     LoadingOutlined,
     LogoutOutlined,
+    SaveOutlined,
+    LockOutlined,
   },
   setup() {
     const authStore = useAuthStore();
@@ -282,77 +342,110 @@ export default defineComponent({
 });
 </script>
 
-<style scoped>
-/* 新增修复代码 */
-.profile-header {
-  position: relative; /* 为绝对定位提供参考 */
-  flex-wrap: wrap; /* 允许换行 */
-}
-
-.profile-actions {
-  position: absolute; /* 桌面端保持原位 */
-  right: 24px;
-  top: 24px;
-}
-
-@media (max-width: 768px) {
-  .profile-actions {
-    position: static; /* 移动端恢复文档流 */
-    order: 2; /* 调整排列顺序 */
-    width: 100%;
-    margin-top: 16px;
-    text-align: center;
-  }
-
-  .profile-basic {
-    order: 1; /* 调整排列顺序 */
-    width: 100%;
-    margin-top: 16px;
-  }
-}
+<style scoped lang="less">
+@primary-color: #1890ff;
+@border-color: #f0f0f0;
+@card-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+@text-color: rgba(0, 0, 0, 0.85);
+@text-color-secondary: rgba(0, 0, 0, 0.45);
+@border-radius-base: 8px;
 
 .profile-container {
-  background: inherit;
-  min-height: calc(100vh - 64px);
+  background: url("../assets/FirstScreenbg.png");
+  background-size: cover; /* 确保背景图片覆盖整个容器 */
+  height: 100%;
   display: flex;
   justify-content: center;
 }
 
 .profile-card {
-  background: inherit;
-  width: 100%;
-  height: 100%;
+  height: 100vh;
+  width: 80%;
+  box-shadow: @card-shadow;
   overflow: hidden;
+  background: #fff;
+
+  :deep(.ant-card-body) {
+    padding: 0;
+  }
 }
 
 .profile-header {
   display: flex;
+  justify-content: space-between; /* 使两部分分开 */
+  align-items: flex-start; /* 顶部对齐 */
+  padding: 32px;
+  border-bottom: 1px solid @border-color;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4e9f2 100%);
+}
+
+.header-main {
   align-items: center;
-  padding: 24px;
-  border-bottom: 1px solid #f0f0f0;
-  gap: 24px;
-  min-height: 160px; /* 确保最小高度 */
+  gap: 24px; /* 头像和基本信息之间的间距 */
+  flex: 1; /* 占据剩余空间 */
+  min-width: 0; /* 防止内容溢出 */
 }
 
 .profile-basic {
   flex: 1;
-  min-width: 300px;
-  padding-right: 100px; /* 为操作按钮留出空间 */
+  min-width: 0; /* 防止文本溢出 */
+
+  h1 {
+    margin: 0 0 12px 0;
+    font-size: 28px;
+    font-weight: 600;
+    color: @text-color;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.profile-actions {
+  flex-shrink: 0; /* 防止按钮被压缩 */
+  margin-left: 24px; /* 与主内容区的间距 */
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .profile-header {
+    flex-direction: column;
+    padding: 24px 16px;
+  }
+
+  .header-main {
+    width: 100%;
+    margin-bottom: 16px;
+  }
+
+  .profile-actions {
+    margin-left: 0;
+    width: 100%;
+    text-align: center;
+  }
 }
 
 .avatar-uploader {
   flex-shrink: 0;
-}
 
-.avatar-uploader :deep(.ant-upload) {
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  overflow: hidden;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background: #f5f5f5;
+  :deep(.ant-upload) {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #fff;
+    border: 4px solid #fff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s;
+
+    &:hover {
+      transform: scale(1.05);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+  }
 }
 
 .avatar {
@@ -361,77 +454,170 @@ export default defineComponent({
   object-fit: cover;
 }
 
-.profile-basic {
-  flex: 1;
-  min-width: 300px;
-}
-
-.profile-basic h1 {
-  margin-bottom: 12px;
-  font-size: 24px;
-  color: rgba(0, 0, 0, 0.85);
-}
-
-.user-meta {
+.avatar-placeholder {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  color: rgba(0, 0, 0, 0.45);
-}
-
-.user-meta span {
-  display: flex;
   align-items: center;
-  font-size: 14px;
-}
+  justify-content: center;
+  color: @text-color-secondary;
 
-.user-meta :deep(.anticon) {
-  margin-right: 8px;
-  font-size: 16px;
+  .anticon {
+    font-size: 24px;
+    margin-bottom: 8px;
+  }
 }
+.user-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
 
-.profile-actions {
-  margin-left: auto;
-  flex-shrink: 0;
+  .meta-item {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    color: @text-color-secondary;
+
+    .anticon {
+      margin-right: 8px;
+      color: @primary-color;
+    }
+  }
+
+  .role-tag {
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 12px;
+
+    .anticon {
+      margin-right: 4px;
+    }
+  }
 }
 
 .profile-tabs {
-  height: calc(100% - 160px);
+  :deep(.ant-tabs-nav) {
+    padding: 0 32px;
+    margin: 0;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e4e9f2 100%);
+
+    &::before {
+      border-bottom: none;
+    }
+
+    .ant-tabs-tab {
+      padding: 16px 24px;
+      font-size: 16px;
+      font-weight: 500;
+      color: @text-color-secondary;
+      border: none !important;
+      margin: 0 4px 0 0;
+      border-radius: @border-radius-base @border-radius-base 0 0;
+      transition: all 0.3s;
+
+      &:hover {
+        color: @primary-color;
+      }
+
+      &.ant-tabs-tab-active {
+        background: #f0f7ff;
+        color: @primary-color;
+      }
+    }
+
+    .ant-tabs-ink-bar {
+      height: 3px;
+      background: @primary-color;
+    }
+  }
+
+  :deep(.ant-tabs-content) {
+    padding: 32px;
+    background: #fff;
+  }
 }
 
-.profile-tabs :deep(.ant-tabs-nav) {
+.tab-content {
+  max-width: 80%;
+  margin: 0 auto;
+}
+
+.form-input,
+.form-select,
+.form-textarea {
+  border-radius: 4px;
+  border: 1px solid #d9d9d9;
+  transition: all 0.3s;
+
+  &:hover {
+    border-color: @primary-color;
+  }
+
+  &:focus {
+    box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+  }
+}
+
+.save-btn {
   padding: 0 24px;
-  margin: 0;
-}
-
-.profile-tabs :deep(.ant-tabs-tab) {
-  padding: 16px 24px;
-  font-size: 16px;
-}
-
-.profile-tabs :deep(.ant-tabs-content) {
-  padding: 24px;
-  height: calc(100% - 48px);
-  overflow-y: auto;
+  height: 40px;
+  font-weight: 500;
+  border-radius: 4px;
 }
 
 .other-info {
-  padding: 16px 0;
+  :deep(.ant-descriptions) {
+    border-radius: @border-radius-base;
+    overflow: hidden;
+
+    .ant-descriptions-item-label {
+      background: #fafafa;
+      font-weight: 500;
+      color: @text-color;
+    }
+
+    .ant-descriptions-item-content {
+      padding: 12px 16px;
+    }
+
+    .info-value {
+      color: @text-color;
+    }
+
+    .status-tag {
+      border-radius: 12px;
+      padding: 2px 8px;
+    }
+  }
 }
 
 @media (max-width: 768px) {
-  .profile-header {
-    flex-direction: column;
-    text-align: center;
+  .profile-container {
+    padding: 16px;
   }
 
-  .avatar-uploader {
-    margin-bottom: 16px;
+  .profile-header {
+    flex-direction: column;
+    padding: 24px 16px;
+    text-align: center;
+
+    .header-content {
+      flex-direction: column;
+      gap: 16px;
+    }
   }
 
   .profile-basic {
     width: 100%;
     text-align: center;
+
+    h1 {
+      font-size: 24px;
+    }
+  }
+
+  .user-meta {
+    justify-content: center;
   }
 
   .profile-actions {
@@ -439,9 +625,19 @@ export default defineComponent({
     width: 100%;
   }
 
-  .profile-tabs :deep(.ant-tabs-tab) {
-    padding: 12px 16px;
-    font-size: 14px;
+  .profile-tabs {
+    :deep(.ant-tabs-nav) {
+      padding: 0 16px;
+
+      .ant-tabs-tab {
+        padding: 12px 16px;
+        font-size: 14px;
+      }
+    }
+
+    :deep(.ant-tabs-content) {
+      padding: 24px 16px;
+    }
   }
 }
 </style>

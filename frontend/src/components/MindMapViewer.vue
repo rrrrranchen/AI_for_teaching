@@ -154,7 +154,7 @@ const initMindMap = () => {
         },
       },
       themeConfig: {
-        backgroundColor: "#f5ffeb",
+        backgroundColor: "#edf6fbcc",
       },
     });
     // 添加节点点击事件
@@ -513,7 +513,6 @@ defineExpose({
 
 .context-menu {
   position: fixed;
-  background-color: #b1fac1;
   border: 1px solid #ccc;
   box-shadow: 0px 2px 10px rgba(0, 0, 0, 0.1);
   z-index: 1000;
