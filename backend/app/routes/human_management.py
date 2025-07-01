@@ -33,11 +33,9 @@ def before_request():
 @human_management_bp.route('/admin/query_users', methods=['GET'])
 def query_users():
     # 获取请求的 JSON 数据
-    data = request.get_json(silent=True) or {}
-
-    # 获取筛选条件
-    role = data.get('role', None)  # 角色筛选参数
-    username = data.get('username', None)  # 用户名筛选参数
+    # 获取 URL 参数
+    role = request.args.get('role', None)  # 角色筛选参数
+    username = request.args.get('username', None)  # 用户名筛选参数
 
     # 查询所有用户
     query = User.query
