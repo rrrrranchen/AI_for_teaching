@@ -22,6 +22,7 @@
             placeholder="按角色筛选"
             style="width: 120px"
             allow-clear
+            @change="handleRoleChange"
           >
             <a-select-option value="student">学生</a-select-option>
             <a-select-option value="teacher">教师</a-select-option>
@@ -38,7 +39,7 @@
 
       <a-table
         :columns="columns"
-        :data-source="userList"
+        :data-source="paginatedData"
         :row-key="(record: User) => record.id"
         :row-selection="{
           selectedRowKeys: selectedRowKeys,
@@ -190,7 +191,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, reactive, onMounted } from "vue";
+import { ref, reactive, onMounted, computed } from "vue";
 import { message } from "ant-design-vue";
 import type { TableProps } from "ant-design-vue";
 import {
@@ -311,24 +312,38 @@ const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleString();
 };
 
-// 获取用户列表
+// 计算分页后的数据
+const paginatedData = computed(() => {
+  const start = (pagination.current - 1) * pagination.pageSize;
+  const end = start + pagination.pageSize;
+  return userList.value.slice(start, end);
+});
+
+// 添加角色变化处理函数
+const handleRoleChange = () => {
+  pagination.current = 1; // 重置到第一页
+  fetchUsers(); // 重新获取数据
+};
+
+// 修改后的fetchUsers方法
 const fetchUsers = async () => {
   try {
     loading.value = true;
     const params = {
       role: searchParams.role,
       username: searchParams.username,
-      page: pagination.current,
-      page_size: pagination.pageSize, // 注意后端可能使用page_size而不是pageSize
     };
 
-    // 移除undefined参数
     const filteredParams = Object.fromEntries(
       Object.entries(params).filter(([_, v]) => v !== undefined)
     );
 
+    console.log("发送的参数:", filteredParams); // 调试用
+
     const users = await adminApi.queryUsers(filteredParams);
+    console.log("返回的数据:", users); // 调试用
     userList.value = users;
+    pagination.total = users.length;
   } catch (error) {
     message.error("获取用户列表失败");
   } finally {
@@ -336,11 +351,10 @@ const fetchUsers = async () => {
   }
 };
 
-// 表格分页、排序、筛选变化
-const handleTableChange: TableProps["onChange"] = (pag, filters, sorter) => {
+// 表格分页变化处理
+const handleTableChange: TableProps["onChange"] = (pag) => {
   pagination.current = pag.current!;
   pagination.pageSize = pag.pageSize!;
-  fetchUsers();
 };
 
 // 选择行变化

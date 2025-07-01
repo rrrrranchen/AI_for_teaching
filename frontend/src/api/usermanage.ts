@@ -53,9 +53,9 @@ export const adminApi = {
     const response: AxiosResponse<User[]> = await api.get(
       "/admin/query_users",
       {
-        params, // GET请求参数放在params中
+        params,
         headers: {
-          Accept: "application/json", // 明确要求JSON响应
+          "Content-Type": "application/json",
         },
       }
     );
