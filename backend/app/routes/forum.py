@@ -280,7 +280,7 @@ def get_all_posts():
             })
             
         return jsonify({
-            'posts': post_data
+            posts
         }), 200
     except Exception as e:
         logger.error(f"获取帖子列表失败: {str(e)}")
