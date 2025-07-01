@@ -6,7 +6,7 @@ import uuid
 from venv import logger
 from flask import Blueprint, json, render_template, request, jsonify, session
 from pymysql import IntegrityError
-from sqlalchemy import func, select
+from sqlalchemy import Integer, cast, func, select
 from werkzeug.security import check_password_hash
 from app.utils.database import db
 from app.models.courseclass import Courseclass
@@ -788,31 +788,53 @@ def search_posts_route():
         if not keyword:
             return jsonify({'error': '缺少搜索关键词'}), 400
 
-        # 调用搜索方法并预加载附件
-        posts = ForumPost.query.join(ForumPost.tags).options(
-            joinedload(ForumPost.attachments),
-            joinedload(ForumPost.author)
+         # 使用参数化查询防止SQL注入
+        search_pattern = f"%{keyword}%"
+        
+        post_scores = db.session.query(
+            ForumPost.id.label('post_id'),
+            (func.sum(
+                cast(ForumPost.title.ilike(search_pattern), Integer) * 3 +
+                cast(ForumTag.name.ilike(search_pattern), Integer) * 2 +
+                cast(ForumPost.content.ilike(search_pattern), Integer)
+            ).label('match_score'))
+        ).outerjoin(
+            ForumPost.tags
         ).filter(
             or_(
-                ForumPost.title.ilike(f'%{keyword}%'),
-                ForumPost.content.ilike(f'%{keyword}%'),
-                ForumTag.name.ilike(f'%{keyword}%')
+                ForumPost.title.ilike(search_pattern),
+                ForumPost.content.ilike(search_pattern),
+                ForumTag.name.ilike(search_pattern)
             )
+        ).group_by(ForumPost.id).subquery()
+
+        # 2. 主查询
+        posts_with_scores = db.session.query(
+            ForumPost,
+            post_scores.c.match_score
+        ).outerjoin(
+            post_scores, ForumPost.id == post_scores.c.post_id
+        ).options(
+            joinedload(ForumPost.attachments),
+            joinedload(ForumPost.author),
+            joinedload(ForumPost.tags)
         ).order_by(
-            ForumPost.title.ilike(f'%{keyword}%').desc(),
-            ForumTag.name.ilike(f'%{keyword}%').desc(),
-            ForumPost.content.ilike(f'%{keyword}%').desc()
+            post_scores.c.match_score.desc(),
+            ForumPost.created_at.desc()
         ).all()
 
-        # 构建返回数据
+        # 3. 构建响应数据
         post_data = []
-        for post in posts:
+        for post, score in posts_with_scores:
+            # 获取作者信息（添加空值保护）
+            author_name = post.author.username if post.author else None
+
             # 查找第一个图片附件
-            first_image_attachment = None
-            for attachment in post.attachments:
-                if attachment.file_path.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
-                    first_image_attachment = attachment.file_path
-                    break
+            first_image_attachment = next(
+                (att.file_path for att in post.attachments 
+                 if att.file_path.lower().endswith(('.png', '.jpg', '.jpeg', '.gif'))),
+                None
+            )
 
             post_data.append({
                 'id': post.id,
@@ -824,7 +846,7 @@ def search_posts_route():
                 'like_count': post.like_count,
                 'favorite_count': post.favorite_count,
                 'tags': [tag.name for tag in post.tags],
-                'first_image': first_image_attachment  # 添加第一个图片附件路径
+                'first_image': first_image_attachment 
             })
 
         return jsonify(post_data), 200
