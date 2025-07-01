@@ -33,9 +33,7 @@ def before_request():
 @human_management_bp.route('/admin/query_users', methods=['GET'])
 def query_users():
     # 获取请求的 JSON 数据
-    data = request.get_json()
-    if not data:
-        return jsonify({'error': 'No JSON data provided'}), 400
+    data = request.get_json(silent=True) or {}
 
     # 获取筛选条件
     role = data.get('role', None)  # 角色筛选参数
