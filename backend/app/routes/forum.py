@@ -279,9 +279,7 @@ def get_all_posts():
                 'tags': [tag.name for tag in post.tags]
             })
             
-        return jsonify({
-            posts
-        }), 200
+        return jsonify(post_data), 200
     except Exception as e:
         logger.error(f"获取帖子列表失败: {str(e)}")
         return jsonify({'error': '服务器内部错误'}), 500
