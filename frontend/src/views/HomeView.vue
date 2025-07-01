@@ -93,6 +93,12 @@
                 :rows="3"
               />
             </a-form-item>
+            <a-form-item name="is_public">
+              <a-radio-group v-model:value="newCourseclass.is_public">
+                <a-radio :value="true">公开</a-radio>
+                <a-radio :value="false">私有</a-radio>
+              </a-radio-group>
+            </a-form-item>
             <a-button type="primary" html-type="submit" block>
               创建新课程班
             </a-button>
@@ -181,6 +187,7 @@ export default defineComponent({
     const newCourseclass = ref({
       name: "",
       description: "",
+      is_public: true, // 默认公开
     });
 
     // 创建课程班方法
@@ -192,12 +199,12 @@ export default defineComponent({
 
       try {
         loading.value = true; // 显示加载状态
-        await createCourseclass({
-          name: newCourseclass.value.name,
-          description: newCourseclass.value.description,
-        });
+        const formData = new FormData();
+        formData.append("name", newCourseclass.value.name);
+        formData.append("description", newCourseclass.value.description);
+        await createCourseclass(formData);
         message.success("课程班创建成功");
-        newCourseclass.value = { name: "", description: "" };
+        newCourseclass.value = { name: "", description: "", is_public: true };
         loadCourseClasses(); // 刷新列表
       } catch (error) {
         message.error("课程班创建失败");

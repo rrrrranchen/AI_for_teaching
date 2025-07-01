@@ -7,7 +7,7 @@ interface User {
   id: number;
   username: string;
   email: string;
-  role: "student" | "teacher";
+  role: "student" | "teacher" | "admin";
   signature?: string;
   password?: string; // 添加密码字段
   avatar?: string; // 添加头像字段
@@ -61,7 +61,9 @@ export const useAuthStore = defineStore(
           await checkAuth();
           if (user.value?.role === "teacher")
             router.push("/home"); // 登录成功后跳转首页
-          else router.push("/home/my-class");
+          else if (user.value?.role === "student")
+            router.push("/home/my-class");
+          else router.push("/admin");
         }
       } catch (err: any) {
         error.value = err.response?.data?.message || "登录失败，请重试";

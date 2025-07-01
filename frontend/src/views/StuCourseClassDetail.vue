@@ -32,6 +32,17 @@
       <div v-else class="class-content">
         <!-- 头部信息区 -->
         <div class="class-header">
+          <div class="class-image-container">
+            <img
+              v-if="courseclassDetail?.image_path"
+              :src="'http://localhost:5000/' + courseclassDetail.image_path"
+              alt="班级图片"
+              class="class-image"
+            />
+            <div v-else class="class-image-placeholder">
+              <book-outlined class="placeholder-icon" />
+            </div>
+          </div>
           <div class="class-basic">
             <div
               style="
@@ -523,7 +534,38 @@ export default defineComponent({
   flex-wrap: wrap;
   border-bottom: 1px solid #f0f0f0;
 }
+.class-image-container {
+  width: 250px;
+  height: 200px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background-color: #f5f5f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
 
+.class-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.class-image-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #e6f7ff;
+}
+
+.placeholder-icon {
+  font-size: 48px;
+  color: #1890ff;
+}
 .class-basic {
   flex: 1;
   min-width: 300px;

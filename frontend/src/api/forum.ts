@@ -15,7 +15,7 @@ export interface ForumPost {
   title: string;
   content: string;
   author_id: number;
-  authorname: string;
+  author_name: string;
   author_avatar: string;
   created_at: {
     $date: string;
@@ -32,6 +32,7 @@ export interface ForumPost {
   tags?: string[];
   is_liked: boolean;
   is_favorited: boolean;
+  first_image?: string;
 }
 
 export interface ForumComment {
@@ -69,6 +70,22 @@ export interface PaginatedResponse<T> {
   total: number;
   pages: number;
   current_page: number;
+}
+export interface ForumTag {
+  id: number;
+  name: string;
+}
+
+// 推荐教学设计类型
+export interface RecommendedTeachingDesign {
+  design_id: number;
+  title: string;
+  course_id: number;
+  creator_id: number;
+  author_name: string;
+  author_avatar?: string;
+  version_content: string;
+  recommend_time?: string;
 }
 
 // ======================== API 接口 ========================
@@ -201,14 +218,14 @@ export const forumApi = {
   },
 
   //获取用户帖子
-  async getUserPosts(): Promise<ForumUsers[]> {
-    const response: AxiosResponse<ForumUsers[]> = await api.get("/users/posts");
+  async getUserPosts(): Promise<ForumPost[]> {
+    const response: AxiosResponse<ForumPost[]> = await api.get("/users/posts");
     return response.data;
   },
 
   // 获取用户收藏
-  async getUserFavorites(): Promise<ForumFavorite[]> {
-    const response: AxiosResponse<ForumFavorite[]> = await api.get(
+  async getUserFavorites(): Promise<ForumPost[]> {
+    const response: AxiosResponse<ForumPost[]> = await api.get(
       "/users/favorites"
     );
     return response.data;
@@ -221,6 +238,20 @@ export const forumApi = {
       {
         params: { keyword },
       }
+    );
+    return response.data;
+  },
+
+  // 获取所有标签
+  async getAllTags(): Promise<ForumTag[]> {
+    const response: AxiosResponse<ForumTag[]> = await api.get("/get_alltags");
+    return response.data;
+  },
+
+  // 获取推荐教学设计
+  async getRecommendedDesigns(): Promise<RecommendedTeachingDesign[]> {
+    const response: AxiosResponse<RecommendedTeachingDesign[]> = await api.get(
+      "/recommended_designs"
     );
     return response.data;
   },

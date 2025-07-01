@@ -42,7 +42,7 @@
               </a-col>
               <a-col :span="14">
                 <div class="author-info">
-                  <h3 class="author-name">{{ post.authorname }}</h3>
+                  <h3 class="author-name">{{ post.author_name }}</h3>
                   <div class="post-meta">
                     <span class="post-time">
                       <clock-circle-outlined />

@@ -182,8 +182,6 @@ export default defineComponent({
 <style scoped>
 .teacher-recommendations {
   padding: 16px;
-  background: #fbfaef;
-  border: 5px solid #fcf9d3;
   border-radius: 8px;
   height: 83vh;
 }
@@ -197,6 +195,7 @@ export default defineComponent({
   max-height: 50vh;
   overflow-y: auto;
   line-height: 1.6;
+  margin-bottom: 16px;
 }
 
 .markdown-content :deep() h1,
