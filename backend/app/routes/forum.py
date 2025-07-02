@@ -23,6 +23,7 @@ from werkzeug.utils import secure_filename
 from sqlalchemy.orm import joinedload
 from app.models.teachingdesignversion import TeachingDesignVersion
 from app.models.teaching_design import TeachingDesign
+from app.models.teacher_recommend import TeacherRecommend
 forum_bp=Blueprint('forum',__name__)
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -922,28 +923,53 @@ def get_recommended_designs():
             TeachingDesign.is_recommended == True
         ).order_by(
             TeachingDesign.recommend_time.desc()
-        ).limit(5).all()  # 限制获取5个
+        ).limit(5).all()
 
-        # 构建返回数据
         designs_data = []
         for design in recommended_designs:
-            # 获取当前版本
             current_version = TeachingDesignVersion.query.get(design.current_version_id)
             version_content = json.loads(current_version.content) if current_version and current_version.content else {}
             
-            # 获取作者信息
             author = User.query.get(design.creator_id)
             
-            designs_data.append({
+            # 获取推荐信息中的第一张图片
+            first_image = None
+            recommendation = TeacherRecommend.query.filter_by(
+                teaching_design_id=design.id
+            ).order_by(
+                TeacherRecommend.created_at.desc()
+            ).first()
+            
+            if recommendation and recommendation.image_recommendations:
+                try:
+                    images_data = recommendation.image_recommendations
+                    # 处理字符串类型的JSON
+                    if isinstance(images_data, str):
+                        images_data = json.loads(images_data)
+                    
+                    # 从JSON对象中提取images数组
+                    if isinstance(images_data, dict) and "images" in images_data:
+                        images = images_data["images"]
+                        if isinstance(images, (list, tuple)) and len(images) > 0:
+                            first_image = images[0]
+                except Exception as e:
+                    logger.warning(f"Failed to parse images for design {design.id}: {str(e)}")
+
+            design_data = {
                 'id': design.id,
                 'title': design.title,
                 'course_id': design.course_id,
                 'author_id': design.creator_id,
                 'author_name': author.username if author else "未知用户",
                 'author_avatar': author.avatar if author else None,
-                'version_content': version_content.get('plan_content', '')[:200] + '...',  # 截取部分内容
+                'version_content': version_content.get('plan_content', '')[:200] + '...',
                 'recommend_time': design.recommend_time.isoformat() if design.recommend_time else None
-            })
+            }
+            
+            if first_image:
+                design_data['first_image'] = first_image
+                
+            designs_data.append(design_data)
 
         return jsonify(designs_data), 200
     except Exception as e:
