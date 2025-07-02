@@ -401,7 +401,7 @@ export default defineComponent({
         await auth.login(loginForm.value.username, loginForm.value.password);
         message.success("登录成功");
       } catch (error) {
-        refreshCaptcha();
+        // refreshCaptcha();
       } finally {
         auth.isLoading = false;
       }

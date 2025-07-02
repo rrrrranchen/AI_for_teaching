@@ -21,6 +21,8 @@ def get_current_user():
 @courseclass_management_bp.before_request
 def before_request():
     # 检查用户是否已登录
+    if request.method == 'OPTIONS':
+        return
     if is_logged_in():
         # 获取当前用户并存储到 g 对象中
         g.current_user = get_current_user()
@@ -95,8 +97,6 @@ def query_courseclasses():
 
 @courseclass_management_bp.route('/admin/update_courseclass/<int:courseclass_id>', methods=['PUT'])
 def update_courseclass(courseclass_id):
-    if not is_logged_in():
-        return jsonify({'error': 'Unauthorized'}), 401
     try:
         courseclass = Courseclass.query.get(courseclass_id)
         if not courseclass:

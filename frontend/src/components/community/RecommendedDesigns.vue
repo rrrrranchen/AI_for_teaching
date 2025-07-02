@@ -16,9 +16,9 @@
                 <template #cover>
                   <div class="card-cover">
                     <img
-                      v-if="design.author_avatar"
-                      :src="design.author_avatar"
-                      alt="作者头像"
+                      v-if="design.first_image"
+                      :src="design.first_image"
+                      alt="加载失败"
                       class="author-avatar"
                     />
                     <div v-else class="avatar-placeholder">
@@ -176,7 +176,6 @@ onMounted(() => {
   display: flex;
   gap: 16px;
   transition: transform 0.5s ease;
-  padding: 8px 0;
   will-change: transform; /* 提升动画性能 */
   backface-visibility: hidden; /* 防止渲染问题 */
   padding: 18px;
@@ -192,6 +191,7 @@ onMounted(() => {
 .design-card .ant-card {
   width: 100%;
   height: 100%;
+  background: #edf6fbcc;
   box-sizing: border-box; /* 重要 */
 }
 
@@ -201,12 +201,11 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
 }
 
 .author-avatar {
-  width: 80px;
-  height: 80px;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
   object-fit: cover;
 }

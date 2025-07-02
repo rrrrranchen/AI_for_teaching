@@ -86,6 +86,7 @@ export interface RecommendedTeachingDesign {
   author_avatar?: string;
   version_content: string;
   recommend_time?: string;
+  first_image?: string;
 }
 
 // ======================== API 接口 ========================
