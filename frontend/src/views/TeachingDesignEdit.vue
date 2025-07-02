@@ -34,6 +34,7 @@
                 :loading="saving"
                 block
               >
+                <template #icon><SaveOutlined /></template>
                 保存修改
               </a-button>
               <a-button
@@ -173,7 +174,7 @@
 import { defineComponent, ref, onMounted, onBeforeUnmount } from "vue";
 import { useRoute } from "vue-router";
 import { message } from "ant-design-vue";
-import { FilePptOutlined } from "@ant-design/icons-vue";
+import { FilePptOutlined, SaveOutlined } from "@ant-design/icons-vue";
 import {
   getDesignVersions,
   getDesignVersionDetail,
@@ -199,6 +200,7 @@ export default defineComponent({
   name: "TeachingDesignEdit",
   components: {
     FilePptOutlined,
+    SaveOutlined,
     TeacherRecommendations,
     MindMapEditor,
   },
