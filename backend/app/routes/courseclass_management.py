@@ -34,14 +34,13 @@ def before_request():
 
 @courseclass_management_bp.route('/admin/query_courseclasses', methods=['GET'])
 def query_courseclasses():
-    data = request.get_json()
     
     # 获取筛选条件
-    name = data.get('name', None)  # 课程班名称筛选
-    teacher_id = data.get('teacher_id', None)  # 教师ID筛选
-    student_id = data.get('student_id', None)  # 学生ID筛选
-    course_id = data.get('course_id', None)  # 课程ID筛选
-    invite_code = data.get('invite_code', None)  # 邀请码筛选
+    name = request.args.get('name', None)  # 课程班名称筛选
+    teacher_id = request.args.get('teacher_id', None)  # 教师ID筛选
+    student_id = request.args.get('student_id', None)  # 学生ID筛选
+    course_id = request.args.get('course_id', None)  # 课程ID筛选
+    invite_code = request.args.get('invite_code', None)  # 邀请码筛选
 
     # 基础查询
     query = Courseclass.query

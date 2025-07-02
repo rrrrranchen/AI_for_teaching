@@ -40,6 +40,12 @@ const routes: Array<RouteRecordRaw> = [
         component: () => import("../views/admin/UserManage.vue"),
         meta: { menuKey: 3 },
       },
+      {
+        path: "class-manage",
+        name: "class-manage",
+        component: () => import("../views/admin/CourseClassManage.vue"),
+        meta: { menuKey: 4 },
+      },
     ],
   },
   {
