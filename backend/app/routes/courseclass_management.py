@@ -1,3 +1,4 @@
+from datetime import datetime
 from flask import Blueprint, g, jsonify, request, session
 from app.utils.database import db
 from app.models.user import User
@@ -6,6 +7,7 @@ from app.models.course import Course
 from app.routes.courseclass import generate_invite_code
 from app.utils.file_upload import upload_file_courseclass
 from app.services.rank import generate_public_courseclass_ranking
+from app.services.log_service import LogService
 
 courseclass_management_bp = Blueprint('courseclass_management', __name__)
 
@@ -207,3 +209,32 @@ def get_public_courseclass_ranking():
     
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+@courseclass_management_bp.after_request
+def log_after_request(response):
+    # 跳过预检请求和错误响应
+    if request.method == 'OPTIONS' or not (200 <= response.status_code < 400):
+        return response
+
+    # 获取当前用户（已通过before_request验证）
+    current_user = g.current_user
+    user_info = {
+        'id': current_user.id,
+        'role': current_user.role
+    }
+
+    # 记录所有成功请求（无需白名单检查）
+    LogService.log_operation(
+        user_id=user_info['id'],
+        user_type=user_info['role'],
+        operation_type=f"{request.method}_{request.endpoint.replace('.', '_')}",
+        details={
+            'path': request.path,
+            'method': request.method,
+            'params': dict(request.args) if request.args else None,
+            'body': request.get_json(silent=True) if request.method in ['POST', 'PUT', 'PATCH'] else None,
+            'status': response.status_code,
+            'timestamp': datetime.now().isoformat()
+        }
+    )
+    return response
