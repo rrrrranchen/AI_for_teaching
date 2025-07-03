@@ -1,10 +1,37 @@
+from datetime import datetime
 import os
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, current_app, g, request, jsonify, session
 from werkzeug.utils import secure_filename
 from app.models.ppttemplate import PPTTemplate
 from app.utils.database import db
+from app.models.user import User
+from app.services.log_service import LogService
 
 ppt_templates_management_bp = Blueprint('ppt_templates_management_bp', __name__)
+
+def is_logged_in():
+    return 'user_id' in session
+
+def get_current_user():
+    user_id = session.get('user_id')
+    if user_id:
+        return User.query.get(user_id)
+    return None
+
+@ppt_templates_management_bp.before_request
+def before_request():
+    # 检查用户是否已登录
+    if request.method == 'OPTIONS':
+        return
+    if is_logged_in():
+        # 获取当前用户并存储到 g 对象中
+        g.current_user = get_current_user()
+        # 检查用户是否为管理员
+        if g.current_user and g.current_user.role != 'admin':
+            return jsonify({'error': 'Forbidden'}), 403
+    else:
+        # 如果用户未登录，返回未授权错误
+        return jsonify({'error': 'Unauthorized'}), 401
 
 # 配置上传目录
 TEMPLATE_UPLOAD_FOLDER = 'static/template'
@@ -36,13 +63,21 @@ def get_ppt_templates():
 @ppt_templates_management_bp.route('/ppt_templates', methods=['POST'])
 def create_ppt_template():
     """创建新的PPT模板"""
+    template_dir = os.path.join(current_app.root_path, 'static', 'template')
+    image_dir = os.path.join(current_app.root_path, 'static', 'templateimage')
+    
+    # 确保目录存在（跨平台兼容）
+    os.makedirs(template_dir, exist_ok=True)
+    os.makedirs(image_dir, exist_ok=True)
+    
     # 检查文件上传
     if 'file' not in request.files or 'image' not in request.files:
         return jsonify({'error': '缺少文件或图片'}), 400
-    
+
     file = request.files['file']
     image = request.files['image']
     
+
     # 验证文件类型
     if not (allowed_file(file.filename) and allowed_file(image.filename)):
         return jsonify({'error': '不允许的文件类型'}), 400
@@ -54,10 +89,10 @@ def create_ppt_template():
     
     try:
         # 保存PPT文件
-        file.save(os.path.join(TEMPLATE_UPLOAD_FOLDER, template_name))
+        file.save(os.path.join(template_dir, template_name))
         
         # 保存图片
-        image.save(os.path.join(TEMPLATE_IMAGE_UPLOAD_FOLDER, image_name))
+        image.save(os.path.join(image_dir, image_name))
         
         # 创建数据库记录
         new_template = PPTTemplate(
@@ -121,3 +156,33 @@ def delete_ppt_template(template_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+
+@ppt_templates_management_bp.after_request
+def log_after_request(response):
+    # 跳过预检请求和错误响应
+    if request.method == 'OPTIONS' or not (200 <= response.status_code < 400):
+        return response
+
+    # 获取当前用户（已通过before_request验证）
+    current_user = g.current_user
+    user_info = {
+        'id': current_user.id,
+        'role': current_user.role
+    }
+
+    # 记录所有成功请求（无需白名单检查）
+    LogService.log_operation(
+        user_id=user_info['id'],
+        user_type=user_info['role'],
+        operation_type=f"{request.method}_{request.endpoint.replace('.', '_')}",
+        details={
+            'path': request.path,
+            'method': request.method,
+            'params': dict(request.args) if request.args else None,
+            'body': request.get_json(silent=True) if request.method in ['POST', 'PUT', 'PATCH', 'DELETE'] else None,
+            'status': response.status_code,
+            'timestamp': datetime.now().isoformat()
+        }
+    )
+    return response
