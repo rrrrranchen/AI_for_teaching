@@ -106,7 +106,10 @@ def get_courseclasses():
             }
             for courseclass in courseclasses
         ]
-        return jsonify(result), 200
+        return jsonify({
+            'count': len(result),  # 新增的课程班数量字段
+            'courseclasses': result  # 原有的课程班列表
+        }), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
