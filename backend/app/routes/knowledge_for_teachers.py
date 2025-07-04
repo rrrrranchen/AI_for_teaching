@@ -33,6 +33,8 @@ def allowed_file(filename, allowed_extensions):
 
 @knowledge_for_teachers_bp.before_request
 def before_request():
+    if request.method == 'OPTIONS':
+        return
     if not is_logged_in():
         return jsonify({'error': 'Unauthorized'}), 401
     g.current_user = get_current_user()
