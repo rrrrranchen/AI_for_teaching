@@ -36,16 +36,17 @@ def before_request():
         return jsonify({'error': 'Unauthorized'}), 401
 
 
-@dashBoard_bp.route('/student_usage_count', methods=['POST'])  # 改为POST方法
+from datetime import datetime, timedelta
+
+@dashBoard_bp.route('/student_usage_count', methods=['POST'])
 def get_student_usage_count():
     """
-    查询学生使用次数(JSON请求格式)
+    查询学生使用次数(JSON请求格式)，支持统计当日或本周
     请求体示例:
     {
         "student_id": 123,
         "operation_type": "提交作业",  // 可选
-        "start_date": "2023-01-01",   // 可选
-        "end_date": "2023-12-31"      // 可选
+        "time_range": "day"  // 必填，"day"表示当日，"week"表示本周
     }
     """
     # 获取JSON请求数据
@@ -58,30 +59,35 @@ def get_student_usage_count():
     if not student_id:
         return jsonify({'error': 'student_id is required'}), 400
     
+    time_range = data.get('time_range')
+    if not time_range or time_range not in ['day', 'week']:
+        return jsonify({'error': 'time_range is required and must be "day" or "week"'}), 400
+    
     operation_type = data.get('operation_type')
-    start_date_str = data.get('start_date')
-    end_date_str = data.get('end_date')
+    
+    # 计算时间范围
+    now = datetime.now()
+    if time_range == 'day':
+        # 当日00:00:00到23:59:59
+        start_time = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_time = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+        date_label = now.strftime('%Y-%m-%d')
+    else:
+        # 本周一00:00:00到周日23:59:59
+        start_time = now - timedelta(days=now.weekday())
+        start_time = start_time.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_time = start_time + timedelta(days=6, hours=23, minutes=59, seconds=59, microseconds=999999)
+        date_label = f"{start_time.strftime('%Y-%m-%d')}至{(start_time + timedelta(days=6)).strftime('%Y-%m-%d')}"
     
     # 构建查询
-    query = StudentOperationLog.query.filter_by(student_id=student_id)
+    query = StudentOperationLog.query.filter(
+        StudentOperationLog.student_id == student_id,
+        StudentOperationLog.operation_time.between(start_time, end_time)
+    )
     
-    # 添加可选过滤条件
+    # 添加操作类型过滤
     if operation_type:
         query = query.filter_by(operation_type=operation_type)
-    
-    if start_date_str:
-        try:
-            start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
-            query = query.filter(StudentOperationLog.operation_time >= start_date)
-        except ValueError:
-            return jsonify({'error': 'Invalid start_date format. Use YYYY-MM-DD'}), 400
-    
-    if end_date_str:
-        try:
-            end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
-            query = query.filter(StudentOperationLog.operation_time <= end_date)
-        except ValueError:
-            return jsonify({'error': 'Invalid end_date format. Use YYYY-MM-DD'}), 400
     
     # 获取总数
     total_count = query.count()
@@ -90,23 +96,26 @@ def get_student_usage_count():
     type_counts = db.session.query(
         StudentOperationLog.operation_type,
         db.func.count().label('count')
-    ).filter_by(student_id=student_id)
+    ).filter(
+        StudentOperationLog.student_id == student_id,
+        StudentOperationLog.operation_time.between(start_time, end_time)
+    )
     
-    if start_date_str and end_date_str:
-        type_counts = type_counts.filter(
-            StudentOperationLog.operation_time.between(start_date, end_date)
-        )
+    if operation_type:
+        type_counts = type_counts.filter_by(operation_type=operation_type)
     
     type_counts = type_counts.group_by(
         StudentOperationLog.operation_type
     ).all()
     
-    # 构造返回结果
-    response = jsonify({
+    return jsonify({
         'student_id': student_id,
+        'time_range': time_range,
+        'date_range': date_label,
         'total_operations': total_count,
         'operations_by_type': dict(type_counts)
     }), 200
+
 
 
 @dashBoard_bp.route('/operation_logs', methods=['GET'])
