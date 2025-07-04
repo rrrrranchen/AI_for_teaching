@@ -19,6 +19,8 @@ def get_current_user():
 @human_management_bp.before_request
 def before_request():
     # 检查用户是否已登录
+    if request.method == 'OPTIONS':
+        return
     if is_logged_in():
         # 获取当前用户并存储到 g 对象中
         g.current_user = get_current_user()
@@ -33,13 +35,9 @@ def before_request():
 @human_management_bp.route('/admin/query_users', methods=['GET'])
 def query_users():
     # 获取请求的 JSON 数据
-    data = request.get_json()
-    if not data:
-        return jsonify({'error': 'No JSON data provided'}), 400
-
-    # 获取筛选条件
-    role = data.get('role', None)  # 角色筛选参数
-    username = data.get('username', None)  # 用户名筛选参数
+    # 获取 URL 参数
+    role = request.args.get('role', None)  # 角色筛选参数
+    username = request.args.get('username', None)  # 用户名筛选参数
 
     # 查询所有用户
     query = User.query

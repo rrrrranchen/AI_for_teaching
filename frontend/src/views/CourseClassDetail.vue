@@ -32,6 +32,17 @@
       <div v-else class="class-content">
         <!-- 头部信息区 -->
         <div class="class-header">
+          <div class="class-image-container">
+            <img
+              v-if="courseclassDetail?.image_path"
+              :src="'http://localhost:5000/' + courseclassDetail.image_path"
+              alt="班级图片"
+              class="class-image"
+            />
+            <div v-else class="class-image-placeholder">
+              <book-outlined class="placeholder-icon" />
+            </div>
+          </div>
           <div class="class-basic">
             <div style="font-weight: bold; font-size: 36px; margin-left: 10px">
               {{ courseclassDetail?.name || "加载中..." }}
@@ -87,7 +98,6 @@
               </div>
             </a-space>
           </div>
-
           <div
             class="teacher-actions"
             v-if="
@@ -96,16 +106,21 @@
               )
             "
           >
-            <a-space>
-              <a-button type="primary" @click="showEditModal">
-                <edit-outlined />
-                编辑班级
+            <a-dropdown>
+              <a-button type="text" size="large">
+                <ellipsis-outlined />
               </a-button>
-              <a-button danger @click="handleDeleteClass">
-                <delete-outlined />
-                删除班级
-              </a-button>
-            </a-space>
+              <template #overlay>
+                <a-menu>
+                  <a-menu-item key="edit" @click="showEditModal">
+                    <edit-outlined /> 编辑班级
+                  </a-menu-item>
+                  <a-menu-item key="delete" danger @click="handleDeleteClass">
+                    <delete-outlined /> 删除班级
+                  </a-menu-item>
+                </a-menu>
+              </template>
+            </a-dropdown>
           </div>
           <!-- 编辑课程班模态框 -->
           <a-modal
@@ -285,24 +300,36 @@
 
     <!-- 创建课程模态框 -->
     <a-modal
-      v-model:visible="createVisible"
-      title="新建课程"
-      @ok="addNewCourse"
-      :confirm-loading="creating"
+      v-model:visible="editVisible"
+      title="编辑课程班"
+      @ok="handleEditSubmit"
+      :confirm-loading="editing"
     >
-      <a-form layout="vertical" :model="newCourse">
-        <a-form-item label="课程名称" required>
-          <a-input
-            v-model:value="newCourse.name"
-            placeholder="请输入课程名称"
-          />
+      <a-form layout="vertical" :model="editForm">
+        <a-form-item label="班级名称" required>
+          <a-input v-model:value="editForm.name" />
         </a-form-item>
-        <a-form-item label="课程描述">
-          <a-textarea
-            v-model:value="newCourse.description"
-            placeholder="请输入课程描述"
-            :rows="4"
-          />
+        <a-form-item label="班级描述">
+          <a-textarea v-model:value="editForm.description" :rows="4" />
+        </a-form-item>
+        <a-form-item label="班级图片">
+          <a-upload
+            v-model:file-list="editForm.fileList"
+            :before-upload="beforeUpload"
+            list-type="picture-card"
+            :show-upload-list="false"
+          >
+            <img
+              v-if="editForm.imageUrl"
+              :src="editForm.imageUrl"
+              alt="班级图片"
+              style="width: 100%"
+            />
+            <div v-else>
+              <plus-outlined />
+              <div class="ant-upload-text">上传图片</div>
+            </div>
+          </a-upload>
         </a-form-item>
       </a-form>
     </a-modal>
@@ -336,6 +363,7 @@ import {
   DeleteOutlined,
   SyncOutlined,
   EditOutlined,
+  EllipsisOutlined,
 } from "@ant-design/icons-vue";
 import { useAuthStore } from "@/stores/auth";
 
@@ -356,6 +384,7 @@ export default defineComponent({
     DeleteOutlined,
     SyncOutlined,
     EditOutlined,
+    EllipsisOutlined,
   },
   setup() {
     const route = useRoute();
@@ -620,28 +649,50 @@ export default defineComponent({
     const editForm = ref({
       name: "",
       description: "",
+      fileList: [],
+      imageUrl: "",
+      imageFile: null,
     });
 
-    // 提交编辑
+    const beforeUpload = (file: any) => {
+      editForm.value.imageFile = file;
+      editForm.value.imageUrl = URL.createObjectURL(file);
+      return false; // Prevent automatic upload
+    };
+
+    const showEditModal = () => {
+      editForm.value = {
+        name: courseclassDetail.value?.name || "",
+        description: courseclassDetail.value?.description || "",
+        fileList: [],
+        imageUrl: courseclassDetail.value?.image_path
+          ? `http://localhost:5000/${courseclassDetail.value.image_path}`
+          : "",
+        imageFile: null,
+      };
+      editVisible.value = true;
+    };
+
     const handleEditSubmit = async () => {
       try {
         editing.value = true;
-        const updated = await updateCourseclass(courseclassId.value, {
-          name: editForm.value.name,
-          description: editForm.value.description,
-        });
+        const formData = new FormData();
+        formData.append("name", editForm.value.name);
+        formData.append("description", editForm.value.description);
+        if (editForm.value.imageFile) {
+          formData.append("image", editForm.value.imageFile);
+        }
 
+        const updated = await updateCourseclass(courseclassId.value, formData);
         courseclassDetail.value = updated;
         message.success("更新成功");
         editVisible.value = false;
-        router.push(route.path);
       } catch (error) {
         message.error("更新失败");
       } finally {
         editing.value = false;
       }
     };
-
     // 删除课程班
     const handleDeleteClass = () => {
       Modal.confirm({
@@ -696,9 +747,10 @@ export default defineComponent({
       editVisible,
       editing,
       editForm,
-      showEditModal: () => (editVisible.value = true),
+      showEditModal,
       handleEditSubmit,
       handleDeleteClass,
+      beforeUpload,
     };
   },
 });
@@ -725,6 +777,58 @@ export default defineComponent({
   border-bottom: 1px solid #f0f0f0;
 }
 
+.class-image-container {
+  width: 250px;
+  height: 200px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background-color: #f5f5f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.class-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.class-image-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #e6f7ff;
+}
+
+.placeholder-icon {
+  font-size: 48px;
+  color: #1890ff;
+}
+
+/* Adjust the class-basic to take remaining space */
+.class-basic {
+  flex: 1;
+  min-width: 300px;
+}
+
+/* For responsive design */
+@media (max-width: 768px) {
+  .class-image-container {
+    width: 80px;
+    height: 80px;
+    margin-bottom: 16px;
+  }
+
+  .class-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
 .class-basic {
   flex: 1;
   min-width: 300px;
@@ -1095,8 +1199,6 @@ export default defineComponent({
 /* 添加报告样式 */
 .report-container {
   padding: 16px;
-  background: #fbfaef;
-  border: 5px solid #fcf9d3;
   border-radius: 8px;
   min-height: 500px;
 }
@@ -1135,14 +1237,23 @@ export default defineComponent({
   border-radius: 6px;
 }
 
-/* 在style部分新增 */
 .teacher-actions {
   margin-top: 16px;
   padding-top: 16px;
   border-top: 1px dashed #f0f0f0;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .teacher-actions .ant-btn {
-  margin-right: 8px;
+  margin-right: 0;
+}
+
+.ant-dropdown-menu-item-danger {
+  color: #ff4d4f;
+}
+
+.ant-dropdown-menu-item-danger:hover {
+  background-color: #fff2f0;
 }
 </style>

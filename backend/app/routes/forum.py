@@ -6,7 +6,7 @@ import uuid
 from venv import logger
 from flask import Blueprint, json, render_template, request, jsonify, session
 from pymysql import IntegrityError
-from sqlalchemy import func, select
+from sqlalchemy import Integer, cast, func, select
 from werkzeug.security import check_password_hash
 from app.utils.database import db
 from app.models.courseclass import Courseclass
@@ -23,6 +23,7 @@ from werkzeug.utils import secure_filename
 from sqlalchemy.orm import joinedload
 from app.models.teachingdesignversion import TeachingDesignVersion
 from app.models.teaching_design import TeachingDesign
+from app.models.teacher_recommend import TeacherRecommend
 forum_bp=Blueprint('forum',__name__)
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -266,7 +267,7 @@ def get_all_posts():
                 'title': post.title,
                 'content': post.content,
                 'author_id': post.author_id,
-                'authorname': post.author.username,
+                'author_name': post.author.username,
                 'author_avatar': post.author.avatar,
                 'created_at': post.created_at,
                 'updated_at': post.updated_at,
@@ -278,16 +279,8 @@ def get_all_posts():
                 'first_image': first_image_attachment,
                 'tags': [tag.name for tag in post.tags]
             })
-        recommended_designs_response = get_recommended_designs()
-        if recommended_designs_response[1] == 200:
-            recommended_designs = recommended_designs_response[0].json
-        else:
-            recommended_designs = []
             
-        return jsonify({
-            'posts': post_data,
-            'recommended_designs': recommended_designs
-        }), 200
+        return jsonify(post_data), 200
     except Exception as e:
         logger.error(f"获取帖子列表失败: {str(e)}")
         return jsonify({'error': '服务器内部错误'}), 500
@@ -773,6 +766,7 @@ def get_user_favorites():
                 'id': favorite.id,
                 'post_id': post.id,
                 'post_title': post.title,
+                'content': post.content,
                 'author_id': post.author_id,
                 'author_name': post.author.username,
                 'author_avatar': post.author.avatar,
@@ -794,43 +788,67 @@ def search_posts_route():
         if not keyword:
             return jsonify({'error': '缺少搜索关键词'}), 400
 
-        # 调用搜索方法并预加载附件
-        posts = ForumPost.query.join(ForumPost.tags).options(
-            joinedload(ForumPost.attachments),
-            joinedload(ForumPost.author)
+         # 使用参数化查询防止SQL注入
+        search_pattern = f"%{keyword}%"
+        
+        post_scores = db.session.query(
+            ForumPost.id.label('post_id'),
+            (func.sum(
+                cast(ForumPost.title.ilike(search_pattern), Integer) * 3 +
+                cast(ForumTag.name.ilike(search_pattern), Integer) * 2 +
+                cast(ForumPost.content.ilike(search_pattern), Integer)
+            ).label('match_score'))
+        ).outerjoin(
+            ForumPost.tags
         ).filter(
             or_(
-                ForumPost.title.ilike(f'%{keyword}%'),
-                ForumPost.content.ilike(f'%{keyword}%'),
-                ForumTag.name.ilike(f'%{keyword}%')
+                ForumPost.title.ilike(search_pattern),
+                ForumPost.content.ilike(search_pattern),
+                ForumTag.name.ilike(search_pattern)
             )
+        ).group_by(ForumPost.id).subquery()
+
+        # 2. 主查询
+        posts_with_scores = db.session.query(
+            ForumPost,
+            post_scores.c.match_score
+        ).outerjoin(
+            post_scores, ForumPost.id == post_scores.c.post_id
+        ).options(
+            joinedload(ForumPost.attachments),
+            joinedload(ForumPost.author),
+            joinedload(ForumPost.tags)
         ).order_by(
-            ForumPost.title.ilike(f'%{keyword}%').desc(),
-            ForumTag.name.ilike(f'%{keyword}%').desc(),
-            ForumPost.content.ilike(f'%{keyword}%').desc()
+            post_scores.c.match_score.desc(),
+            ForumPost.created_at.desc()
         ).all()
 
-        # 构建返回数据
+        # 3. 构建响应数据
         post_data = []
-        for post in posts:
+        for post, score in posts_with_scores:
+            # 获取作者信息（添加空值保护）
+            author_name = post.author.username if post.author else None
+
             # 查找第一个图片附件
-            first_image_attachment = None
-            for attachment in post.attachments:
-                if attachment.file_path.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
-                    first_image_attachment = attachment.file_path
-                    break
+            first_image_attachment = next(
+                (att.file_path for att in post.attachments 
+                 if att.file_path.lower().endswith(('.png', '.jpg', '.jpeg', '.gif'))),
+                None
+            )
 
             post_data.append({
                 'id': post.id,
                 'title': post.title,
+                'content': post.content,
                 'author_id': post.author_id,
+                'author_avatar': post.author.avatar,
                 'created_at': post.created_at,
                 'author_name': post.author.username,
                 'view_count': post.view_count,
                 'like_count': post.like_count,
                 'favorite_count': post.favorite_count,
                 'tags': [tag.name for tag in post.tags],
-                'first_image': first_image_attachment  # 添加第一个图片附件路径
+                'first_image': first_image_attachment 
             })
 
         return jsonify(post_data), 200
@@ -867,7 +885,9 @@ def get_user_posts():
             post_data.append({
                 'id': post.id,
                 'title': post.title,
+                'content': post.content,
                 'author_name': current_user.username,
+                'author_avatar': current_user.avatar,
                 'created_at': post.created_at,
                 'updated_at': post.updated_at,
                 'view_count': post.view_count,
@@ -903,28 +923,53 @@ def get_recommended_designs():
             TeachingDesign.is_recommended == True
         ).order_by(
             TeachingDesign.recommend_time.desc()
-        ).limit(5).all()  # 限制获取5个
+        ).limit(5).all()
 
-        # 构建返回数据
         designs_data = []
         for design in recommended_designs:
-            # 获取当前版本
             current_version = TeachingDesignVersion.query.get(design.current_version_id)
             version_content = json.loads(current_version.content) if current_version and current_version.content else {}
             
-            # 获取作者信息
             author = User.query.get(design.creator_id)
             
-            designs_data.append({
+            # 获取推荐信息中的第一张图片
+            first_image = None
+            recommendation = TeacherRecommend.query.filter_by(
+                teaching_design_id=design.id
+            ).order_by(
+                TeacherRecommend.created_at.desc()
+            ).first()
+            
+            if recommendation and recommendation.image_recommendations:
+                try:
+                    images_data = recommendation.image_recommendations
+                    # 处理字符串类型的JSON
+                    if isinstance(images_data, str):
+                        images_data = json.loads(images_data)
+                    
+                    # 从JSON对象中提取images数组
+                    if isinstance(images_data, dict) and "images" in images_data:
+                        images = images_data["images"]
+                        if isinstance(images, (list, tuple)) and len(images) > 0:
+                            first_image = images[0]
+                except Exception as e:
+                    logger.warning(f"Failed to parse images for design {design.id}: {str(e)}")
+
+            design_data = {
                 'id': design.id,
                 'title': design.title,
                 'course_id': design.course_id,
                 'author_id': design.creator_id,
                 'author_name': author.username if author else "未知用户",
                 'author_avatar': author.avatar if author else None,
-                'version_content': version_content.get('plan_content', '')[:200] + '...',  # 截取部分内容
+                'version_content': version_content.get('plan_content', '')[:200] + '...',
                 'recommend_time': design.recommend_time.isoformat() if design.recommend_time else None
-            })
+            }
+            
+            if first_image:
+                design_data['first_image'] = first_image
+                
+            designs_data.append(design_data)
 
         return jsonify(designs_data), 200
     except Exception as e:

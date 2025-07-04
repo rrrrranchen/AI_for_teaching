@@ -2,6 +2,7 @@ import { createRouter, createWebHistory, RouteRecordRaw } from "vue-router";
 import FScreen from "../views/FScreen.vue";
 import LoginAregister from "../views/loginAregister.vue";
 import BasicLayout from "../layouts/BasicLayout.vue";
+import AdminLayout from "../layouts/AdminLayout.vue";
 import HomeView from "../views/HomeView.vue";
 import SmartPreparationView from "../views/SmartPreparationView.vue";
 import MyProfileView from "../views/MyProfile.vue";
@@ -16,6 +17,36 @@ const routes: Array<RouteRecordRaw> = [
     path: "/login&register",
     name: "login&register",
     component: LoginAregister,
+  },
+  {
+    path: "/admin",
+    component: AdminLayout,
+    children: [
+      {
+        path: "",
+        name: "statistics",
+        component: () => import("../views/admin/StatisticsView.vue"),
+        meta: { menuKey: 1 },
+      },
+      {
+        path: "ppt-manage",
+        name: "ppt-manage",
+        component: () => import("../views/admin/pptManage.vue"),
+        meta: { menuKey: 2 },
+      },
+      {
+        path: "user-manage",
+        name: "user-manage",
+        component: () => import("../views/admin/UserManage.vue"),
+        meta: { menuKey: 3 },
+      },
+      {
+        path: "class-manage",
+        name: "class-manage",
+        component: () => import("../views/admin/CourseClassManage.vue"),
+        meta: { menuKey: 4 },
+      },
+    ],
   },
   {
     path: "/home",

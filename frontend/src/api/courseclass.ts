@@ -12,11 +12,13 @@ export interface Courseclass {
   description: string;
   created_at: MongoDate;
   invite_code: string;
+  is_public: boolean; // 新增：是否公开
+  image_path?: string; // 新增：图片路径
   teacher_count?: number;
   student_count?: number;
   course_count?: number;
   is_joined?: boolean; // 当前用户是否已加入
-  teachers?: Teacher[]; // 新增：存储课程班的老师信息
+  teachers?: Teacher[]; // 存储课程班的老师信息
 }
 
 // 老师类型
@@ -40,9 +42,18 @@ export interface GetStudentsResponse {
 }
 
 // 创建课程班参数
-interface CreateCourseclassParams {
+export interface CreateCourseclassParams {
   name: string;
   description?: string;
+  is_public?: boolean; // 新增：是否公开
+  image?: File; // 新增：图片文件
+}
+
+// 更新课程班参数
+interface UpdateCourseclassParams {
+  name?: string;
+  description?: string;
+  image?: File; // 新增：图片文件
 }
 
 // 加入课程班参数
@@ -103,23 +114,36 @@ export const searchCourseclasses = async (
 //
 //
 // 创建课程班，后端会自动生成邀请码
+// 修改接口定义，使其支持FormData
 export const createCourseclass = async (
-  data: CreateCourseclassParams
+  formData: FormData // 直接接受 FormData 类型
 ): Promise<Courseclass> => {
   const response: AxiosResponse<Courseclass> = await api.post(
     "/createcourseclasses",
-    data
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }
   );
   return response.data;
 };
+
 // 更新课程班信息（仅限老师）
+// 更新课程班方法
 export const updateCourseclass = async (
   id: number,
-  data: Partial<CreateCourseclassParams>
+  data: FormData
 ): Promise<Courseclass> => {
   const response: AxiosResponse<Courseclass> = await api.put(
     `/courseclasses/${id}`,
-    data
+    data,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }
   );
   return response.data;
 };
@@ -143,29 +167,10 @@ export const joinCourseclassByCode = async (
   );
   return response.data;
 };
+
 // 退出课程班
 export const leaveCourseclass = async (
   data: LeaveCourseclassParams
 ): Promise<void> => {
   await api.post("/student_leave_courseclass", data);
 };
-
-// // 添加课程参数
-// interface ManageCoursesParams {
-//   course_ids: number[];
-// }
-// // 为课程班添加课程
-// export const addCoursesToClass = async (
-//   courseclassId: number,
-//   data: ManageCoursesParams
-// ): Promise<void> => {
-//   await api.post(`/courseclasses/${courseclassId}/add_courses`, data);
-// };
-
-// // 从课程班移除课程
-// export const removeCoursesFromClass = async (
-//   courseclassId: number,
-//   data: ManageCoursesParams
-// ): Promise<void> => {
-//   await api.post(`/courseclasses/${courseclassId}/remove_courses`, data);
-// };

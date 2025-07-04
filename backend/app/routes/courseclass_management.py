@@ -1,4 +1,6 @@
+from datetime import datetime
 from flask import Blueprint, g, jsonify, request, session
+from sqlalchemy import func
 from app.utils.database import db
 from app.models.user import User
 from app.models.courseclass import Courseclass
@@ -6,6 +8,8 @@ from app.models.course import Course
 from app.routes.courseclass import generate_invite_code
 from app.utils.file_upload import upload_file_courseclass
 from app.services.rank import generate_public_courseclass_ranking
+from app.services.log_service import LogService
+from app.models.CourseClassApplication import CourseClassApplication
 
 courseclass_management_bp = Blueprint('courseclass_management', __name__)
 
@@ -21,6 +25,8 @@ def get_current_user():
 @courseclass_management_bp.before_request
 def before_request():
     # 检查用户是否已登录
+    if request.method == 'OPTIONS':
+        return
     if is_logged_in():
         # 获取当前用户并存储到 g 对象中
         g.current_user = get_current_user()
@@ -34,14 +40,13 @@ def before_request():
 
 @courseclass_management_bp.route('/admin/query_courseclasses', methods=['GET'])
 def query_courseclasses():
-    data = request.get_json()
     
     # 获取筛选条件
-    name = data.get('name', None)  # 课程班名称筛选
-    teacher_id = data.get('teacher_id', None)  # 教师ID筛选
-    student_id = data.get('student_id', None)  # 学生ID筛选
-    course_id = data.get('course_id', None)  # 课程ID筛选
-    invite_code = data.get('invite_code', None)  # 邀请码筛选
+    name = request.args.get('name', None)  # 课程班名称筛选
+    teacher_id = request.args.get('teacher_id', None)  # 教师ID筛选
+    student_id = request.args.get('student_id', None)  # 学生ID筛选
+    course_id = request.args.get('course_id', None)  # 课程ID筛选
+    invite_code = request.args.get('invite_code', None)  # 邀请码筛选
 
     # 基础查询
     query = Courseclass.query
@@ -82,6 +87,7 @@ def query_courseclasses():
             'created_at': cc.created_at.isoformat(),
             'invite_code': cc.invite_code,
             'image_path': cc.image_path,
+            'is_public': cc.is_public,
             'teacher_count': len(cc.teachers),
             'student_count': len(cc.students),
             'course_count': len(cc.courses),
@@ -96,8 +102,6 @@ def query_courseclasses():
 
 @courseclass_management_bp.route('/admin/update_courseclass/<int:courseclass_id>', methods=['PUT'])
 def update_courseclass(courseclass_id):
-    if not is_logged_in():
-        return jsonify({'error': 'Unauthorized'}), 401
     try:
         courseclass = Courseclass.query.get(courseclass_id)
         if not courseclass:
@@ -107,6 +111,7 @@ def update_courseclass(courseclass_id):
         data = request.form
         name = data.get('name')
         description = data.get('description')
+        is_public=data.get('is_public')
         image_file = request.files.get('image')  # 获取上传的图片文件
 
         # 更新课程班信息
@@ -114,6 +119,9 @@ def update_courseclass(courseclass_id):
             courseclass.name = name
         if description:
             courseclass.description = description
+        #确认公开状态
+        if is_public is not None:
+            courseclass.is_public = is_public.lower() == 'true' if isinstance(is_public, str) else bool(is_public)
 
         # 更新图片
         if image_file:
@@ -130,6 +138,7 @@ def update_courseclass(courseclass_id):
             'name': courseclass.name,
             'description': courseclass.description,
             'created_at': courseclass.created_at,
+            'is_public': courseclass.is_public,
             'image_path': courseclass.image_path  # 返回更新后的图片路径
         }), 200
     except Exception as e:
@@ -208,3 +217,34 @@ def get_public_courseclass_ranking():
     
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+
+
+@courseclass_management_bp.after_request
+def log_after_request(response):
+    # 跳过预检请求和错误响应
+    if request.method == 'OPTIONS' or not (200 <= response.status_code < 400):
+        return response
+
+    # 获取当前用户（已通过before_request验证）
+    current_user = g.current_user
+    user_info = {
+        'id': current_user.id,
+        'role': current_user.role
+    }
+
+    # 记录所有成功请求（无需白名单检查）
+    LogService.log_operation(
+        user_id=user_info['id'],
+        user_type=user_info['role'],
+        operation_type=f"{request.method}_{request.endpoint.replace('.', '_')}",
+        details={
+            'path': request.path,
+            'method': request.method,
+            'params': dict(request.args) if request.args else None,
+            'body': request.get_json(silent=True) if request.method in ['POST', 'PUT', 'PATCH'] else None,
+            'status': response.status_code,
+            'timestamp': datetime.now().isoformat()
+        }
+    )
+    return response

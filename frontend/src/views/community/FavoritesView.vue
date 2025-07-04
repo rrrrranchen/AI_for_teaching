@@ -10,86 +10,32 @@
       </template>
     </a-page-header>
 
-    <a-list
-      class="favorites-list"
+    <PostList
+      :posts="formattedFavorites"
       :loading="loading"
-      :data-source="favorites"
-      :pagination="pagination"
-    >
-      <template #renderItem="{ item }">
-        <a-list-item class="favorite-item">
-          <a-card hoverable class="post-card">
-            <!-- 帖子信息 -->
-            <router-link :to="`/home/community/posts/${item.post_id}`">
-              <h3 class="post-title">{{ item.post_title }}</h3>
-              <div class="meta">
-                <div class="author-info">
-                  <div class="author-name">{{ item.author_name }}</div>
-                  <div class="post-time">{{ formatDate(item.created_at) }}</div>
-                </div>
-              </div>
-            </router-link>
-
-            <!-- 统计信息 -->
-            <div class="stats">
-              <div class="stat-item">
-                <eye-outlined />
-                <span>{{ item.view_count }}</span>
-              </div>
-              <div class="stat-item">
-                <like-outlined
-                  :style="{ color: item.is_liked ? '#1890ff' : '' }"
-                />
-                <span>{{ item.like_count }}</span>
-              </div>
-              <div class="stat-item">
-                <star-filled :style="{ color: '#ffd666' }" />
-                <span>{{ item.favorite_count }}</span>
-              </div>
-            </div>
-
-            <!-- 操作按钮 -->
-            <div class="actions">
-              <a-button
-                type="link"
-                danger
-                @click="handleUnfavorite(item.post_id)"
-              >
-                <delete-outlined />
-                取消收藏
-              </a-button>
-            </div>
-          </a-card>
-        </a-list-item>
-      </template>
-
-      <template #empty>
-        <a-empty description="您还没有收藏任何帖子">
-          <a-button type="primary" @click="router.push({ name: 'forum-home' })">
-            去发现精彩内容
-          </a-button>
-        </a-empty>
-      </template>
-    </a-list>
+      :current="pagination.current"
+      :page-size="pagination.pageSize"
+      :total="pagination.total"
+      empty-text="您还没有收藏任何帖子"
+      :show-actions="true"
+      :show-favorite-action="false"
+      @unfavorite="handleUnfavorite"
+      @page-change="handlePageChange"
+    />
   </div>
 </template>
 
 <script lang="ts" setup>
-import { ref, reactive, onMounted } from "vue";
+import { ref, reactive, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { message } from "ant-design-vue";
+import { ArrowLeftOutlined } from "@ant-design/icons-vue";
 import forumApi from "@/api/forum";
-import { ForumFavorite } from "@/api/forum";
-import {
-  ArrowLeftOutlined,
-  EyeOutlined,
-  LikeOutlined,
-  StarFilled,
-  DeleteOutlined,
-} from "@ant-design/icons-vue";
+import PostList from "@/components/community/PostList.vue";
+import type { ForumPost } from "@/api/forum";
 
 // 状态管理
-const favorites = ref<ForumFavorite[]>([]);
+const favorites = ref<any[]>([]);
 const loading = ref(false);
 const router = useRouter();
 
@@ -100,45 +46,33 @@ const pagination = reactive({
   total: 0,
   showSizeChanger: true,
   pageSizeOptions: ["10", "20", "50"],
-  onChange: (page: number, pageSize: number) => {
-    pagination.current = page;
-    pagination.pageSize = pageSize;
-    fetchFavorites();
-  },
 });
 
-export interface MongoDate {
-  $date: string;
-}
-type CreatedAtType = string | MongoDate | Date | null | undefined;
-const formatDate = (date: CreatedAtType): string => {
-  if (!date) return "未知时间";
-
-  let dateStr: string;
-
-  if (typeof date === "string") {
-    dateStr = date;
-  } else if ("$date" in date) {
-    dateStr = date.$date;
-  } else if (date instanceof Date) {
-    dateStr = date.toISOString();
-  } else {
-    return "无效日期格式";
-  }
-
-  try {
-    return new Date(dateStr).toLocaleString();
-  } catch {
-    return "无效日期格式";
-  }
-};
+// 格式化收藏数据为PostList需要的格式
+const formattedFavorites = computed<ForumPost[]>(() => {
+  return favorites.value.map((item) => ({
+    ...item,
+    id: item.post_id,
+    title: item.post_title,
+    author_id: item.author_id,
+    author_name: item.author_name,
+    author_avatar: item.author_avatar,
+    created_at: item.created_at,
+    view_count: item.view_count,
+    like_count: item.like_count,
+    favorite_count: item.favorite_count,
+    is_liked: item.is_liked,
+    is_favorited: true, // 收藏页面所有帖子都是已收藏状态
+    content: item.content || "",
+    tags: item.tags || [],
+  }));
+});
 
 // 获取收藏数据
 const fetchFavorites = async () => {
   try {
     loading.value = true;
     const response = await forumApi.getUserFavorites();
-    // 假设接口返回完整帖子信息，实际需要根据接口调整
     favorites.value = response;
     pagination.total = response.length;
   } catch (error) {
@@ -159,6 +93,13 @@ const handleUnfavorite = async (postId: number) => {
   }
 };
 
+// 处理分页变化
+const handlePageChange = ({ page, size }: { page: number; size: number }) => {
+  pagination.current = page;
+  pagination.pageSize = size;
+  fetchFavorites();
+};
+
 // 初始加载
 onMounted(fetchFavorites);
 </script>
@@ -175,82 +116,8 @@ onMounted(fetchFavorites);
   margin-bottom: 24px;
 }
 
-.favorites-list {
-  background: #fff;
-  padding: 24px;
-  height: 70vh;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  overflow-y: auto;
-}
-
-.favorite-item {
-  padding: 8px 0;
-}
-
-.favorite-item .post-card {
-  width: 100%;
-  border-radius: 8px;
-}
-
-.favorite-item .post-card .meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.favorite-item .post-card .meta .author-info .author-name {
-  font-weight: 500;
-  margin-bottom: 4px;
-}
-
-.favorite-item .post-card .meta .author-info .post-time {
-  color: #666;
-  font-size: 12px;
-}
-
-.favorite-item .post-card .post-title {
-  font-size: 18px;
-  margin-bottom: 8px;
-  color: #333;
-}
-
-.favorite-item .post-card .post-content {
-  color: #666;
-  line-height: 1.6;
-  margin-bottom: 16px;
-}
-
-.favorite-item .post-card .stats {
-  display: flex;
-  gap: 24px;
-  margin: 16px 0;
-}
-
-.favorite-item .post-card .stats .stat-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #666;
-}
-
-.favorite-item .post-card .stats .stat-item span {
-  font-size: 14px;
-}
-
-.favorite-item .post-card .actions {
-  border-top: 1px solid #f0f0f0;
-  padding-top: 12px;
-  text-align: right;
-}
-
 @media (max-width: 768px) {
   .favorites-view {
-    padding: 16px;
-  }
-
-  .favorites-list {
     padding: 16px;
   }
 }
