@@ -1,5 +1,6 @@
 from datetime import datetime
 from flask import Blueprint, g, jsonify, request, session
+from sqlalchemy import func
 from app.utils.database import db
 from app.models.user import User
 from app.models.courseclass import Courseclass
@@ -217,7 +218,96 @@ def get_public_courseclass_ranking():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
-# 申请相关路由
+# 基于学生已加入的课程和热门程度推荐课程
+@courseclass_management_bp.route('/courseclass/recommend_courseclasses', methods=['GET'])
+def recommend_courseclasses():
+    try:
+        if not is_logged_in():
+            return jsonify({'error': 'Unauthorized'}), 401
+
+        current_user = g.current_user
+        limit = int(request.args.get('limit', 5))  # 默认返回10个推荐
+
+        # 获取学生已加入的课程班
+        joined_classes = current_user.student_courseclasses
+        joined_class_ids = [cc.id for cc in joined_classes]
+        
+        # 1. 基于已学课程的推荐
+        recommended_by_courses = []
+        
+        # 获取学生已学习的课程ID
+        learned_course_ids = set()
+        for cc in joined_classes:
+            for course in cc.courses:
+                learned_course_ids.add(course.id)
+
+        if learned_course_ids:
+            # 查找包含这些课程的公开课程班
+            recommended_by_courses = Courseclass.query \
+                .join(Courseclass.courses) \
+                .filter(
+                    Courseclass.is_public == True,
+                    Course.id.in_(list(learned_course_ids)),
+                    ~Courseclass.id.in_(joined_class_ids)  # 排除已加入的
+                ) \
+                .group_by(Courseclass.id) \
+                .order_by(func.count(Course.id).desc()) \
+                .limit(limit) \
+                .all()
+
+        # 2. 基于热度的推荐(从排行榜获取)
+        ranking = generate_public_courseclass_ranking()
+        hot_recommendations = []
+        
+        for item in ranking:
+            if len(hot_recommendations) >= limit:
+                break
+            cc = Courseclass.query.get(item['class_id'])
+            if cc and cc.id not in joined_class_ids:
+                hot_recommendations.append(cc)
+
+        # 合并推荐结果并去重
+        all_recommendations = recommended_by_courses + hot_recommendations
+        unique_recommendations = []
+        seen_ids = set()
+        
+        for cc in all_recommendations:
+            if cc.id not in seen_ids:
+                seen_ids.add(cc.id)
+                unique_recommendations.append(cc)
+                if len(unique_recommendations) >= limit:
+                    break
+
+        # 构造返回数据
+        result = []
+        for cc in unique_recommendations[:limit]:
+            # 计算推荐理由
+            reason = "热门课程班" if cc in hot_recommendations else "基于您已学习的课程"
+            
+            # 获取课程班的基本信息
+            cc_data = {
+                'id': cc.id,
+                'name': cc.name,
+                'description': cc.description[:100] + "..." if cc.description else "",
+                'image_path': cc.image_path,
+                'invite_code': cc.invite_code,
+                'is_public': cc.is_public,
+                'reason': reason,
+                'teacher_count': len(cc.teachers),
+                'student_count': len(cc.students),
+                'course_count': len(cc.courses),
+                'courses': [{'id': c.id, 'name': c.name} for c in cc.courses][:3]
+            }
+            result.append(cc_data)
+
+        return jsonify(result), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+
+# 申请课程班
 @courseclass_management_bp.route('/courseclass/<int:courseclass_id>/apply', methods=['POST'])
 def apply_to_courseclass(courseclass_id):
     try:
