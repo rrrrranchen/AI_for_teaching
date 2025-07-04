@@ -72,7 +72,8 @@ def get_courseclasses():
         
         if current_user.role == 'teacher':
             courseclasses = Courseclass.query.options(
-                db.joinedload(Courseclass.teachers)
+                db.joinedload(Courseclass.teachers),
+                db.joinedload(Courseclass.courses)
             ).join(
                 teacher_class,
                 Courseclass.id == teacher_class.c.class_id  # 使用 class_id
@@ -81,7 +82,8 @@ def get_courseclasses():
             ).all()
         elif current_user.role == 'student':
             courseclasses = Courseclass.query.options(
-                db.joinedload(Courseclass.students)
+                db.joinedload(Courseclass.students),
+                db.joinedload(Courseclass.courses)
             ).join(
                 student_class,
                 Courseclass.id == student_class.c.class_id  # 使用 class_id
@@ -99,6 +101,7 @@ def get_courseclasses():
                 'created_at': courseclass.created_at,
                 'invite_code': courseclass.invite_code,
                 'image_path' : courseclass.image_path,
+                'course_count':len(courseclass.courses),
                 'teachers': [
                     {'id': teacher.id, 'username': teacher.username,'avatar':teacher.avatar}
                     for teacher in courseclass.teachers
@@ -106,10 +109,7 @@ def get_courseclasses():
             }
             for courseclass in courseclasses
         ]
-        return jsonify({
-            'count': len(result),  # 新增的课程班数量字段
-            'courseclasses': result  # 原有的课程班列表
-        }), 200
+        return jsonify(result), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
