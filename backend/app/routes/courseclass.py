@@ -550,6 +550,46 @@ def search_courseclasses():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
+# 查询所有公开的课程班
+@courseclass_bp.route('/public_courseclasses', methods=['GET'])
+def get_public_courseclasses():
+    try:
+        # 获取搜索查询参数
+        search_query = request.args.get('search', '', type=str)
+
+        # 构建基础查询
+        query = Courseclass.query.filter_by(is_public=True)
+
+        # 添加搜索条件
+        if search_query:
+            query = query.filter(Courseclass.name.ilike(f'%{search_query}%'))
+
+        # 获取所有符合条件的公开课程班
+        public_courseclasses = query.order_by(Courseclass.created_at.desc()).all()
+
+        # 构建返回结果
+        result = [
+            {
+                'id': courseclass.id,
+                'name': courseclass.name,
+                'description': courseclass.description,
+                'created_at': courseclass.created_at,
+                'image_path': courseclass.image_path,
+                'teacher_count': len(courseclass.teachers),
+                'student_count': len(courseclass.students),
+                'course_count': len(courseclass.courses),
+                'teachers': [
+                    {'id': teacher.id, 'username': teacher.username, 'avatar': teacher.avatar}
+                    for teacher in courseclass.teachers
+                ]
+            }
+            for courseclass in public_courseclasses
+        ]
+
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 #查询课程班级学生综合指数排行榜
 @courseclass_bp.route('/query_student_rank/<int:courseclass_id>', methods=['GET'])
 def query_student_rank(courseclass_id):
@@ -620,7 +660,8 @@ def query_courseclass_rank():
             "message": f"Internal server error: {str(e)}",
             "data": None
         }), 500
-        # 基于学生已加入的课程和热门程度推荐课程
+    
+# 基于学生已加入的课程和热门程度推荐课程
 @courseclass_bp.route('/courseclass/recommend_courseclasses', methods=['GET'])
 def recommend_courseclasses():
     try:
@@ -718,6 +759,13 @@ def apply_to_courseclass(courseclass_id):
 
         courseclass = Courseclass.query.get_or_404(courseclass_id)
         current_user = g.current_user
+
+        if not courseclass.is_public:
+            return jsonify({'error': '该课程班未公开，无法申请加入'}), 403
+
+        # 检查用户是否是学生
+        if current_user.role != 'student':
+            return jsonify({'error': '只有学生可以申请加入课程班'}), 403
 
         # 检查是否已经是成员
         if current_user in courseclass.students:
