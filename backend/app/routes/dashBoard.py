@@ -7,7 +7,26 @@ from app.services.log_service import LogService
 from app.models.AdminOperationLog import AdminOperationLog
 from app.models.TeacherOperationLog import TeacherOperationLog
 from app.models.user import User
+from datetime import datetime, timedelta
 
+OPERATION_TYPE_MAPPING = {
+    'GET_courseclass_get_courseclasses': '查看课程班级列表',
+    'POST_courseclass_create_courseclass': '创建课程班级',
+    'PUT_courseclass_update_courseclass': '更新课程班级',
+    'DELETE_courseclass_delete_courseclass': '删除课程班级',
+    
+    # 学生相关
+    'GET_student_get_student_info': '查看学生信息',
+    'POST_student_submit_homework': '提交作业',
+    'GET_student_view_materials': '查看学习资料',
+    
+    # 教师相关
+    'GET_teacher_get_teaching_courses': '查看授课课程',
+    'POST_teacher_grade_homework': '批改作业',
+    'PUT_teacher_update_grade': '更新成绩'
+}
+
+REVERSE_OPERATION_MAPPING = {v: k for k, v in OPERATION_TYPE_MAPPING.items()}
 
 dashBoard_bp = Blueprint('dashBoard', __name__)
 
@@ -35,18 +54,26 @@ def before_request():
         # 如果用户未登录，返回未授权错误
         return jsonify({'error': 'Unauthorized'}), 401
 
+def get_friendly_operation_type(operation_type):
+    """将原始操作类型转换为友好名称"""
+    return OPERATION_TYPE_MAPPING.get(operation_type, operation_type)
 
-from datetime import datetime, timedelta
+def get_original_operation_type(friendly_name):
+    """将友好名称转换回原始操作类型"""
+    return REVERSE_OPERATION_MAPPING.get(friendly_name, friendly_name)
 
-@dashBoard_bp.route('/student_usage_count', methods=['POST'])
-def get_student_usage_count():
+
+
+@dashBoard_bp.route('/usage_count', methods=['POST'])
+def get_user_usage_count():
     """
-    查询学生使用次数(JSON请求格式)，支持统计当日或本周
+    统一查询用户使用次数(JSON请求格式)，支持学生和教师
     请求体示例:
     {
-        "student_id": 123,
-        "operation_type": "提交作业",  // 可选
-        "time_range": "day"  // 必填，"day"表示当日，"week"表示本周
+        "user_type": "student",  // 必填，"student"或"teacher"
+        "user_id": 123,         // 必填
+        "operation_type": "提交作业",  // 可选，可使用友好名称
+        "time_range": "day"     // 必填，"day"表示当日，"week"表示本周
     }
     """
     # 获取JSON请求数据
@@ -55,9 +82,13 @@ def get_student_usage_count():
         return jsonify({'error': 'Request body must be JSON'}), 400
     
     # 获取参数
-    student_id = data.get('student_id')
-    if not student_id:
-        return jsonify({'error': 'student_id is required'}), 400
+    user_type = data.get('user_type')
+    if not user_type or user_type not in ['student', 'teacher']:
+        return jsonify({'error': 'user_type is required and must be "student" or "teacher"'}), 400
+    
+    user_id = data.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'user_id is required'}), 400
     
     time_range = data.get('time_range')
     if not time_range or time_range not in ['day', 'week']:
@@ -65,57 +96,101 @@ def get_student_usage_count():
     
     operation_type = data.get('operation_type')
     
+    # 根据用户类型选择模型
+    if user_type == 'student':
+        model = StudentOperationLog
+        id_field = 'student_id'
+    else:
+        model = TeacherOperationLog
+        id_field = 'user_id'
+    
     # 计算时间范围
     now = datetime.now()
     if time_range == 'day':
-        # 当日00:00:00到23:59:59
         start_time = now.replace(hour=0, minute=0, second=0, microsecond=0)
         end_time = now.replace(hour=23, minute=59, second=59, microsecond=999999)
         date_label = now.strftime('%Y-%m-%d')
     else:
-        # 本周一00:00:00到周日23:59:59
         start_time = now - timedelta(days=now.weekday())
         start_time = start_time.replace(hour=0, minute=0, second=0, microsecond=0)
         end_time = start_time + timedelta(days=6, hours=23, minutes=59, seconds=59, microseconds=999999)
         date_label = f"{start_time.strftime('%Y-%m-%d')}至{(start_time + timedelta(days=6)).strftime('%Y-%m-%d')}"
     
     # 构建查询
-    query = StudentOperationLog.query.filter(
-        StudentOperationLog.student_id == student_id,
-        StudentOperationLog.operation_time.between(start_time, end_time)
+    query = model.query.filter(
+        getattr(model, id_field) == user_id,
+        model.operation_time.between(start_time, end_time)
     )
     
-    # 添加操作类型过滤
+    # 处理操作类型过滤
     if operation_type:
-        query = query.filter_by(operation_type=operation_type)
+        # 检查是否是友好名称
+        original_op_type = get_original_operation_type(operation_type)
+        query = query.filter(model.operation_type == original_op_type)
     
     # 获取总数
     total_count = query.count()
     
     # 按操作类型分组统计
     type_counts = db.session.query(
-        StudentOperationLog.operation_type,
+        model.operation_type,
         db.func.count().label('count')
     ).filter(
-        StudentOperationLog.student_id == student_id,
-        StudentOperationLog.operation_time.between(start_time, end_time)
+        getattr(model, id_field) == user_id,
+        model.operation_time.between(start_time, end_time)
     )
     
     if operation_type:
-        type_counts = type_counts.filter_by(operation_type=operation_type)
+        type_counts = type_counts.filter(model.operation_type == original_op_type)
     
-    type_counts = type_counts.group_by(
-        StudentOperationLog.operation_type
-    ).all()
+    type_counts = type_counts.group_by(model.operation_type).all()
+    
+    # 转换操作类型为友好名称
+    friendly_type_counts = {
+        get_friendly_operation_type(op_type): count 
+        for op_type, count in type_counts
+    }
     
     return jsonify({
-        'student_id': student_id,
+        'user_type': user_type,
+        'user_id': user_id,
         'time_range': time_range,
         'date_range': date_label,
         'total_operations': total_count,
-        'operations_by_type': dict(type_counts)
+        'operations_by_type': friendly_type_counts
     }), 200
 
+@dashBoard_bp.route('/available_operations', methods=['GET'])
+def get_available_operations():
+    """
+    获取系统支持的所有操作类型及其友好名称
+    可用于前端下拉框选择
+    """
+    # 可以从数据库查询实际存在的操作类型
+    existing_types = set()
+    
+    # 查询学生日志中的操作类型
+    student_types = db.session.query(
+        StudentOperationLog.operation_type
+    ).distinct().all()
+    existing_types.update(t[0] for t in student_types)
+    
+    # 查询教师日志中的操作类型
+    teacher_types = db.session.query(
+        TeacherOperationLog.operation_type
+    ).distinct().all()
+    existing_types.update(t[0] for t in teacher_types)
+    
+    # 构建响应数据
+    operations = []
+    for op_type in sorted(existing_types):
+        operations.append({
+            'value': op_type,
+            'label': get_friendly_operation_type(op_type),
+            'category': op_type.split('_')[1]  # 按模块分类
+        })
+    
+    return jsonify({'operations': operations}), 200
 
 
 @dashBoard_bp.route('/operation_logs', methods=['GET'])
