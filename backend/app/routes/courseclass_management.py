@@ -369,7 +369,7 @@ def get_courseclass_applications(courseclass_id):
         current_user = g.current_user
 
         # 验证教师权限
-        if current_user not in courseclass.teachers and current_user.role != 'admin':
+        if current_user not in courseclass.teachers and current_user.role != 'teacher':
             return jsonify({'error': '无权访问此课程班的申请'}), 403
 
         # 获取筛选条件
