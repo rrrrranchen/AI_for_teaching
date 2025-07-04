@@ -20,6 +20,7 @@ from app.routes.resource_management import resource_management_bp
 from app.routes.courseclass_management import courseclass_management_bp
 from app.routes.ppt_templates_management import ppt_templates_management_bp
 from app.routes.dashBoard import dashBoard_bp
+from app.routes.knowledge_for_teachers import knowledge_for_teachers_bp
 from app.utils.database import init_db
 from config import Config
 from flask_jwt_extended import JWTManager
@@ -31,8 +32,6 @@ def create_app():
     app.config["JWT_SECRET_KEY"] = "sadfasdfgghgafdshg"
     app.config["JWT_ACCESS_TOKEN_EXPIRES"] = 3600
     app.secret_key = "jskldjflksdjlfksjd"
-    jwt = JWTManager(app)
-
     # 初始化数据库
     init_db(app)
     # 注册蓝图
@@ -53,4 +52,5 @@ def create_app():
     app.register_blueprint(dashBoard_bp)
     app.register_blueprint(courseclass_management_bp)
     app.register_blueprint(ppt_templates_management_bp)
+    app.register_blueprint(knowledge_for_teachers_bp)
     return app

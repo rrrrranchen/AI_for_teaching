@@ -20,8 +20,15 @@ course_courseclass = db.Table(
     db.Column('courseclass_id', db.Integer, db.ForeignKey('courseclass.id', ondelete='CASCADE'), primary_key=True)
 )
 
+category_knowledge_base = db.Table('category_knowledge_base',
+    db.Column('category_id', db.Integer, db.ForeignKey('categories.id'), primary_key=True),
+    db.Column('knowledge_base_id', db.Integer, db.ForeignKey('knowledge_base.id'), primary_key=True)
+)
 
 
-
-
+courseclass_knowledge_base = db.Table(
+    'courseclass_knowledge_base',
+    db.Column('courseclass_id', db.Integer, db.ForeignKey('courseclass.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('knowledge_base_id', db.Integer, db.ForeignKey('knowledge_base.id', ondelete='CASCADE'), primary_key=True)
+)
 

@@ -12,6 +12,7 @@ from app.models.AdminOperationLog import AdminOperationLog
 from app.models.KnowledgeBase import KnowledgeBase
 from app.models.Category import Category
 from app.models.CategoryFile import CategoryFile
+from app.models.CategoryFileImage import CategoryFileImage
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
