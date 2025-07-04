@@ -84,8 +84,8 @@ def create_ppt_template():
     
     # 获取下一个模板编号
     next_num = get_next_template_number()
-    template_name = f'template{next_num}.pptx'
-    image_name = f'template{next_num}.png'
+    template_name = f'template{next_num}'
+    image_name = f'template{next_num}'
     
     try:
         # 保存PPT文件

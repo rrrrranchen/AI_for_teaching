@@ -8,6 +8,7 @@ from app.routes.courseclass import generate_invite_code
 from app.utils.file_upload import upload_file_courseclass
 from app.services.rank import generate_public_courseclass_ranking
 from app.services.log_service import LogService
+from app.models.CourseClassApplication import CourseClassApplication
 
 courseclass_management_bp = Blueprint('courseclass_management', __name__)
 
@@ -85,6 +86,7 @@ def query_courseclasses():
             'created_at': cc.created_at.isoformat(),
             'invite_code': cc.invite_code,
             'image_path': cc.image_path,
+            'is_public': cc.is_public,
             'teacher_count': len(cc.teachers),
             'student_count': len(cc.students),
             'course_count': len(cc.courses),
@@ -108,6 +110,7 @@ def update_courseclass(courseclass_id):
         data = request.form
         name = data.get('name')
         description = data.get('description')
+        is_public=data.get('is_public')
         image_file = request.files.get('image')  # 获取上传的图片文件
 
         # 更新课程班信息
@@ -115,6 +118,9 @@ def update_courseclass(courseclass_id):
             courseclass.name = name
         if description:
             courseclass.description = description
+        #确认公开状态
+        if is_public is not None:
+            courseclass.is_public = is_public.lower() == 'true' if isinstance(is_public, str) else bool(is_public)
 
         # 更新图片
         if image_file:
@@ -131,6 +137,7 @@ def update_courseclass(courseclass_id):
             'name': courseclass.name,
             'description': courseclass.description,
             'created_at': courseclass.created_at,
+            'is_public': courseclass.is_public,
             'image_path': courseclass.image_path  # 返回更新后的图片路径
         }), 200
     except Exception as e:
@@ -210,6 +217,185 @@ def get_public_courseclass_ranking():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
+# 申请相关路由
+@courseclass_management_bp.route('/courseclass/<int:courseclass_id>/apply', methods=['POST'])
+def apply_to_courseclass(courseclass_id):
+    try:
+        if not is_logged_in():
+            return jsonify({'error': 'Unauthorized'}), 401
+
+        courseclass = Courseclass.query.get_or_404(courseclass_id)
+        current_user = g.current_user
+
+        # 检查是否已经是成员
+        if current_user in courseclass.students:
+            return jsonify({'error': '您已经是该课程班成员'}), 400
+
+        # 检查是否已有待处理申请
+        existing = CourseClassApplication.query.filter_by(
+            student_id=current_user.id,
+            courseclass_id=courseclass_id,
+            status='pending'
+        ).first()
+
+        if existing:
+            return jsonify({'error': '您已提交过申请，请等待处理'}), 400
+
+
+        if not courseclass.teachers:
+            return jsonify({'error': '该课程班暂无教师，无法提交申请'}), 400
+            
+        first_teacher = courseclass.teachers[0]
+        # 创建新申请
+        data = request.get_json()
+        application = CourseClassApplication(
+            student_id=current_user.id,
+            teacher_id=first_teacher.id,
+            courseclass_id=courseclass_id,
+            application_date=datetime.utcnow(),
+            message=data.get('message', ''),
+            status='pending'
+        )
+
+        db.session.add(application)
+        db.session.commit()
+
+        return jsonify({
+            'message': f'申请已提交至教师 {first_teacher.username}',
+            'application_id': application.id
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+# 查看申请状况
+@courseclass_management_bp.route('/courseclass/<int:courseclass_id>/applications', methods=['GET'])
+def get_courseclass_applications(courseclass_id):
+    try:
+        if not is_logged_in():
+            return jsonify({'error': 'Unauthorized'}), 401
+
+        courseclass = Courseclass.query.get_or_404(courseclass_id)
+        current_user = g.current_user
+
+        # 验证教师权限
+        if current_user not in courseclass.teachers and current_user.role != 'admin':
+            return jsonify({'error': '无权访问此课程班的申请'}), 403
+
+        # 获取筛选条件
+        status = request.args.get('status', None)
+        
+        query = CourseClassApplication.query.filter_by(
+            courseclass_id=courseclass_id
+        )
+
+        if status:
+            query = query.filter_by(status=status)
+
+        applications = query.order_by(CourseClassApplication.application_date.desc()).all()
+
+        result = [{
+            'id': app.id,
+            'student_id': app.student.id,
+            'student_name': app.student.username,
+            'status': app.status,
+            'application_date': app.application_date.isoformat(),
+            'processed_date': app.processed_date.isoformat() if app.processed_date else None,
+            'message': app.message,
+            'admin_notes': app.admin_notes
+        } for app in applications]
+
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@courseclass_management_bp.route('/courseclass/applications/<int:application_id>/process', methods=['POST'])
+def process_application(application_id):
+    try:
+        if not is_logged_in():
+            return jsonify({'error': 'Unauthorized'}), 401
+
+        application = CourseClassApplication.query.get_or_404(application_id)
+        courseclass = application.courseclass
+        current_user = g.current_user
+
+        # 验证教师权限
+        if current_user not in courseclass.teachers and current_user.role != 'admin':
+            return jsonify({'error': '无权处理此申请'}), 403
+
+        # 如果已经处理过
+        if application.status != 'pending':
+            return jsonify({'error': '该申请已处理'}), 400
+
+        data = request.get_json()
+        action = data.get('action')
+        admin_notes = data.get('admin_notes', '')
+
+        if action not in ['approve', 'reject']:
+            return jsonify({'error': '无效的操作类型'}), 400
+
+        # 处理申请
+        if action == 'approve':
+            # 添加学生到课程班
+            if application.student not in courseclass.students:
+                courseclass.students.append(application.student)
+            application.status = 'approved'
+            message = '已批准申请'
+        else:
+            application.status = 'rejected'
+            message = '已拒绝申请'
+
+        # 更新公共字段
+        application.admin_notes = admin_notes
+        application.processed_date = datetime.utcnow()
+        application.teacher_id = current_user.id
+
+        db.session.commit()
+
+        return jsonify({
+            'message': message,
+            'application_id': application.id,
+            'status': application.status
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@courseclass_management_bp.route('/courseclass/my_applications', methods=['GET'])
+def get_my_applications():
+    try:
+        if not is_logged_in():
+            return jsonify({'error': 'Unauthorized'}), 401
+
+        current_user = g.current_user
+        
+        # 获取筛选条件
+        status = request.args.get('status', None)
+        
+        query = CourseClassApplication.query.filter_by(
+            student_id=current_user.id
+        )
+
+        if status:
+            query = query.filter_by(status=status)
+
+        applications = query.order_by(CourseClassApplication.application_date.desc()).all()
+
+        result = [{
+            'id': app.id,
+            'courseclass_id': app.courseclass.id,
+            'courseclass_name': app.courseclass.name,
+            'status': app.status,
+            'application_date': app.application_date.isoformat(),
+            'processed_date': app.processed_date.isoformat() if app.processed_date else None,
+            'message': app.message,
+            'admin_notes': app.admin_notes
+        } for app in applications]
+
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @courseclass_management_bp.after_request
 def log_after_request(response):
     # 跳过预检请求和错误响应
