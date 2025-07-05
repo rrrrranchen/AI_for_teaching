@@ -18,10 +18,6 @@ from llama_index.embeddings.dashscope import (
 )
 from llama_index.core.node_parser import SentenceSplitter
 from typing import List, Optional
-from app.utils.database import db  
-from app.models.Category import Category  
-from app.models.CategoryFile import CategoryFile
-from app.models.KnowledgeBase import KnowledgeBase
 # 配置常量
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UPLOAD_FOLDER_KNOWLEDGE=os.path.join(project_root,'static','knowledge')

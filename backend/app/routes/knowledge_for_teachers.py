@@ -12,8 +12,8 @@ from app.models.Category import Category
 
 from app.models.CategoryFile import CategoryFile
 from app.models.KnowledgeBase import KnowledgeBase
-from app.services.create_cat import ALLOWED_NON_STRUCTURAL_EXTENSIONS, ALLOWED_STRUCTURAL_EXTENSIONS, UPLOAD_FOLDER_KNOWLEDGE, allowed_file_non_structural, allowed_file_structural, create_knowledge_base_folder, create_user_category_folder, upload_file_to_folder_non_structural, upload_file_to_folder_structural
-from app.services.create_kb import BASE_PATH, create_structured_db, create_unstructured_db,CATEGORY_PATH
+from app.utils.create_cat import ALLOWED_NON_STRUCTURAL_EXTENSIONS, ALLOWED_STRUCTURAL_EXTENSIONS, UPLOAD_FOLDER_KNOWLEDGE, allowed_file_non_structural, allowed_file_structural, create_knowledge_base_folder, create_user_category_folder, upload_file_to_folder_non_structural, upload_file_to_folder_structural
+from app.utils.create_kb import BASE_PATH, create_structured_db, create_unstructured_db,CATEGORY_PATH
 from app.models.courseclass import Courseclass
 from app.models.CategoryFileImage import CategoryFileImage
 

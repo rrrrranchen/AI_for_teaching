@@ -8,7 +8,7 @@ from llama_index.embeddings.dashscope import (
     DashScopeTextEmbeddingModels,
     DashScopeTextEmbeddingType,
 )
-from llama_index.core.schema import TextNode
+from llama_index.core.schema import TextNode, Document
 from llama_index.core.node_parser import SentenceSplitter
 
 # 配置嵌入模型（添加批处理大小限制）
@@ -71,7 +71,14 @@ def create_unstructured_db(db_name: str, label_name: list):
             
             # 分块处理
             nodes = node_parser.get_nodes_from_documents([doc])
-            documents.extend(nodes)
+            for node in nodes:
+                # 将 TextNode 转换为 Document
+                document = Document(
+                    text=node.text,
+                    metadata=node.metadata,
+                    id_=node.id_  # 如果 TextNode 有 id_ 属性，否则可以省略
+                )
+                documents.append(document)
     
     # 分批创建索引（每批最多50个节点）
     index = None
@@ -81,8 +88,8 @@ def create_unstructured_db(db_name: str, label_name: list):
         if index is None:
             index = VectorStoreIndex(batch)
         else:
-            for node in batch:
-                index.insert(node)
+            for document in batch:
+                index.insert(document)
     
     # 保存索引
     if index:
@@ -92,6 +99,7 @@ def create_unstructured_db(db_name: str, label_name: list):
         print(f"知识库 {db_name} 创建成功")
     else:
         print("没有可处理的文档内容")
+
 
 def create_structured_db(db_name: str, data_table: list):
     """创建结构化知识库索引（带批处理限制）"""
@@ -134,7 +142,13 @@ def create_structured_db(db_name: str, data_table: list):
                         'file_path': doc.metadata.get('file_path', ''),
                         'data_type': 'structured'
                     }
-                    nodes.append(node)
+                    # 将 TextNode 转换为 Document
+                    document = Document(
+                        text=node.text,
+                        metadata=node.metadata,
+                        id_=node.id_  # 如果 TextNode 有 id_ 属性，否则可以省略
+                    )
+                    nodes.append(document)
     
     # 分批创建索引
     index = None
@@ -144,8 +158,8 @@ def create_structured_db(db_name: str, data_table: list):
         if index is None:
             index = VectorStoreIndex(batch)
         else:
-            for node in batch:
-                index.insert(node)
+            for document in batch:
+                index.insert(document)
     
     # 保存索引
     if index:
@@ -155,6 +169,9 @@ def create_structured_db(db_name: str, data_table: list):
         print(f"知识库 {db_name} 创建成功")
     else:
         print("没有可处理的文档内容")
+
+
+
 
 import os
 import shutil
@@ -330,7 +347,7 @@ def _get_model_config(model: str, thinking_mode: bool) -> Dict[str, Any]:
         return {
             "model": "deepseek-reasoner",
             "base_url": "https://api.deepseek.com",
-            "api_key": "sk-b7550aa67ed840ffacb5ca051733802c",
+            "api_key": "sk-ca9d2a314fda4f8983f61e292a858d17",
             "system_prompt": "你是一个有帮助的助手，请根据提供的参考内容回答问题。",
             "is_reasoner": True
         }
@@ -340,7 +357,7 @@ def _get_model_config(model: str, thinking_mode: bool) -> Dict[str, Any]:
             return {
                 "model": model,
                 "base_url": "https://api.deepseek.com",
-                "api_key": "sk-b7550aa67ed840ffacb5ca051733802c",
+                "api_key": "sk-ca9d2a314fda4f8983f61e292a858d17",
                 "system_prompt": "你是一个有帮助的助手，请根据提供的参考内容回答问题。",
                 "is_reasoner": False
             }
@@ -496,9 +513,44 @@ def format_sources(source_dict: Dict) -> str:
     ])
 
 
-
-
-
-
-
+def main():
+    # 测试对话参数
+    query = " TensorFlow Lite发展历史"
+    db_names = ["389e58c2-4f8c-4269-acf5-bd418b6e34f9_嵌入式开发"]
+    model = "deepseek-reasoner"
+    thinking_mode=True
+    print(f"用户提问: {query}\n")
+    print("="*50 + " 开始对话 " + "="*50)
     
+    full_response = ""
+    reasoning_content = ""
+    
+    # 调用 chat_stream 函数
+    for token, chunks, status, source_dict in chat_stream(query, db_names, model, thinking_mode=thinking_mode):
+        if status == "chunks":
+            print("\n[召回的知识片段]:")
+            print(chunks)
+        elif status == "reasoning":
+            reasoning_content += token
+            print(token, end="", flush=True)  # 流式打印思维链
+        elif status == "content":
+            full_response += token
+            print(token, end="", flush=True)  # 流式打印回答内容
+        elif status == "tokens":
+            full_response += token
+            print(token, end="", flush=True)  # 普通模型的流式输出
+        elif status == "end":
+            if token:  # 如果是reasoner模型，这里会包含完整响应
+                full_response = token
+            print("\n\n[完整回答]:")
+            print(full_response)
+        elif status == "error":
+            print(f"\n[错误]: {token}")
+    
+    # 格式化来源信息
+    formatted_sources = format_sources(source_dict)
+    print("\n" + "="*50 + " 来源信息 " + "="*50)
+    print(formatted_sources)
+
+if __name__ == "__main__":
+    main()
