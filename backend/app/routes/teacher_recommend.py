@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, request, jsonify, session
 from app.utils.database import db
 from app.models.teacher_recommend import TeacherRecommend
 from app.models.teaching_design import TeachingDesign
-from app.services.recommend_to_teachers import generate_final_markdown, recommend_pictures
+from app.utils.recommend_to_teachers import generate_final_markdown, recommend_pictures
 from app.models.user import User
 
 teacher_recommend_bp=Blueprint('teacher_recommend_bp', __name__)

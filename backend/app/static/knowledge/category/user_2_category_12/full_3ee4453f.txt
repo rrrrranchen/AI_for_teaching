@@ -1,0 +1,654 @@
+# 项目8TensorFlowLite
+
+# 项目描述
+
+TensorFlow生态系统有着丰富的工具链，TensorFlow Serving是使用广泛的高性能的服务器端部署平台，TensorFlow.js支持使用 JavaScript在浏览器端部署，TensorFlowLite加速了端侧机器学习的发展，它支持Android、IOS、嵌入式设备、以及极小的MCU设备。全球超过40亿设备部署了TensorFlowLite，谷歌、Uber、网易、爱奇艺、腾讯等公司的应用都使用了TensorFlow Lite.
+
+本项目为一个图像识别项目，基于TensorFlow Lite，优化MobileNet模型并在Android 手机上实现识别四种花的种类，掌握如何通过相应工具将模型转化成适合手机设备的格式，并在Android应用中部署转换后的模型。
+
+# 项目目标
+
+# 知识目标
+
+了解TensorFlowLite的发展历史  
+了解TTensorFlowLite的应用  
+掌握TensorFlowLite的整体架构  
+掌握TensorFlowLite转换器作用  
+掌握FlatBuffers格式  
+掌握TensorFlowLite解释执行器特点及工作过程
+
+# 技能目标
+
+能通过相应工具将模型转化  
+能在Android应用中部署转换后的模型  
+能熟练AndroidStudio  
+能配置build.gradle构建项目  
+能熟练掌握迁移学习改造模型，开发相应AI应用
+
+# 8.1认识TensorFlowLite
+
+2015年底Google开源了端到端的机器学习开源框架 TensorFlow，它既支持大规模的模型训练，也支持各种环境的部署，包括服务器和移动端的部署，支持各种语言，包括Python，C++，Java，Swift甚至Javascript。而近年来移动化浪潮和交互方式的改变，使得机器学习技术开发也在朝着轻量化的端侧发展，TensorFlow 团队又在 2017年底上线了TensorFlowLite，一个轻量、快速、兼容度高的专门针对移动式应用场景的深度学习工具，把移动端及IoT设备端的深度学习技术的门槛再次大大降低。
+
+# 8.1.1TensorFlowLite发展历史
+
+TFLite是在边缘设备上运行TensorFlow模型推理的官方框架，它跨平台运行，包括Android、iOS以及基于Linux的IoT设备和微控制器。
+
+伴随移动和IoT设备的普及，世界以超乎想象的方式存在被连接的可能，如今已有超过32 亿的手机用户和70亿的联网IoT设备。而随着手机成本不断降低，并且随着微控制器(MCU）和微机电系统（MEMs）的发展，高性能低功耗的芯片使得“万物”智能具有了可能性。Google开始了TFMobile项目，尝试简化TensorFlow并在移动设备上运行，它是一个缩减版的TensorFlow，简化了算子集，也缩小了运行库。
+
+TFMini是Google内部用于计算机视觉场景的解决方案，它提供了一些转换工具压缩模型，进行算子融合并生成代码。它将模型嵌入到二进制文件中，这样就可以在设备上运行和部署模型。TFMini针对移动设备做了很多优化，但在把模型嵌入到实际的二进制文件中时兼容性存在较大挑战，因此TFMini并没有成为通用的解决方案。
+
+基于TFMobile的经验，也继承了TFMini和内部其他类似项目的很多优秀工作，Google设计了TFLite:
+
+1)更轻量。TensorFlow Lite二进制文件的大小约为1MB（针对32位ARMbuild）；如果仅使用支持常见图像分类模型（InceptionV3和MobileNet）所需的运算符，TensorFlow Lite二进制文件的大小不到300 KB。
+
+2)特别为各种端侧设备优化的算子库。  
+3)能够利用各种硬件加速。
+
+# 8.1.2TensorFlowLite的应用
+
+全球有超过 40 亿的设备上部署着 TFLite，例如Google Assstant，Google Photos 等、Uber、Airbnb、以及国内的许多大公司如网易、爱奇艺和WPS等，都在使用TFLite。端侧机器学习在图像、文本和语音等方面都有非常广泛应用。
+
+TensorFlowLite能解决的问题越来越多元化，这带来了应用的大量繁荣。在移动应用方面，网易使用TFLite做OCR 处理，爱奇艺使用TFLite来进行视频中的AR效果，而WPS 用它来做一系列文字处理。图像和视频方面广泛应用，比如Google Photos，Google Arts &Culture。
+
+离线语音识别方面有很多突破，比如GoogleAssistant宣布了完全基于神经网络的移动端语音识别，效果和服务器端十分接近，服务器模型需要2GB大小，而手机端只需要80
+
+MB。端侧语音识别非常有挑战，它的进展代表着端侧机器学习时代的逐步到来.一方面依赖于算法的提高，另外一方面TFLite框架的高性能和模型优化工具也起到了很重要的作用。Google Pixel4手机上发布了LiveCaption，自动把视频和对话中的语言转化为文字，大大提高了有听力障碍人群的体验。另外一方面，模型越来越小，无处不再，Google Assistant的语音功能部署在非常多元的设备上，比如手机端、手表、车载和智能音箱上，全球超过10亿设备。
+
+TFLite可以支持微控制器(MCU)，可以应用于IoT领域，MCU是单一芯片的小型计算机,没有操作系统，只有内存，也许内存只有几十KB。TFLite发布了若干MCU上可运行的模型，比如识别若干关键词的语音识别模型和简单的姿态检测模型，模型大小都只有20 KB左右，基于此可构建更智能的IoT应用，例如出门问问智能音箱使用TFLite来做热词唤醒，科沃斯扫地机器人使用TFLite在室内避开障碍物。如何让用户用更少的时间进行清扫工作是科沃斯不断追求的目标，它使用了机器视觉的帮助，可以识别这个过程中的一些障碍物，选择了用TensorFlowLite部署深度神经网络，将推理速度提高了30%，提高了用户的体验。
+
+TFLite也非常适合工业物联智能设备的开发，因为它很好地支持如树莓派及其他基于Linux SoC的工业自动化系统.创新奇智应用TFLite开发智能质检一体机、智能读码机等产品，应用到服装厂质检等场景
+
+# 8.2TensorFlowLite体系结构
+
+TensorFlowLite是一组工具，可帮助开发者在移动设备、嵌入式设备和IoT设备上运行TensorFlow模型。它支持设备端机器学习推断，延迟较低，并且二进制文件很小。
+
+# 8.2.1TensorFlowLite整体架构
+
+TensorFlowLite包括两个主要组件：
+
+TensorFlow Lite 解释器(Interpreter) TensorFlow Lite 转换器(Converter) 算子库(Op kernels) 硬件加速代理(Hardware accelerator delegate)
+
+TFLite采用更小的模型格式，并提供了方便的模型转换器，可将TensorFlow模型转换为方便解释器使用的格式，并可引入优化以减小二进制文件的大小和提高性能。比如SavedModel或GraphDef格式的 TensorFlow模型，转换成TFLite专用的模型文件格式，在此过程中会进行算子融合和模型优化，以压缩模型，提高性能。
+
+TensorFlowLite采用更小的解释器，可在手机、嵌入式Linux设备和微控制器等很多不同类型的硬件上运行经过专门优化的模型。安卓应用只需1兆左右的运行环境，在MCU上甚至可以小于100KB。
+
+TFLite算子库目前有130个左右，它与TensorFlow的核心算子库略有不同，并做了移动设备相关的优化。
+
+在硬件加速层面，对于CPU利用了ARM的NEON指令集做了大量的优化。同时，Lite还可以利用手机上的加速器，比如GPU或者DSP等。另外，最新的安卓系统提供了Android神经网络API (AndroidNNAPI)，让硬件厂商可以扩展支持这样的接口。
+
+图8-1展示了在TensorFlow 2.0中TFLite模型转换过程，用户在自己的工作台中使用TensorFlowAPI构造TensorFlow模型，然后使用TFLite模型转换器转换成TFLite文件格式(FlatBuffers 格式)。在设备端，TFLite解释器接受TFLite模型，调用不同的硬件加速器比如GPU 进行执行。
+
+![](images/119600dbee92d18af250ca995fb78b808aac337179940581d607686544370038.jpg)  
+图8-1TFLite模型转换过程
+
+# 8.2.2TensorFlowLite转换器
+
+TFLite转换器可以接受不同形式的模型，包括Keras Model和 SavedModel，开发者可以用tf.Keras 或者低层级的 TensorFlow API来构造TensorFlow模型，然后使用Python API或者命令行的方式调用转换器。例如：
+
+# 1）Python API
+
+调用tf.lite.TFLiteConverter，可用 TFLiteConverter.from_saved_model()，或TFLiteConverter.from_keras_model();
+
+# 2）命令行
+
+tflite_convert -- saved_model_dir=width=5,height=17,dpi=110tmpwidth=5,height=17,dpi=110mobilenet_saved_mod el --output_file=width=5,height=17,dpi=110tmpwidth=5,height=17,dpi=110mobilenet.tflite
+
+转换器做了以下优化工作：
+
+1）算子优化和常见的编译优化，比如算子融合、常数折叠或无用代码删除等。TFLite实现了一组优化的算子内核，转化成这些算子能在移动设备上实现性能大幅度提升。  
+2）量化的原生支持。在模型转换过程中使用训练后量化非常简单，不需要改变模型，最少情况只需多加一行代码，设置converter.optimizations=[tf.lite.Optimize.DEFAULT]。
+
+# 8.2.3FlatBuffers格式
+
+TFLite模型文件格式采用FlatBuffers，更注重考虑实时性，内存高效，这在内存有限的移动环境中是极为关键的。它支持将文件映射到内存中，然后直接进行读取和解释，不需要额外解析。将其映射到干净的内存页上，减少了内存碎片化。
+
+TFLite 代码中 schema.fbs文件使用FlatBuffers定义了TFLite模型文件格式，关键样例代码如图8-2所示。TFLite模型文件是一个层次的结构：
+
+1）TFLite模型由子图构成，同时包括用到的算子库和共享的内存缓冲区。  
+2）张量用于存储模型权重，或者计算节点的输入和输出，它引用Model的内存缓冲区的一片区域，提高内存效率。  
+3）每个算子实现有一个OperatorCode，它可以是内置的算子，也可以是自定制算子，有一个名字。  
+4）每个模型的计算节点包含用到的算子索引，以及输入输出用到的Tensor索引。  
+5）每个子图包含一系列的计算节点、多个张量，以及子图本身的输入和输出。  
+tableModel{ tableOperatorCode{operator_codes:[ builtin_code:BuiltinOperator;OperatorCode]; custom_code:string;subgraphs:[SubGraph]; >buffers:[Buffer];  
+} tableOperator{opcode_index:uint;  
+tableSubGraph{ inputs:[int]；tensors:[Tensor]； outputs:[int];inputs:[int]； builtin_options:BuiltinOptions;outputs:[int]； custom_options:[ubyte];operators:[Operator]; >  
+}  
+tableTensor{shape:[int]type:TensorTypebuffer:uint
+
+# 8.2.4TensorFlowLite 解释执行器
+
+TFLite解释执行器针对移动设备从头开始构建，具有以下特点：
+
+1）轻量级
+
+在32b安卓平台下，编译核心运行时得到的库大小只有100KB左右，如果加上所有TFLite的标准算子，编译后得到的库大小是1MB左右。它依赖的组件较少，力求实现不依赖任何其他组件。
+
+# 2）快速启动
+
+既能够将模型直接映射到内存中，同时又有一个静态执行计划，在转换过程中基本上可以提前直接映射出将要执行的节点序列。采取了简单的调度方式，算子之间没有并行执行，而算子内部可以多线程执行以提高效率。
+
+# 3）内存高效
+
+在内存规划方面，采取了静态内存分配。当运行模型时，每个算子会执行prepare函数，它们会分配一个单一的内存块，而这些张量会被整合到这个大的连续内存块中，不同张量之间甚至可以复用内存以减少内存分配.
+
+使用解释执行器通常需要包含四步：
+
+# 1）加载模型
+
+将TFLite模型加载到内存中，该内存包含模型的执行图。
+
+# 2）转换数据
+
+模型的原始输入数据通常与所期望的输入数据格式不匹配.例如，可能需要调整图像大小，或更改图像格式，以兼容模型。
+
+# 3）运行模型推理
+
+使用TFLiteAPI执行模型推理。
+
+# 4）解释输出
+
+解释输出模型推理结果，比如模型可能只返回概率列表，而我们需要将概率映射到相关类别，并将其呈现给最终用户。
+
+TFLite 提供了多种语言的API，正式支持的有 Java，C++和 Python，实验性的包括C，Object C，C#和 Swift。可以从头自己编译TFLite，也可以利用已编译好的库，Android开发者可以使用JCenter Bintray的TFLite AAR，而iOS开发者可通过CocoaPods在iOS系统上获取。
+
+# 8.3任务1：TensorFlowLite开发工作流程
+
+使用TensorFlowLite的工作流程包括如下步骤，如图8-3:
+
+# 1) 选择模型
+
+可以使用自己的TensorFlow模型、在线查找模型，或者从的TensorFlow预训练模型中选择一个模型直接使用或重新训练。
+
+# 2) 转换模型
+
+如果使用的是自定义模型，请使用TensorFlowLite转换器将模型转换为TensorFlowLite格式。
+
+# 3) 部署到设备
+
+使用TensorFlowLite解释器（提供多种语言的API）在设备端运行模型。
+
+4) 优化模型
+
+使用模型优化工具包缩减模型的大小并提高其效率，同时最大限度地降低对准确率的影响。
+
+![](images/456bd9646b171dac89c36bb32e2c3456392c1762c821bbf1fd87fe332c2fe316.jpg)  
+图 8-3TensorFlowLite的工作流程
+
+# 8.3.1选择模型
+
+TensorFlowLite允许在移动端（mobile）、嵌入式（embeded）和物联网（IoT）设备上运行TensorFlow模型。TensorFlow 模型是一种数据结构，这种数据结构包含了在解决一个特定问题时，训练得到的机器学习网络的逻辑和知识。
+
+有多种方式可以获得 TensorFlow 模型，从使用预训练模型（pre-trained models）到训练自己的模型。为了在TensorFlow Lite 中使用模型，模型必须转换成一种特殊格式。TensorFlowLite提供了转换、运行TensorFlow模型所需的所有工具。
+
+为了避免重复开发，Google将训练好的模型放在TensorFlowHub，如图8-4所示。开发人员可以复用这些已经训练好且经过充分认证的模型，节省训练时间和计算资源。这些训练好的模型即可以直接部署，也可以用于迁移学习。
+
+![](images/486b7082719d665cd44113f6c0317178a199ddbebda84d6e9f07968aa7e27042.jpg)  
+图8-4 TensorFlow Hub
+
+打开TensorFlowHub 网站的主页，在页面左侧可以选取类别，例如Text，Image，Video和Publishers等选项，或在搜索框中输入关键字搜索所需要的模型。
+
+以MobileNet为例，搜索到的模型如图8-5所示，在选择模型是请注意TensorFlow的版本。
+
+可以直接下载模型，或者使用hub.KerasLayer。 m = tf.keras.Sequential([ hub.KerasLayer("htps://hub.tensorflow.google.cn/google/imagenet/mobilenet_v3_small_100_224/feature_vector/ 5", trainable=False), tf.keras.layers.Dense(num_classes,activation='softmax') 1) m.build([None, 224, 224,3]) # Batch input shape
+
+![](images/ca9c3082cfe07ef9ea531f188cc88f123d2d8e9d1b323dc3dc554702aa634434.jpg)  
+图8-5MobileNet下载页面
+
+# 8.3.2模型转换
+
+TensorFlowLite转换器将输入的 TensorFlow 模型生成 TensorFlowLite 模型，一种优化的FlatBuffer格式，以.tflite为文件扩展名，可以通过命令行与PythonAPI使用此转换器。
+
+Google推荐使用Python API进行转换，命令行工具只提供了基本的转化功能。转换后的原模型为FlatBuffers格式。FlatBuffers主要应用于游戏场景，是为了高性能场景创建的序列化库，相比ProtocolBuffer有更高的性能和更小的大小等优势，更适合于边缘设备部署。
+
+# 1．命令行
+
+TensorFlow Lite 转换器命令行工具tflite_convert是与TensorFlow一起安装的，在终端运行如下命令：
+
+\$ tflite_convert --help --output_file\`.Type: string. Full path of the output file. \`--saved_model_dir\`. Type: string. Full path to the SavedModel directory. \`--keras_model_file\`.Type: string. Full path to the Keras H5 model file.
+
+--enable_v1_converter.Type: bool. (default False) Enables theconverterand flags used inTF1.x instead of TF 2.   
+X.
+
+# 参数说明如下：
+
+output_file.类型:string.指定输出文件的绝对路径。  
+saved_model_dir.类型:string.指定含有 TensorFlow 1.x 或者 2.0 使用SavedModel生成文件的绝对路径目录。  
+keras_model_file.Type:string.指定含有TensorFlow1.x 或者2.0 使用 tf.kerasmodel生成HDF5文件的绝对路径目录。
+
+在TensorFlow 模型导出时支持两种模型导出方法和格式 SavedModel 和 KerasSequential。
+
+# 转换转换SavedModel示例如下：
+
+tflite_convert\ --saved_model_dir=/tmp/mobilenet_saved_model \ --output_file=/tmp/mobilenet.tflite
+
+# 转换转换KerasH5示例如下：
+
+tflite_convert\ --keras_model_file=/tmp/mobilenet_keras_model.h5\ --output_file=/tmp/mobilenet.tflite
+
+# 2．Python API
+
+在TensorFlow2.0中，将TensorFlow 模型格式转换为TensorFlow Lite的Python API是tf.lite.TFLiteConverter。在TFLiteConverter中有以下的类方法：
+
+TFLiteConverter.from_saved_model():用来转换 SavedModel格式模型。  
+TFLiteConverter.from_keras_model():用来转换tf.keras模型。  
+TFLiteConverter.from_concrete_functions():用来转换 concrete functions。
+
+若要 详 细 了 解TensorFlow Lite converter API ，请 运行print(help(tf.lite.TFLiteConverter))。TensorFlow 2.x 模型是使用 SavedModel格式存储的,并通过高阶 tf.keras.\*API（Keras 模型）或低阶tf.\*API（用于生成具体函数）生成。
+
+以下示例演示了如何将SavedModel转换为TensorFlowLite模型。
+
+import tensorflow as tf
+
+# Convert the model   
+converter = tf.lite.TFLiteConverter.from_saved_model(saved_model_dir)#path to the SavedModel directory   
+tflite_model = converter.convert()
+
+# Save the model. with open('model.tflite','wb') as f: f.write(tflite_model)
+
+以下示例演示了如何将Keras模型转换为TensorFlowLite模型。import tensorflowastf
+
+# Create a model using high-level tf.keras.\* APIs model = tf.keras.models.Sequential([ tf.keras.layers.Dense(units=1, input_shape=[1]), tf.keras.layers.Dense(units=16,activation='relu'), tf.keras.layers.Dense(units=1)
+
+1)
+
+model.compile(optimizer='sgd',loss='mean_squared_error') # compile the model model.fit(x=[-1, 0,1], y=[-3, -1,1], epochs=5) # train the model # (to generatea SavedModel) tf.saved_model.save(model,"saved_model_keras_dir")
+
+# Convert the model.   
+converter=tf.lite.TFLiteConverter.from_keras_model(model) tflite_model = converter.convert() # Save the model.   
+with open('model.tflite','wb') as f: f.write(tflite_model)
+
+# 8.3.3模型推理
+
+TensorFlowLite解释器接收一个模型文件，执行模型文件在输入数据上定义的运算符，输出推理结果，通过模型运行数据以获得预测的过程。
+
+解释器适用于多个平台，提供了一个简单的API，用于从Java、Swift、Objective-C、C++ 和Python 运行 TensorFlow Lite 模型。
+
+Java调用解释器的方式如下：
+
+try(Interpreter interpreter=new Interpreter(tensorflow_lite_model_file)) { interpreter.run(input, output);   
+1
+
+如果手机有GPU，GPU比CPU执行更快的浮点矩阵运算，速度提升能有显著效果。例如在有GPU加速的手机上运行MobileNet图像分类，模型运行速度可以提高5.5倍。
+
+TensorFlow Lite解释器可以配置委托（Delegates）以在不同设备上使用硬件加速。GPU委托（GPUDelegates）允许解释器在设备的GPU上运行适当的运算符。
+
+下面的代码显示了从Java中使用GPU委托的方式： GpuDelegate delegate = new GpuDelegate(); Interpreter.Options options = (new Interpreter.Options()).addDelegate(delegate);
+
+Interpreter interpreter=new Interpreter(tensorflow_lite_model_file,options); try{   
+interpreter.run(input, output);   
+1
+
+TensorFlow Lite解释器很容易在Android与iOS平台上使用。Android开发人员应该使用TensorFlow Lite AAR。iOS 开发人员应该使用 CocoaPods for Swift or Objective-C。
+
+TensorFlow Lite 解释器同样可以部署在Raspberry Pi和基于Arm64的主板的嵌入式Linux 系统上。
+
+# 8.3.4优化模型
+
+TensorFlowLite提供了优化模型大小和性能的工具，通常对准确性影响甚微。模型优化的目标是在给定设备上，实现性能、模型大小和准确性的理想平衡。根据任务的不同，你会需要在模型复杂度和大小之间做取舍。如果任务需要高准确率，那么你可能需要一个大而复杂的模型。对于精确度不高的任务，就最好使用小一点的模型，因为小的模型不仅占用更少的磁盘和内存，也一般更快更高效。
+
+量化使用了一些技术，可以降低权重的精确表示，并且可选的降低存储和计算的激活值。量化的好处有：
+
+对现有CPU平台的支持。  
+激活值得的量化降低了用于读取和存储中间激活值的存储器访问成本。  
+许多CPU和硬件加速器实现提供SIMD指令功能，这对量化特别有益。
+
+TensorFlowLite对量化提供了多种级别的对量化支持。
+
+Tensorflow Lite post-training quantization 量化使权重和激活值的 Post training 更简单。Quantization-aware training可以以最小精度下降来训练网络；这仅适用于卷积神经网络的一个子集。
+
+以下的Python代码片段展示了如何使用预训练量化进行模型转换：  
+importtensorflowas tf  
+converter=tf.lite.TFLiteConverter.from_saved_model(saved_model_dir)  
+converter.optimizations =[tf.lite.Optimize.OPTIMIZE_FOR_SIZE]  
+tflite_quant_model = converter.convert()  
+open("converted_model.tflite","wb").write(tflite_quant_model)
+
+# 8.4任务2：实现花卉识别
+
+下面将使用 TensorFlow Lite 实现花卉识别app，在Android设备上运行图像识别模型MobileNets_v2来识别花卉。本项目实施步骤如下：
+
+1) 通过迁移学习实现花卉识别模型  
+2) 使用TFLite转换器转换模型。  
+3) 在Android应用中使用TFLite解释器运行它。
+
+4）使用TensorFlowLite支持库预处理模型输入和后处理模型输出。最后实现一个在手机上运行的app，可以实时识别照相机所拍摄的花卉，如图8-6所示。
+
+![](images/9f1bda67fca87178b74e535f49ac375824df553510765765e34e1ede544a255c.jpg)  
+图8-6花卉识别app
+
+# 8.4.1选择模型
+
+选择MobileNetV2进行迁移学习，实现识别花卉模型。MobileNetV2是基于一个流线型的架构，它使用深度可分离的卷积来构建轻量级的深层神经网。可用于图像分类任务，比如猫狗分类、花卉分类等等。提供一系列带有标注的花卉数据集，该算法会载入在ImageNet-1000上的预训练模型，在花卉数据集上做迁移学习。
+
+使用小型数据集时，通常会利用在同一域中的较大数据集上训练的模型所学习的特征。通过实例化预先训练的模型，并在顶部添加全连接的分类器来完成的。预训练的模型被“冻结”并且仅在训练期间更新分类器的权重。在这种情况下，卷积基提取了与每幅图像相关的所有特征，只需训练一个分类器，根据所提取的特征集确定图像类。
+
+通过微调进一步提高性能，调整预训练模型的顶层权重，以便模型学习特定于数据集的高级特征，当训练数据集很大并且非常类似于预训练模型训练的原始数据集时，通常建议使用此技术。
+
+# 1. 导入相关库
+
+In[1]:   
+import tensorflow as tf   
+asserttf._version_.startswith('2)   
+import os   
+import numpy as np   
+import matplotlib.pyplot as plt
+
+# 2．准备数据集
+
+该数据集可以在 http://download.tensorflow.org/example_images/flower_photos.tgz下载。每个子文件夹都存储了一种类别的花的图片，子文件夹的名称就是花的类别的名称。平均每一种花有734张图片，图片都是RGB色彩模式的。
+
+In[2]:   
+_URL= "http://download.tensorflow.org/example_images/flower_photos.tgz"   
+zip_file =tf.keras.utils.get_file(origin=_URL, fname="flower_photos.tgz", extract=True)   
+base_dir = os.path.join(os.path.dirname(zip_file),'flower_photos')
+
+数据集解压后存放在.keras\datasets\flower_photos目录下。
+
+2016/02/11 04:52 <DIR> daisy   
+2016/02/11 04:52 <DIR> dandelion   
+2016/02/0910:59 418,049 LICENSE.txt   
+2016/02/11 04:52 <DIR> roses   
+2016/02/11 04:52 <DIR> sunflowers   
+2016/02/11 04:52 <DIR> tulips
+
+将数据集划分为训练集和验证集。训练前需要手动加载图像数据，完成包括遍历数据集的目录结构、加载图像数据以及返回输入和输出。可以使用Keras 提供的 ImageDataGenerator类，它是 keras.preprocessing.image 模块中的图片生成器，负责生成一个批次一个批次的图片，以生成器的形式给模型训练
+
+ImageDataGenerator的构造函数包含许多参数，用于指定加载后如何操作图像数据，包括像素缩放和数据增强。
+
+接着需要一个迭代器来逐步加载单个数据集的图像。这需要调用flow_from_directory（）函数并指定该数据集目录，如 train、validation 目录，函数还允许配置与加载图像相关的更多细节。target_size参数允许将所有图像加载到一个模型需要的特定的大小，设置为大小为(224,224)的正方形图像。
+
+batch_size默认的为32，意思是训练时从数据集中的不同类中随机选出的32个图像，该值设置为64。在评估模型时，可能还希望以确定性顺序返回批处理，这可以通过将 shuffle
+
+参数设置为False。
+
+In[3]: IMAGE_SIZE = 224 BATCH_SIZE = 64
+
+datagen = tf.keras.preprocessing.image.ImageDataGenerator( rescale=1./255, validation_split=0.2)   
+train_generator= datagen.flow_from_directory( base_dir, target_size=(IMAGE_SIZE,IMAGE_SIZE), batch_size=BATCH_SIZE, subset='training')   
+val_generator = datagen.flow_from_directory( base_dir, target_size=(IMAGE_SIZE, IMAGE_SIZE), batch_size=BATCH_SIZE, subset='validation')
+
+Out[3]: Found 2939 images belonging to 5 classes. Found 731 images belonging to 5 classes.
+
+In[4]:   
+forimage_batch,label_batch in train_generator:   
+break   
+image_batch.shape,label_batch.shape   
+Out[4]:   
+(64,224,224,3), (64,5))
+
+保存标签文件： In[5]: print (train_generator.class_indices) labels = "\n'.join(sorted(train_generator.class_indices.keys()) with open('labels.txt','w') as f: f.write(labels)
+
+3．迁移学习改造模型实例化一个预加载了ImageNet训练权重的MobileNetV2模型。
+
+In[6]:
+
+IMG_SHAPE=(IMAGE_SIZE,IMAGE_SIZE,3)   
+# Create the base model from the pre-trained model MobileNet V2   
+base_model = tf.keras.applications.MobileNetV2(input_shape=IMG_SHAPE, include_top=False, weights='imagenet')
+
+Out[6]:
+
+Downloading data from https://storage.googleapis.com/tensorflow/keras-applications/mobilenet_v2/mobilenet_v2_   
+weights_tf_dim_ordering_tf_kernels_1.0_224_no_top.h5   
+9412608/9406464[= =] - 2s Ous/step
+
+MobileNetV2模型默认是将图片分类到1000类，每一类都有各自的标注。因为本问题分类只有5类，所以构建模型的时候增加include_top=False参数，表示不需要原有模型中最后的神经网络层（分类到1000类），以便增加自己的输出层。
+
+由于是通过迁移学习改造模型，所以不改变基础模型的各项参数变量，因为这样才能保留原来大规模训练的优势。使用model.trainable=False，设置在训练中，基础模型的各项参数变量不会被新的训练修改数据。
+
+您需要选择用于特征提取的MobileNetV2层，显然，最后一个分类层（在“顶部”，因为大多数机器学习模型的图表从下到上）并不是非常有用。相反，您将遵循通常的做法，在展平操作之前依赖于最后一层，该层称为“瓶颈层”，与最终/顶层相比，瓶颈层保持了很多通用性。随后在原有模型的后面增加一个池化层，对数据降维。最后是一个5个节点的输出层，因为需要的结果只有5类。
+
+要从特征块生成预测，请用5x5在空间位置上进行平均，使用tf.keras.layers.GlobalAveragePooling2D 层将特征转换为每个图像对应一个1280元素向量。
+
+In[7]:
+
+base_model.trainable = False   
+model = tf.keras.Sequential([ base_model, tf.keras.layers.Conv2D(32, 3,activation='relu'), tf.keras.layers.Dropout(0.2), tf.keras.layers.GlobalAveragePooling2D(, tf.keras.layers.Dense(5,activation='softmax')   
+1)
+
+# 4. 编译，训练模型
+
+在训练之前先编译模型，损失函数使用类别交叉熵。In[8]:
+
+model.compile(optimizer=tf.keras.optimizers.Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
+
+Out[8]:
+
+Model: "sequential"
+
+Layer (type) Output Shape Param # =
+
+mobilenetv2_1.00_224 (Functi (None,7,7, 1280) 2257984 conv2d (Conv2D) (None, 5, 5,32) 368672 dropout (Dropout) (None, 5, 5, 32) 0 global_average_pooling2d (Gl (None, 32) 0 dense (Dense) (None, 5) 165
+
+Total params: 2,626,821   
+Trainable params: 368.837   
+Non-trainable params: 2,257,984
+
+训练模型，训练和验证准确性/损失的学习曲线如图8-7所示。   
+In[9]:   
+epochs = 10   
+history = model.fit(train_generator, steps_per_epoch=len(train_generator), epochs=epochs,validation_data=val_generator, validation_steps=len(val_generator))
+
+![](images/666c9190e61dcdeb178f4a880505869cfe43b3ee30e1d00d65df1c68b05a1d87.jpg)  
+图8-7学习曲线
+
+# 5．微调
+
+设置model.trainable=False参数后，训练期间将不更新预训练网络的权重，只在MobileNetV2基础模型上训练了几层。如果希望进一步提高性能的方法是训练预训练模型的顶层的权重以及刚添加的分类器的训练。
+
+只有在训练顶层分类器并将预先训练的模型设置为不可训练之后，才应尝试此操作。如果在预先训练的模型上添加一个随机初始化的分类器并尝试联合训练所有层，则梯度更新的幅度将太大，并且预训练模型将忘记它学到的东西。
+
+应该尝试微调少量顶层而不是整个MobileNet模型，前几层学习非常简单和通用的功能，这些功能可以推广到几乎所有类型的图像，随着层越来越高，这些功能越来越多地针对训练模型的数据集。微调的自的是使这些专用功能适应新数据集，而不是覆盖通用学习。
+
+首先取消冻结模型的顶层，代码如下：
+
+In[10]:
+
+base_model.trainable = True #Let's take a look to see how many layers are in the base model print("Number of layers in the base model: ",len(base_model.layers))
+
+# Fine tune from this layer onwards fine_tune_at = 100
+
+#Freezeallthe layersbefore the‘fine_tune_atlayer for layer in base_model.layers[:fine_tune_at]:
+
+layer.trainable=False
+
+Out[10]: Number of layers in the base model: 155
+
+取消冻结base_model，MobileNetV2模型网络一共155层，前100层仍设置为无法训练，然后重新编译模型，并恢复训练。使用低学习率编译模型，代码如下：
+
+In[11]:
+
+model.compile(loss='categorical_crossentropy', optimizer = tf.keras.optimizers.Adam(1e-5), metrics=['accuracy'])   
+model.summary(
+
+如果你训练得更早收敛，这将使你的准确率提高几个百分点。
+
+history_fine =model.fit(train_generator, steps_per_epoch=len(train_generator), epochs=5, validation_data=val_generator, validation_steps=len(val_generator))
+
+经过微调后，模型精度几乎达到98%，当微调MobileNetV2基础模型的最后几层并在其上训练分类器时，验证损失远远高于训练损失，模型可能有一些过度拟合。
+
+# 6. 转换为TFLite格式
+
+使用tf.saved_model.save保存模型，然后将将模型保存为tflite兼容格式。
+
+SavedModel包含一个完整的 TensorFlow 程序——不仅包含权重值，还包含计算。它不需要原始模型构建代码就可以运行。
+
+saved_model_dir ='save/fine_tuning'   
+tf.saved_model.save(model, saved_model_dir)   
+converter =tf.lite.TFLiteConverter.from_saved_model(saved_model_dir)   
+tflite_model = converter.convert()   
+with open('save/fine_tuning/assets/model.tflite','wb') as f:   
+f.write(tflite_model)
+
+模型文件保存在save\fine_tuning\assets目录下。
+
+# 8.4.2 Android部署
+
+我们已经使用MobileNetV2创建、训练和导出了自定义TensorFlowLite模型，已经导出以下经过训练的TFLite模型文件和标签文件。接下来将在手机端部署，运行一个使用该模型识别花卉图片的Android应用。
+
+# 1．准备工作
+
+TensorFlow官网提供了很多有趣的TensorFlowLite示例，可从github下载源码：git clone https://github.com/tensorflow/examples.git
+
+项目代码位于目录examples/lite/codelabs/flower_clasification/android/，start 目录下为项目模板，finish目录下是项目完整代码。
+
+安装Android Studio，确认Android Studio 版本 3.0+以上，如图8-8。
+
+![](images/91d4450ed9c3d51584425c730830e0acb9d8d5ab55b5c89aa55e3e74ec6047fb.jpg)  
+图8-8AndroidStudio版本信息
+
+打开Android Studio Android Studio"启动”图标。该工具加载后，从以下弹出式窗口中选择 Android Studio"打开项目”图标“打开现有Android Studio 项目”（Open an existingproject) :
+
+![](images/b32a1fa61151fa9d3faa68e01dc9d9ffcb4e93305fd0e7e15ce845155ee43dc6.jpg)  
+图8-9使用AndroidStudio打开项目
+
+工作目录中选择examples/lite/codelabs/flower_classification/android/finish。
+
+将TensorFlowLite 模型文件model.tflite，标签文件label.txt 拷贝到项目文件夹下/android/start/app/src/main/assets/。
+
+2. 配置build.gradle
+
+首次打开项目时，会看到一个“Gradle同步”(Gradle Sync)弹出式窗口，询问是否要使用Gradle封装容器。在Gradle同步前先将模型文件拷贝到assets目录下。
+
+要使用 tensorflow lite需要导入对应的库，这里通过修改build.gradle来实现。
+
+在dependencies下增加'org.tensorflow:tensorflow-lite:+'，代码如下: implementation('org.tensorflow:tensorflow-lite:0.0.0-nightly') { changing = true } implementation('org.tensorflow:tensorflow-lite-gpu:0.0.0-nightly') { changing = true } implementation('org.tensorflow:tensorflow-lite-support:0.0.0-nightly') { changing = true }
+
+在android下增加aaptOptions，以防止Android在生成应用程序二进制文件时压缩TensorFlow Lite 模型文件。代码如下：
+
+aaptOptions { noCompress "tflite" }
+
+运行SyncGradle开始Android环境部署，运行结果如图8-10:
+
+二 EileEdit Yiew Navigate Code Analyze Befactor Build Run Iools VCSWindow Help TFLite Flower Classification Codelab (finish) App - build.gradle (app) - Android Studio - □ × finish)appbuildgradle T appPixel3a_APL30x86 C 5 # Gy a 新 ■ □ □□ 0 QA ②÷ build.gradle (app) ×m> build.gradle (TFLiteFlower Clasification Codelab (finish) App) Grade app You can configure Gradle wrapper to use distribution with sources.It willprovide IDE with Gradle APl/DSL docuHide the tip Ok, apply suggestion! manfets You canusethe Project Structuredialog toviewand edit your project configuration Open (Ctrl+Alt+Shift+S) Hide notification 情 28 sourceConpatibility=1. ■ 29 targetCompatibility-'1.8' 30 ） build.gradle (Project:TFLiteFlower_Classification_Codelab_(finsh)31 lintoptions{ build.gradle (Module: TFLite_Flower_Clasification_Codelab_(finish)32 abortOnError false gradle.properties (Global Properties) 33 广 gradle-wrapper.properties(Gradle Version) 34 proguard-rules.pro (ProGuard Rules for TFLite_Flower_Classification35 gradle.properties (Project Properties) 36 dependencies{ ettingsgradle (ProjectSettings) 37 inplenentaticn fileTree(dir:1ibs',inelude:['\*jar']) local.properties (SDK Location) 38 inplenentation'androidx.appcompatiappcompati1.0.e 39 implenentation'androidx.coordinatorlayout:coordinstorlayout:1.0.e 48 implenentation 'com.google.android.material:material:1.e.e' 41 42 // Build off of nightly TensorFlow Lite 43 //TODO:AddTFLitedependencies 445 三 4647 implenentation'org.tensorflowitensorflou-lite-support:0.1.0' 三 48 // Use Local TensorFLou Library 49 //implementation'org.tensorflow:tensorflow-Lite-Local:0.0.0 58 白 51 dependenciesl) 1 Sync × ☆ 二 inishfinishedat2021/4/810:05 32 s399ms>Task :prepareKotlinBuildScriptModel UP-TO-DATE = BUILD SUCCESSFUL in 16s d ite 。 gansezg g ΘPlugin Update Recommended □Devce FileExgfdrer Android Gradle Plugin is ready to update. TODO TeminalBuildELogcat Profiler Database Inspector Event Log Layout nspector \*daemon started successfuly(14 minutesago) 49:67LF UTF-84spaces 2
+
+因为获取SDK和gradle编译环境等资源，需要先给Android Studio 配置proxy或者使用国内的镜像。可将 build.gradle 中的 maven 源 google()和 jcenter( 分别替换为国内镜像，如下：
+
+buildscript { repositories { maven { url' https://maven.aliyun.com/repository/google'} maven{url'https://maven.aliyun.com/repository/jcenter'}   
+} dependencies{ classpath 'com.android.tools.build:gradle:3.5.1'   
+广   
+}   
+allprojects{ repositories { maven{ url' https://maven.aliyun.com/repository/google '} maven{url' https://maven.aliyun.com/repository/jcenter '}   
+广   
+}
+
+3. 初始化TensorFlowLite解释器
+
+推理过程是通过解释器（interpreter）来执行，首先是读取模型，将.tflite模型加载到内存中，其中包含了模型的执行流图。
+
+修改 ClassifierFloatMobileNet.java 文件的 ClassifierFloatMobileNet类，添加 model.tflite 和
+
+label.txt，代码如下：
+
+public class ClassifierFloatMobileNet extends Classifier {   
+：   
+// TODO: Specify model.tflite as the model file and labels.txt as the label file @Override   
+protected String getModelPath() {   
+return "model.tflite";   
+}   
+@Override   
+protected String getLabelPath() {   
+return "labels.txt";   
+}   
+}
+
+在Classifier.java文件中的Classifier类里声明 TFLite 解释器 tflite，如果有GPU，还需要声明 GPU 代理 gpuDelegate。
+
+protected Classifier(Activity activity, Device device, int numThreads) throws IOException { // TODO: Declare a GPU delegate   
+private GpuDelegate gpuDelegate = null;   
+/\*\* An instance of the driver class to run model inference with Tensorflow Lite. \*/ // TODO: Declare a TFLite interpreter   
+protected Interpreter tflite;   
+··   
+广
+
+在Classifier类构造函数中创建tflite实例。 protected Classifier(Activity activity, Device device, int numThreads) throws IOException { switch (device) { case GPU: // TODO: Create a GPU delegate instance and add it to the interpreter options gpuDelegate = new GpuDelegate(); tfliteOptions.addDelegate(gpuDelegate); break;
+
+case CPU: break; 1 tfliteOptions.setNumThreads(numThreads); //TODO:Createa TFLite interpreter instance tflite = new Interpreter(tfliteModel, tfliteOptions); }
+
+# 4．执行推理
+
+TensorFlowLite解释器初始化后，开始编写代码以识别输入图像。TensorFlowLite无需使用ByteBuffer来处理图像，它提供了一个方便的支持库来简化图像预处理，同样还可以处理模型的输出，并使TensorFlowLite 解释器更易于使用。下面需要做的工作有：
+
+1）数据转换（TransformingData）：将输入数据转换成模型接收的形式或排布，如resize 原始图像到模型输入大小;  
+2）执行推理（Running Inference）：这一步使用API来执行模型。其中包括了创建解释器、分配张量等；  
+3）解释输出（InterpretingOutput）：用户取出模型推理的结果，并解读输出，如分类结果的概率。
+
+首先处理摄像头的输入图像，修改Classifier.java文件中的loadImage方法，代码如下：
+
+private TensorImage loadImage(final Bitmap bitmap,int sensorOrientation) { ·   
+// TODO: Define an ImageProcessor from TFLite Support Library to do preprocessing   
+ImageProcessor imageProcessor = new ImageProcessor.Builder() .add(new ResizeWithCropOrPadOp(cropSize, cropSize)) .add(new ResizeOp(imageSizeX, imageSizeY, ResizeMethod.NEAREST_NEIGHBOR)) .add(new Rot90Op(numRoration)) .add(getPreprocessNormalizeOpO) .buildO; return imageProcessor.process(inputImageBuffer); ：   
+广
+
+修改recognizeImage方法执行推理，将预处理后的图像提供给 TensorFlowLite解释器。代码如下:
+
+// TODO: Run TFLite inference tflite.run(inputImageBuffer.getBuffer(),outputProbabilityBuffer.getBuffer().rewind();   
+} 最后从模型输出中获取类别及其概率。   
+public List<Recognition> recognizeImage(final Bitmap bitmap,int sensorOrientation) {   
+// TODO: Use TensorLabel from TFLite Support Library to associate the probabilities with category labels Map<String, Float> labeledProbability = new TensorLabel(labels, probabilityProcessor.process(outputProbabilityBuffer)) .getMapWithFloatValue();   
+1
+
+labeledProbability 是将每个类别映射到其概率的对象。TensorFlow Lite支持库提供了一个方便的实用程序，可将模型输出转换为概率图，使用getTopKProbability（..）方法从labeledProbability中提取前几名最可能的标签。
+
+# 5. 试运行应用
+
+应用可以在Android设备上运行，也可以在Android Studio 模拟器中运行。如果计算机没有摄像头就必须选择Android设备运行该应用。
+
+Build Run Iools VCS Window Help TFLite Flower Class   
+ification tf Iasks & Contexts A 人 a   
+小 中 Save as Live Template... :ifierFloatMc Generate JavaDo... IDE Scripting Console on( section XML Actions LoadImage = loadIma JShell Console... DadImage = Groovy Console... 0; Kotlin st to load Q AVD Manager SDK Manager rence call A Resource Manager bn( section Troubleshoot Device Connections Reference Firebase ite infere GD App Links Assistant [mageBuffe eference = Layout Inspector m:
+
+Android Studio 可轻松设置模拟器，选择“Tools”，“AVD Manager”。
+
+如需设置模拟器的相机，需要在“Android 虚拟设备管理器”（Android Virtual DeviceManager)中创建一个新设备。从ADVM主页面中选择“创建虚拟设备”(Create Virtual
+
+![](images/2cb4da93541ce2dc71c6d5602685e6698b36e1821356148d8f6fe0c7874061eb.jpg)  
+Device) :
+
+然后在“验证配置”（VerifyConfiguration)页面（虚拟设备设置的最后一页）上，选择“显示高级设置”(Show Advanced Settings):
+
+![](images/be1a467921050c979e24088e39febbd8dc92ab27b57930bd335469f473a6d3b3.jpg)  
+图8-12创建虚拟设备  
+图8-13高级设置
+
+如图在Android设备上运行，设置手机启用“开发者模式”和“USB调试”，否则无法将该应用从Android Studio 加载到您的手机上。
+
+如需启动构建和安装过程，运行Gradle同步。
+
+![](images/8975ef1492eca57e129b9900c436a7307f2705b87dc889da0ba751223d9b5d1e.jpg)  
+图8-14运行Gradle同步
+
+运行Gradle 同步后，请选择单击AndroidStudio"开始”图标 ，需要从如图8-15窗口中选择设备，运行结果如图8-16所示。
+
+HUAWEI FRD-AL10 CA Running devices   
+□.HUAWEI FRD-AL10 Available devices   
+Pixel_3a_API_30_x86 Run on Multiple Devices   
+AVD Manager   
+iTroubleshoot Device Connections
+
+![](images/7cefa527d5017a2b6c79aade10c888650c624129f5efaca01551c0db6156fac3.jpg)  
+图8-15选择设备  
+图8-16运行结果
+
+# 拓展项目
+
+TensorFlow官网提供了很多TensorFlowLite示例应用，探索经过预先训练的TensorFlowLite 模型，了解如何在示例应用中针对各种机器学习应用场景使用这些模型。并且分别提供了Android设备、iOS 设备以及Raspberry Pi上的应用实现代码，如图8-17所示。
+
+本项目任务要求是基于TensorFlowLite开发一个安卓示例应用程序，应用程序利用设备的摄像头来实时地检测和显示一个人的关键部位。
+
+通过PoseNet模型实现人体姿势估计，PoseNet可以通过检测关键身体部位的位置来估计图像或者视频中的人体姿势。例如，该模型可以估计图像中人的手肘和/或膝盖位置。
+
+可参考示例代码：
+
+https://github.com/tensorflow/examples/tree/master/lite/examples/posenet/android
+
+![](images/80011424e7289fc03fa65a0302227ef2cf8fea2f75237e4b45389475f2a59003.jpg)  
+图8-17图像分类示例应用
+
+该PoseNet示例应用程序功能是捕捉摄像头拍摄的帧，并实时覆盖图像上的关键点。应用程序对每张传入的摄像头图像执行以下操作：
+
+从摄像头预览中获取图像数据并转换成格式。  
+创建一个位图对象来保存来自RGB格式帧数据的像素。将位图裁剪并缩放到模型输入的大小，以便将其传递给模型。  
+从PoseNet库中调用estimateSinglePose(函数来获取Person对象。  
+将位图缩放回屏幕大小，在Canvas对象上绘制新的位图。  
+使用从Person对象中获取的关键点位置在画布上绘制骨架。显示置信度超过特定阈值（默认值为0.2）的关键点。
