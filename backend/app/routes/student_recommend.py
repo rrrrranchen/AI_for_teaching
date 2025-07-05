@@ -6,7 +6,7 @@ from app.models.course import Course
 from app.models.user import User
 from app.models.relationship import teacher_class,student_class,course_courseclass
 from app.models.question import Question
-from app.routes.teachingdesign import get_question_type_name
+from app.routes.teaching_design import get_question_type_name
 from app.models.studentanswer import StudentAnswer
 from sqlalchemy.orm import Session
 from app.models.student_recommend import StudentRecommend

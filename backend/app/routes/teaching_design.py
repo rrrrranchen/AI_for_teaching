@@ -19,9 +19,20 @@ from app.services.lesson_plan import generate_knowledge_mind_map, generate_post_
 from app.models.MindMapNode import MindMapNode
 from app.models.studentanswer import StudentAnswer
 
-teachingdesign_bp=Blueprint('teachingdesign',__name__)
-# 定义一个函数来计算节点颜色
+def is_logged_in():
+    """ 检查用户是否登录 """
+    return 'user_id' in session
+
+def get_current_user():
+    """ 获取当前登录用户 """
+    user_id = session.get('user_id')
+    if user_id:
+        return User.query.get(user_id)
+    return None
+
+teaching_design_bp=Blueprint('teachingdesign',__name__)
 def calculate_node_color(knowledge_point_id):
+    """ 定义一个函数来计算节点颜色 """
     # 获取该知识点及其所有子节点
     def get_all_descendant_nodes(node_id):
         nodes = []
@@ -147,9 +158,6 @@ def get_pre_class_questions_as_feedback(course_id):
     print(feedback_lines)
     return "\n".join(feedback_lines)
 
-
-
-
 def get_question_type_name(type_enum):
     """辅助函数：获取题型名称"""
     return {
@@ -157,17 +165,6 @@ def get_question_type_name(type_enum):
         'fill': '填空题',
         'short_answer': '简答题'
     }.get(type_enum, '未知题型')
-
-def is_logged_in():
-    """检查用户是否登录"""
-    return 'user_id' in session
-
-def get_current_user():
-    """获取当前登录用户"""
-    user_id = session.get('user_id')
-    if user_id:
-        return User.query.get(user_id)
-    return None
 
 def is_teacher_of_course(course_id):
     """检查当前用户是否是课程的任课老师"""
@@ -193,15 +190,17 @@ def is_teacher_of_course(course_id):
     )
     return association > 0
 
-# 异步生成教学方案
+
 async def generate_teaching_plans_async(course_content, student_feedback):
+    """异步生成教学方案"""
     # 模拟异步生成教学方案的过程
     await asyncio.sleep(1)  # 模拟耗时操作
     # 假设 generate_teaching_plans 是同步函数，我们在这里调用它
     return generate_teaching_plans(course_content=course_content, student_feedback=student_feedback)
 
-# 异步保存教学设计版本
+
 async def save_teaching_design_versions_async(new_design, teaching_plans):
+    """异步保存教学设计版本"""
     versions = []
     for i, plan in enumerate(teaching_plans['plans'], 1):
         version = TeachingDesignVersion(
@@ -219,15 +218,17 @@ async def save_teaching_design_versions_async(new_design, teaching_plans):
     await asyncio.gather(*[asyncio.to_thread(db.session.add, version) for version in versions])
     return versions
 
-# 异步设置当前版本
+
 async def set_current_version_async(new_design, versions):
+    """异步设置当前版本"""
     best_version = max(versions, key=lambda v: v.recommendation_score)
     new_design.current_version_id = best_version.id
     await asyncio.to_thread(db.session.commit)
 
-# 异步创建教学设计
-@teachingdesign_bp.route('/createteachingdesign', methods=['POST'])
+
+@teaching_design_bp.route('/createteachingdesign', methods=['POST'])
 async def create_teaching_design():
+    """异步创建教学设计"""
     try:
         # 1. 身份验证和基础校验
         current_user = get_current_user()
@@ -282,10 +283,10 @@ async def create_teaching_design():
         logger.error(f"创建教学设计失败: {str(e)}")
         return jsonify(code=500, message="服务器内部错误"), 500
 
-#查询单个教学设计的所有教学设计版本
-@teachingdesign_bp.route('/<int:design_id>/versions', methods=['GET'])
+
+@teaching_design_bp.route('/<int:design_id>/versions', methods=['GET'])
 def get_design_versions(design_id):
- 
+    """查询单个教学设计的所有教学设计版本"""
     try:
         # 1. 基础验证
         current_user = get_current_user()
@@ -298,7 +299,7 @@ def get_design_versions(design_id):
             return jsonify(code=404, message="教学设计不存在"), 404
 
         # 3. 权限验证（教师只能查看自己课程的）
-        if current_user.role == 'teacher' and not is_teacher_of_course(design.course_id):
+        if not TeachingDesign.is_public and current_user.role == 'teacher' and not is_teacher_of_course(design.course_id):
             return jsonify(code=403, message="无访问权限"), 403
 
         # 4. 查询所有版本（按版本号排序）
@@ -339,9 +340,7 @@ def get_design_versions(design_id):
         logger.error(f"获取教学设计版本失败: {str(e)}", exc_info=True)
         return jsonify(code=500, message="服务器内部错误"), 500
 
-
-#查询所属当前用户的所有教学设计
-@teachingdesign_bp.route('/mydesigns', methods=['GET'])
+@teaching_design_bp.route('/mydesigns', methods=['GET'])
 def get_my_designs():
     """
     查询当前登录教师的所有教学设计及其生成时间与更新时间
@@ -374,8 +373,7 @@ def get_my_designs():
         logger.error(f"查询教学设计失败: {str(e)}")
         return jsonify(code=500, message="服务器内部错误"), 500
 
-#查询单个教学设计版本
-@teachingdesign_bp.route('/versions/<int:version_id>', methods=['GET'])
+@teaching_design_bp.route('/versions/<int:version_id>', methods=['GET'])
 def get_teaching_design_version(version_id):
     """
     根据教学设计版本ID查询版本内容
@@ -392,12 +390,11 @@ def get_teaching_design_version(version_id):
             return jsonify(code=404, message="教学设计版本不存在"), 404
 
         # 3. 权限验证（教师只能查看自己创建的版本）
-        if current_user.role == 'teacher' and version.author_id != current_user.id:
+        if not TeachingDesign.is_public and current_user.role == 'teacher' and version.author_id != current_user.id:
             return jsonify(code=403, message="无访问权限"), 403
-
         # 4. 构建响应数据
         try:
-            # 尝试解析 content 字段为 JSON
+            # 解析 content 字段为 JSON
             content = json.loads(version.content) if version.content else {}
         except json.JSONDecodeError:
             # 如果 content 不是有效的 JSON 格式，则返回原始内容
@@ -425,7 +422,7 @@ def get_teaching_design_version(version_id):
         return jsonify(code=500, message="服务器内部错误"), 500
 
 #查询单个课程的所有教学设计
-@teachingdesign_bp.route('/course/<int:course_id>/designs', methods=['GET'])
+@teaching_design_bp.route('/course/<int:course_id>/designs', methods=['GET'])
 def get_course_designs(course_id):
     """
     查询单个课程的所有教学设计
@@ -463,7 +460,7 @@ def get_course_designs(course_id):
         return jsonify(code=500, message="服务器内部错误"), 500
 
 #修改单个教学设计的基本信息
-@teachingdesign_bp.route('/design/<int:design_id>', methods=['PUT'])
+@teaching_design_bp.route('/design/<int:design_id>', methods=['PUT'])
 def update_teaching_design(design_id):
     """
     修改单个教学设计的基本信息
@@ -504,7 +501,7 @@ def update_teaching_design(design_id):
         return jsonify(code=500, message="服务器内部错误"), 500
 
 #修改单个教学设计版本的基本信息
-@teachingdesign_bp.route('/design/<int:design_id>/version/<int:version_id>', methods=['PUT'])
+@teaching_design_bp.route('/design/<int:design_id>/version/<int:version_id>', methods=['PUT'])
 def update_teaching_design_version(design_id, version_id):
     """
     修改单个教学设计版本的详细信息
@@ -573,7 +570,7 @@ def update_teaching_design_version(design_id, version_id):
         return jsonify(code=500, message="服务器内部错误"), 500
 
 
-@teachingdesign_bp.route('/design/<int:design_id>', methods=['GET'])
+@teaching_design_bp.route('/design/<int:design_id>', methods=['GET'])
 def get_teaching_design(design_id):
     """
     查询单个教学设计的详细信息
@@ -614,7 +611,7 @@ def get_teaching_design(design_id):
     
 
 #将一个课程中的教学设计及其所有版本迁移到另一个课程
-@teachingdesign_bp.route('/course/<int:source_course_id>/migrate/<int:target_course_id>', methods=['POST'])
+@teaching_design_bp.route('/course/<int:source_course_id>/migrate/<int:target_course_id>', methods=['POST'])
 def migrate_course_designs(source_course_id, target_course_id):
     """
     将一个课程的所有教学设计及其版本迁移到另一个课程
@@ -688,7 +685,7 @@ def migrate_course_designs(source_course_id, target_course_id):
 
 
 # 异步生成思维导图并存储
-@teachingdesign_bp.route('/generatemindmap/<int:design_id>', methods=['POST'])
+@teaching_design_bp.route('/generatemindmap/<int:design_id>', methods=['POST'])
 async def generate_and_store_mindmap(design_id):
     try:
         # 1. 基础验证
@@ -797,7 +794,7 @@ def store_and_get_adjusted_map(teachingdesignid, parent_node_id, node_data):
 
 
 # 智能更新思维导图数据
-@teachingdesign_bp.route('/updatemindmap/<int:design_id>', methods=['POST'])
+@teaching_design_bp.route('/updatemindmap/<int:design_id>', methods=['POST'])
 def update_mind_map(design_id):
     """
     智能更新思维导图数据：
@@ -960,7 +957,7 @@ def update_mind_map(design_id):
 
 
 #将单个教学设计的所有节点组成思维导图并存储
-@teachingdesign_bp.route('/<int:design_id>/generate_mindmap', methods=['POST'])
+@teaching_design_bp.route('/<int:design_id>/generate_mindmap', methods=['POST'])
 def generate_and_store_mind_map(design_id):
     try:
         # 1. 基础验证
@@ -1016,7 +1013,7 @@ def generate_and_store_mind_map(design_id):
         return jsonify(code=500, message="服务器内部错误"), 500
     
 # 获取单个教学设计的思维导图接口
-@teachingdesign_bp.route('/teaching-design/<int:design_id>/mindmap', methods=['GET'])
+@teaching_design_bp.route('/teaching-design/<int:design_id>/mindmap', methods=['GET'])
 def get_teaching_design_mindmap(design_id):
     if not is_logged_in():
         return jsonify({'error': 'Unauthorized'}), 401
@@ -1106,7 +1103,7 @@ def get_teaching_design_mindmap(design_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@teachingdesign_bp.route('/design/<int:design_id>/set_visibility', methods=['PUT'])
+@teaching_design_bp.route('/design/<int:design_id>/set_visibility', methods=['PUT'])
 def set_design_visibility(design_id):
     try:
         # 1. 验证用户

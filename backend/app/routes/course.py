@@ -1,5 +1,5 @@
 from datetime import datetime
-from flask import Blueprint, render_template, request, jsonify, session
+from flask import Blueprint, g, render_template, request, jsonify, session
 from sqlalchemy import func, select
 from app.utils.database import db
 from app.models.course import Course
@@ -7,16 +7,33 @@ from app.models.courseclass import Courseclass
 from app.models.user import User
 from app.models.relationship import teacher_class
 from app.models.relationship import student_class
+from app.services.log_service import LogService
 course_bp = Blueprint('course', __name__)
 
 # 检查用户是否登录
 def is_logged_in():
     return 'user_id' in session
+
 def get_current_user():
     user_id = session.get('user_id')
     if user_id:
         return User.query.get(user_id)
     return None
+
+@course_bp.before_request
+def before_request():
+    # 检查用户是否已登录
+    if request.method == 'OPTIONS':
+        return
+    if is_logged_in():
+        # 获取当前用户并存储到 g 对象中
+        g.current_user = get_current_user()
+        # 检查用户是否为管理员
+        if g.current_user:
+            return jsonify({'error': 'Forbidden'}), 403
+    else:
+        # 如果用户未登录，返回未授权错误
+        return jsonify({'error': 'Unauthorized'}), 401
 # 检查当前用户是否为课程班的创建老师
 def is_teacher_of_courseclass(courseclass_id):
     current_user = get_current_user()
@@ -243,3 +260,32 @@ def set_post_class_deadline(course_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+    
+@course_bp.after_request
+def log_after_request(response):
+    # 跳过预检请求和错误响应
+    if request.method == 'OPTIONS' or not (200 <= response.status_code < 400):
+        return response
+
+    # 获取当前用户（已通过before_request验证）
+    current_user = g.current_user
+    user_info = {
+        'id': current_user.id,
+        'role': current_user.role
+    }
+
+    # 记录所有成功请求（无需白名单检查）
+    LogService.log_operation(
+        user_id=user_info['id'],
+        user_type=user_info['role'],
+        operation_type=f"{request.method}_{request.endpoint.replace('.', '_')}",
+        details={
+            'path': request.path,
+            'method': request.method,
+            'params': dict(request.args) if request.args else None,
+            'body': request.get_json(silent=True) if request.method in ['POST', 'PUT', 'PATCH'] else None,
+            'status': response.status_code,
+            'timestamp': datetime.now().isoformat()
+        }
+    )
+    return response
