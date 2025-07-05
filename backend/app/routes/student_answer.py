@@ -15,12 +15,12 @@ from app.models.studentanswer import StudentAnswer
 from app.models.relationship import student_class
 from app.models import course
 from app.services.autogra_service import ChineseGrader
-from app.routes.teachingdesign import get_question_type_name, is_teacher_of_course
+from app.routes.teaching_design import get_question_type_name, is_teacher_of_course
 from app.services.analysis_report import generate_study_report, generate_study_report_overall
 from app.models.studentanalysisreport import StudentAnalysisReport
 from app.models.classanalysisreport import ClassAnalysisReport
 
-studentanswer_bp=Blueprint('studentanswer',__name__)
+student_answer_bp=Blueprint('studentanswer',__name__)
 def is_teacher_of_course(course_id):
 
     """检查当前用户是否是课程的任课老师"""
@@ -377,7 +377,7 @@ def is_student_of_courseclass(courseclass_id):
     return association > 0
 
 #学生作答
-@studentanswer_bp.route('/add_answers', methods=['POST'])
+@student_answer_bp.route('/add_answers', methods=['POST'])
 def add_answers():
     if not is_logged_in():
         return jsonify({'error': '未登录'}), 401
@@ -496,7 +496,7 @@ def add_answers():
     
 
 #教师更新作答成绩
-@studentanswer_bp.route('/update_score/<int:studentanswer_id>', methods=['POST'])
+@student_answer_bp.route('/update_score/<int:studentanswer_id>', methods=['POST'])
 def update_score(studentanswer_id):
     # 身份验证
     if not is_logged_in():
@@ -551,7 +551,7 @@ def update_score(studentanswer_id):
         return jsonify({'error': f'服务器错误: {str(e)}'}), 500
     
 #查询单个作答记录
-@studentanswer_bp.route('/<int:answer_id>', methods=['GET'])
+@student_answer_bp.route('/<int:answer_id>', methods=['GET'])
 def get_answer(answer_id):
     if not is_logged_in():
         return jsonify({'error': '未登录'}), 401
@@ -590,7 +590,7 @@ def get_answer(answer_id):
 
 
 #教师查询单个课程的所有题目学生作答情况
-@studentanswer_bp.route('/course/<int:course_id>/answers', methods=['GET'])
+@student_answer_bp.route('/course/<int:course_id>/answers', methods=['GET'])
 def get_course_answers(course_id):
     # 验证登录状态
     if not is_logged_in():
@@ -696,7 +696,7 @@ def get_course_answers(course_id):
         return jsonify({'error': f'服务器错误: {str(e)}'}), 500
 
 #查询单个题目的所有学生作答记录
-@studentanswer_bp.route('/question/<int:question_id>/answers', methods=['GET'])
+@student_answer_bp.route('/question/<int:question_id>/answers', methods=['GET'])
 def get_question_answers(question_id):
     # 验证登录状态
     if not is_logged_in():
@@ -769,7 +769,7 @@ def get_question_answers(question_id):
     
 
 #获取单个课程班的某一个学生的markdown形式课后习题答题记录分析报告
-@studentanswer_bp.route('/getstudentanswerreport/<int:student_id>/<int:courseclass_id>', methods=['GET'])
+@student_answer_bp.route('/getstudentanswerreport/<int:student_id>/<int:courseclass_id>', methods=['GET'])
 def get_student_answerreport(student_id, courseclass_id):
     # 检查用户是否登录
     if not is_logged_in():
@@ -800,7 +800,7 @@ def get_student_answerreport(student_id, courseclass_id):
         return jsonify({"error": str(e)}), 500
 
 #获取单个教学班的答题分析报告
-@studentanswer_bp.route('/getclassanswerreport/<int:courseclass_id>', methods=['GET'])
+@student_answer_bp.route('/getclassanswerreport/<int:courseclass_id>', methods=['GET'])
 def get_class_answerreport(courseclass_id):
     # 检查用户是否登录
     if not is_logged_in():
@@ -831,7 +831,7 @@ def get_class_answerreport(courseclass_id):
         return jsonify({"error": str(e)}), 500
     
 #获取单个课程的答题分析报告
-@studentanswer_bp.route('/getcourseanswersreport/<int:course_id>', methods=['GET'])
+@student_answer_bp.route('/getcourseanswersreport/<int:course_id>', methods=['GET'])
 def get_course_answersreport(course_id):
     # 检查用户是否登录
     if not is_logged_in():
@@ -862,7 +862,7 @@ def get_course_answersreport(course_id):
         return jsonify({"error": str(e)}), 500
 
 #获取单个学生的有关单个课程的答题分析报告
-@studentanswer_bp.route('/getstudentincourseanswerreport/<int:student_id>/<int:course_id>', methods=['GET'])
+@student_answer_bp.route('/getstudentincourseanswerreport/<int:student_id>/<int:course_id>', methods=['GET'])
 def get_student_in_course_answerreport(student_id, course_id):
     if not is_logged_in():
         return jsonify({'error': '未登录'}), 401
@@ -889,7 +889,7 @@ def get_student_in_course_answerreport(student_id, course_id):
         return jsonify({"error": str(e)}), 500
 
 #更新单个课程班的某一个学生的 Markdown 形式课后习题答题记录分析报告
-@studentanswer_bp.route('/updatestudentanswerreport/<int:student_id>/<int:courseclass_id>', methods=['POST'])
+@student_answer_bp.route('/updatestudentanswerreport/<int:student_id>/<int:courseclass_id>', methods=['POST'])
 def update_student_answerreport(student_id, courseclass_id):
     # 检查用户是否登录
     if not is_logged_in():
@@ -940,7 +940,7 @@ def update_student_answerreport(student_id, courseclass_id):
 
 
 #更新单个教学班的答题分析报告
-@studentanswer_bp.route('/updateclassanswerreport/<int:courseclass_id>', methods=['POST'])
+@student_answer_bp.route('/updateclassanswerreport/<int:courseclass_id>', methods=['POST'])
 def update_class_answerreport(courseclass_id):
     # 检查用户是否登录
     if not is_logged_in():
@@ -987,7 +987,7 @@ def update_class_answerreport(courseclass_id):
         return jsonify({"error": str(e)}), 500
     
 #更新单个课程的答题分析报告
-@studentanswer_bp.route('/updatecourseanswersreport/<int:course_id>', methods=['POST'])
+@student_answer_bp.route('/updatecourseanswersreport/<int:course_id>', methods=['POST'])
 def update_course_answersreport(course_id):
     # 检查用户是否登录
     if not is_logged_in():
@@ -1034,7 +1034,7 @@ def update_course_answersreport(course_id):
         return jsonify({"error": str(e)}), 500
     
 #更新单个学生的有关单个课程的答题分析报告
-@studentanswer_bp.route('/updatestudentincourseanswerreport/<int:student_id>/<int:course_id>', methods=['POST'])
+@student_answer_bp.route('/updatestudentincourseanswerreport/<int:student_id>/<int:course_id>', methods=['POST'])
 def update_student_in_course_answerreport(student_id, course_id):
     # 检查用户是否登录
     if not is_logged_in():

@@ -7,10 +7,10 @@ from app.routes.auth import auth_bp
 from app.routes.courseclass import courseclass_bp
 from app.routes.course import course_bp
 from app.routes.question import question_bp
-from app.routes.studentanswer import studentanswer_bp
+from app.routes.student_answer import student_answer_bp
 from app.routes.resource import resource_bp
 from app.routes.forum import forum_bp
-from app.routes.teachingdesign import teachingdesign_bp
+from app.routes.teaching_design import teaching_design_bp
 from app.routes.teacher_recommend import teacher_recommend_bp
 from app.routes.student_recommend import student_recommend_bp
 from app.routes.human_management import human_management_bp
@@ -18,7 +18,7 @@ from app.routes.mindmap import mindmap_bp
 from app.routes.resource_management import resource_management_bp
 from app.routes.courseclass_management import courseclass_management_bp
 from app.routes.ppt_templates_management import ppt_templates_management_bp
-from app.routes.dashBoard import dashBoard_bp
+from app.routes.dashboard import dashboard_bp
 from app.routes.knowledge_for_teachers import knowledge_for_teachers_bp
 from app.utils.database import init_db
 from config import Config
@@ -38,16 +38,16 @@ def create_app():
     app.register_blueprint(courseclass_bp)
     app.register_blueprint(course_bp)
     app.register_blueprint(question_bp)
-    app.register_blueprint(studentanswer_bp)
+    app.register_blueprint(student_answer_bp)
     app.register_blueprint(resource_bp)
     app.register_blueprint(forum_bp)
-    app.register_blueprint(teachingdesign_bp)
+    app.register_blueprint(teaching_design_bp)
     app.register_blueprint(teacher_recommend_bp)
     app.register_blueprint(student_recommend_bp)
     app.register_blueprint(mindmap_bp)
     app.register_blueprint(human_management_bp)
     app.register_blueprint(resource_management_bp)
-    app.register_blueprint(dashBoard_bp)
+    app.register_blueprint(dashboard_bp)
     app.register_blueprint(courseclass_management_bp)
     app.register_blueprint(ppt_templates_management_bp)
     app.register_blueprint(knowledge_for_teachers_bp)

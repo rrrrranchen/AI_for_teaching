@@ -28,7 +28,7 @@ OPERATION_TYPE_MAPPING = {
 
 REVERSE_OPERATION_MAPPING = {v: k for k, v in OPERATION_TYPE_MAPPING.items()}
 
-dashBoard_bp = Blueprint('dashBoard', __name__)
+dashboard_bp = Blueprint('dashBoard', __name__)
 
 def is_logged_in():
     return 'user_id' in session
@@ -39,7 +39,7 @@ def get_current_user():
         return User.query.get(user_id)
     return None
 
-@dashBoard_bp.before_request
+@dashboard_bp.before_request
 def before_request():
     if request.method == 'OPTIONS':
         return
@@ -64,7 +64,7 @@ def get_original_operation_type(friendly_name):
 
 
 
-@dashBoard_bp.route('/usage_count', methods=['POST'])
+@dashboard_bp.route('/usage_count', methods=['POST'])
 def get_user_usage_count():
     """
     统一查询用户使用次数(JSON请求格式)，支持学生和教师
@@ -160,7 +160,7 @@ def get_user_usage_count():
         'operations_by_type': friendly_type_counts
     }), 200
 
-@dashBoard_bp.route('/available_operations', methods=['GET'])
+@dashboard_bp.route('/available_operations', methods=['GET'])
 def get_available_operations():
     """
     获取系统支持的所有操作类型及其友好名称
@@ -193,7 +193,7 @@ def get_available_operations():
     return jsonify({'operations': operations}), 200
 
 
-@dashBoard_bp.route('/operation_logs', methods=['GET'])
+@dashboard_bp.route('/operation_logs', methods=['GET'])
 def get_operation_logs():
     """
     获取操作日志(根据用户类型查询不同的日志表)
@@ -271,7 +271,7 @@ def get_operation_logs():
     
     return jsonify({'logs': result}), 200
 
-@dashBoard_bp.after_request
+@dashboard_bp.after_request
 def log_after_request(response):
     # 跳过预检请求和错误响应
     if request.method == 'OPTIONS' or not (200 <= response.status_code < 400):

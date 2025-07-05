@@ -81,8 +81,8 @@ def get_recommendation_by_design(teaching_design_id):
         if not teaching_design:
             return jsonify({"error": "未找到对应的教学设计"}), 404
 
-        # 检查权限：只有教学设计的创建者或管理员可以查看推荐资源
-        if teaching_design.creator_id != current_user.id and current_user.role != 'admin':
+        # 检查权限：只有在教案非公开情况下，教学设计的创建者或管理员可以查看推荐资源
+        if not TeachingDesign.is_public and teaching_design.creator_id != current_user.id and current_user.role != 'admin':
             return jsonify({"error": "无权查看此教学设计的推荐资源"}), 403
 
         # 查询对应的推荐资源
