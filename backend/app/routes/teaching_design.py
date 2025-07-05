@@ -421,7 +421,6 @@ def get_teaching_design_version(version_id):
         logger.error(f"查询教学设计版本失败: {str(e)}")
         return jsonify(code=500, message="服务器内部错误"), 500
 
-#查询单个课程的所有教学设计
 @teaching_design_bp.route('/course/<int:course_id>/designs', methods=['GET'])
 def get_course_designs(course_id):
     """
@@ -500,7 +499,6 @@ def update_teaching_design(design_id):
         logger.error(f"更新教学设计失败: {str(e)}")
         return jsonify(code=500, message="服务器内部错误"), 500
 
-#修改单个教学设计版本的基本信息
 @teaching_design_bp.route('/design/<int:design_id>/version/<int:version_id>', methods=['PUT'])
 def update_teaching_design_version(design_id, version_id):
     """
@@ -609,8 +607,6 @@ def get_teaching_design(design_id):
         logger.error(f"查询教学设计失败: {str(e)}")
         return jsonify(code=500, message="服务器内部错误"), 500
     
-
-#将一个课程中的教学设计及其所有版本迁移到另一个课程
 @teaching_design_bp.route('/course/<int:source_course_id>/migrate/<int:target_course_id>', methods=['POST'])
 def migrate_course_designs(source_course_id, target_course_id):
     """
@@ -684,9 +680,10 @@ def migrate_course_designs(source_course_id, target_course_id):
         return jsonify(code=500, message="服务器内部错误"), 500
 
 
-# 异步生成思维导图并存储
+
 @teaching_design_bp.route('/generatemindmap/<int:design_id>', methods=['POST'])
 async def generate_and_store_mindmap(design_id):
+    """异步生成思维导图并存储"""
     try:
         # 1. 基础验证
         current_user = get_current_user()
@@ -956,9 +953,10 @@ def update_mind_map(design_id):
 
 
 
-#将单个教学设计的所有节点组成思维导图并存储
+
 @teaching_design_bp.route('/<int:design_id>/generate_mindmap', methods=['POST'])
 def generate_and_store_mind_map(design_id):
+    """将单个教学设计的所有节点组成思维导图并存储"""
     try:
         # 1. 基础验证
         current_user = get_current_user()
@@ -1012,9 +1010,10 @@ def generate_and_store_mind_map(design_id):
         logger.error(f"生成并存储思维导图失败: {str(e)}")
         return jsonify(code=500, message="服务器内部错误"), 500
     
-# 获取单个教学设计的思维导图接口
+
 @teaching_design_bp.route('/teaching-design/<int:design_id>/mindmap', methods=['GET'])
 def get_teaching_design_mindmap(design_id):
+    """获取单个教学设计的思维导图接口"""
     if not is_logged_in():
         return jsonify({'error': 'Unauthorized'}), 401
 
@@ -1105,6 +1104,7 @@ def get_teaching_design_mindmap(design_id):
 
 @teaching_design_bp.route('/design/<int:design_id>/set_visibility', methods=['PUT'])
 def set_design_visibility(design_id):
+    """设置教案可见性"""
     try:
         # 1. 验证用户
         current_user = get_current_user()

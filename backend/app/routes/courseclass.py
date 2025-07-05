@@ -17,7 +17,6 @@ from app.models import CourseClassApplication
 from app.services.log_service import LogService
 courseclass_bp = Blueprint('courseclass', __name__)
 
-# 检查用户是否登录
 def is_logged_in():
     return 'user_id' in session
 def get_current_user():
@@ -131,7 +130,7 @@ def get_courseclass(courseclass_id):
             return jsonify({'error': 'CourseClass not found'}), 404
 
         # 检查用户是否为该课程班的老师或学生
-        if not is_teacher_of_courseclass(courseclass_id) and current_user not in courseclass.students:
+        if not courseclass.is_public and not is_teacher_of_courseclass(courseclass_id) and current_user not in courseclass.students:
             return jsonify({'error': 'You are not authorized to access this course class'}), 403
 
         result = {
@@ -139,8 +138,10 @@ def get_courseclass(courseclass_id):
             'name': courseclass.name,
             'description': courseclass.description,
             'created_at': courseclass.created_at,
-            'invite_code': courseclass.invite_code,  # 返回邀请码
+            'invite_code': courseclass.invite_code,
             'image_path' : courseclass.image_path,
+            'student_count': len(courseclass.students),
+            'course_count': len(courseclass.courses),
             'teachers': [
                     {'id': teacher.id, 'username': teacher.username, 'avatar': teacher.avatar}
                     for teacher in courseclass.teachers
