@@ -18,7 +18,7 @@ from app.routes.mindmap import mindmap_bp
 from app.routes.resource_management import resource_management_bp
 from app.routes.courseclass_management import courseclass_management_bp
 from app.routes.ppt_templates_management import ppt_templates_management_bp
-from app.routes.dashboard import dashboard_bp
+from app.routes.dashBoard import dashboard_bp
 from app.routes.knowledge_for_teachers import knowledge_for_teachers_bp
 from app.utils.database import init_db
 from config import Config
