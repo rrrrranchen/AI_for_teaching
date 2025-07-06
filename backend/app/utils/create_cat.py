@@ -267,15 +267,134 @@ def download_and_extract(zip_url: str, target_dir: str) -> Tuple[str, List[str]]
 MINERU_API_URL = "https://mineru.net/api/v4/extract/task"
 MINERU_RESULT_URL = "https://mineru.net/api/v4/extract/task/{task_id}"
 
+# def upload_file_to_folder_non_structural(file, folder_path: str) -> Tuple[str, List[str], str]:
+#     """上传非结构化文件并转换为TXT存储
+    
+#     Args:
+#         file: 上传的文件对象
+#         folder_path: 存储文件的目录路径
+        
+#     Returns:
+#         元组 (TXT文件相对路径, 图片文件相对路径列表, 原始文件相对路径)
+        
+#     Raises:
+#         ValueError: 文件类型不支持
+#         RuntimeError: 文件处理失败
+#     """
+#     if not (file and allowed_file_non_structural(file.filename)):
+#         raise ValueError("不支持的非结构化文件类型")
+    
+#     try:
+#         # 保存原始文件
+#         unique_filename = f"{uuid.uuid4()}_{file.filename}"
+#         file_path = os.path.join(folder_path, unique_filename)
+#         originalfile_path = os.path.join(project_root, 'static', 'knowledge', 'originalfiles', unique_filename)
+#         r_originalfile_path = os.path.join('static', 'knowledge', 'originalfiles', unique_filename)
+        
+#         # 确保目录存在
+#         os.makedirs(os.path.dirname(originalfile_path), exist_ok=True)
+#         file.save(file_path)
+#         file.save(originalfile_path)
+        
+#         # 获取文件扩展名
+#         file_ext = file.filename.split('.')[-1].lower()
+        
+#         # 对于txt、md、html、htm文件，直接处理
+#         if file_ext in ['txt', 'md', 'html', 'htm']:
+#             # 1. 读取文件内容（自动处理编码）
+#             with open(file_path, 'rb') as f:
+#                 raw_data = f.read()
+#                 encoding = chardet.detect(raw_data)['encoding'] or 'utf-8'
+            
+#             # 2. 转换内容为纯文本
+#             content = raw_data.decode(encoding)
+            
+#             # 如果是markdown文件，转换为纯文本
+#             if file_ext == 'md':
+#                 content = markdown.markdown(content)  # 先转换为HTML
+#                 # 移除HTML标签
+#                 content = re.sub(r'<[^>]+>', '', content)
+            
+#             # 如果是HTML文件，移除标签
+#             elif file_ext in ['html', 'htm']:
+#                 content = re.sub(r'<[^>]+>', '', content)
+            
+#             # 3. 生成TXT文件名
+#             txt_filename = os.path.splitext(unique_filename)[0] + '.txt'
+#             txt_filepath = os.path.join(folder_path, txt_filename)
+            
+#             # 4. 写入TXT文件
+#             with open(txt_filepath, 'w', encoding='utf-8') as f:
+#                 f.write(content)
+            
+#             # 5. 构建返回路径
+#             txt_relative_path = os.path.join('static', 'knowledge', 'category', 
+#                                            os.path.basename(folder_path), txt_filename)
+            
+#             # 6. 清理临时文件
+#             os.remove(file_path)
+            
+#             return txt_relative_path, [], r_originalfile_path
+        
+#         # 对于其他文件类型，仍然使用Mineru处理
+#         else:
+#             # 步骤1: 将文件上传到公共可访问的URL
+#             public_url = upload_to_cdn(file_path)  
+            
+#             # 步骤2: 调用Mineru API解析文件
+#             task_id = create_mineru_task(public_url)
+#             if not task_id:
+#                 raise RuntimeError("Mineru任务创建失败")
+            
+#             # 步骤3: 轮询获取解析结果
+#             zip_url = poll_mineru_result(task_id)
+#             if not zip_url:
+#                 raise RuntimeError("Mineru解析失败")
+            
+#             # 步骤4: 下载并解压结果，获取Markdown文件和图片
+#             md_file_path, image_paths = download_and_extract(zip_url, folder_path)
+            
+#             # 步骤5: 将Markdown转换为TXT
+#             txt_file_path = convert_md_to_txt(md_file_path)
+            
+#             # 构建相对路径
+#             base_relative_path = os.path.join('static', 'knowledge', 'category', 
+#                                             os.path.basename(folder_path))
+            
+#             # TXT文件相对路径
+#             txt_relative_path = os.path.join(base_relative_path, 
+#                                            os.path.basename(txt_file_path))
+            
+#             # 图片文件相对路径
+#             image_relative_paths = []
+#             for img_path in image_paths:
+#                 rel_path = os.path.join('static', 'knowledge', 'fileimages',
+#                                       os.path.basename(img_path))
+#                 image_relative_paths.append(rel_path)
+            
+#             # 清理临时文件
+#             os.remove(file_path)  # 删除原始文件
+#             os.remove(md_file_path)  # 删除Markdown文件
+            
+#             return txt_relative_path, image_relative_paths, r_originalfile_path
+            
+#     except Exception as e:
+#         # 清理可能存在的临时文件
+#         if 'file_path' in locals() and os.path.exists(file_path):
+#             os.remove(file_path)
+#         if 'md_file_path' in locals() and os.path.exists(md_file_path):
+#             os.remove(md_file_path)
+#         raise RuntimeError(f"文件处理失败: {str(e)}")
+
 def upload_file_to_folder_non_structural(file, folder_path: str) -> Tuple[str, List[str], str]:
-    """上传非结构化文件并转换为TXT存储
+    """上传非结构化文件并保留原始格式存储
     
     Args:
         file: 上传的文件对象
         folder_path: 存储文件的目录路径
         
     Returns:
-        元组 (TXT文件相对路径, 图片文件相对路径列表, 原始文件相对路径)
+        元组 (文件相对路径, 图片文件相对路径列表, 原始文件相对路径)
         
     Raises:
         ValueError: 文件类型不支持
@@ -285,8 +404,13 @@ def upload_file_to_folder_non_structural(file, folder_path: str) -> Tuple[str, L
         raise ValueError("不支持的非结构化文件类型")
     
     try:
+        # 生成唯一文件名
+        unique_id = uuid.uuid4()
+        original_filename = file.filename
+        file_ext = original_filename.split('.')[-1].lower()
+        unique_filename = f"{unique_id}_{original_filename}"
+        
         # 保存原始文件
-        unique_filename = f"{uuid.uuid4()}_{file.filename}"
         file_path = os.path.join(folder_path, unique_filename)
         originalfile_path = os.path.join(project_root, 'static', 'knowledge', 'originalfiles', unique_filename)
         r_originalfile_path = os.path.join('static', 'knowledge', 'originalfiles', unique_filename)
@@ -296,45 +420,39 @@ def upload_file_to_folder_non_structural(file, folder_path: str) -> Tuple[str, L
         file.save(file_path)
         file.save(originalfile_path)
         
-        # 获取文件扩展名
-        file_ext = file.filename.split('.')[-1].lower()
-        
         # 对于txt、md、html、htm文件，直接处理
         if file_ext in ['txt', 'md', 'html', 'htm']:
             # 1. 读取文件内容（自动处理编码）
             with open(file_path, 'rb') as f:
                 raw_data = f.read()
                 encoding = chardet.detect(raw_data)['encoding'] or 'utf-8'
+                content = raw_data.decode(encoding)
             
-            # 2. 转换内容为纯文本
-            content = raw_data.decode(encoding)
-            
-            # 如果是markdown文件，转换为纯文本
-            if file_ext == 'md':
-                content = markdown.markdown(content)  # 先转换为HTML
-                # 移除HTML标签
+            # 2. 对于HTML文件，移除标签
+            if file_ext in ['html', 'htm']:
                 content = re.sub(r'<[^>]+>', '', content)
-            
-            # 如果是HTML文件，移除标签
-            elif file_ext in ['html', 'htm']:
-                content = re.sub(r'<[^>]+>', '', content)
-            
-            # 3. 生成TXT文件名
-            txt_filename = os.path.splitext(unique_filename)[0] + '.txt'
-            txt_filepath = os.path.join(folder_path, txt_filename)
-            
-            # 4. 写入TXT文件
-            with open(txt_filepath, 'w', encoding='utf-8') as f:
-                f.write(content)
-            
-            # 5. 构建返回路径
-            txt_relative_path = os.path.join('static', 'knowledge', 'category', 
-                                           os.path.basename(folder_path), txt_filename)
-            
-            # 6. 清理临时文件
-            os.remove(file_path)
-            
-            return txt_relative_path, [], r_originalfile_path
+                # 保存为TXT文件
+                processed_filename = f"{unique_id}.txt"
+                processed_filepath = os.path.join(folder_path, processed_filename)
+                with open(processed_filepath, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                # 更新返回路径
+                relative_path = os.path.join('static', 'knowledge', 'category', 
+                                           os.path.basename(folder_path), processed_filename)
+                # 清理临时文件
+                os.remove(file_path)
+                return relative_path, [], r_originalfile_path
+            else:
+                # 如果是MD文件，转换其中的图片路径
+                if file_ext == 'md':
+                    content = convert_md_image_paths(content)
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write(content)
+                
+                # 对于txt和md文件，直接使用原文件（但确保文件名唯一）
+                relative_path = os.path.join('static', 'knowledge', 'category', 
+                                           os.path.basename(folder_path), unique_filename)
+                return relative_path, [], r_originalfile_path
         
         # 对于其他文件类型，仍然使用Mineru处理
         else:
@@ -354,29 +472,35 @@ def upload_file_to_folder_non_structural(file, folder_path: str) -> Tuple[str, L
             # 步骤4: 下载并解压结果，获取Markdown文件和图片
             md_file_path, image_paths = download_and_extract(zip_url, folder_path)
             
-            # 步骤5: 将Markdown转换为TXT
-            txt_file_path = convert_md_to_txt(md_file_path)
+            # 读取并转换Markdown文件中的图片路径
+            with open(md_file_path, 'r', encoding='utf-8') as f:
+                md_content = f.read()
+            md_content = convert_md_image_paths(md_content)
+            
+            # 为MD文件生成唯一名称
+            md_unique_filename = f"{unique_id}.md"
+            md_unique_path = os.path.join(folder_path, md_unique_filename)
+            with open(md_unique_path, 'w', encoding='utf-8') as f:
+                f.write(md_content)
+            os.remove(md_file_path)  # 删除原始Markdown文件
             
             # 构建相对路径
             base_relative_path = os.path.join('static', 'knowledge', 'category', 
                                             os.path.basename(folder_path))
             
-            # TXT文件相对路径
-            txt_relative_path = os.path.join(base_relative_path, 
-                                           os.path.basename(txt_file_path))
+            # MD文件相对路径
+            md_relative_path = os.path.join(base_relative_path, md_unique_filename)
             
-            # 图片文件相对路径
+            # 图片文件相对路径（也确保唯一性）
             image_relative_paths = []
             for img_path in image_paths:
-                rel_path = os.path.join('static', 'knowledge', 'fileimages',
-                                      os.path.basename(img_path))
+                rel_path = os.path.join('static', 'knowledge', 'fileimages', img_path)
                 image_relative_paths.append(rel_path)
             
             # 清理临时文件
             os.remove(file_path)  # 删除原始文件
-            os.remove(md_file_path)  # 删除Markdown文件
             
-            return txt_relative_path, image_relative_paths, r_originalfile_path
+            return md_relative_path, image_relative_paths, r_originalfile_path
             
     except Exception as e:
         # 清理可能存在的临时文件
@@ -385,6 +509,35 @@ def upload_file_to_folder_non_structural(file, folder_path: str) -> Tuple[str, L
         if 'md_file_path' in locals() and os.path.exists(md_file_path):
             os.remove(md_file_path)
         raise RuntimeError(f"文件处理失败: {str(e)}")
+
+
+def convert_md_image_paths(md_content: str, base_url: str = "http://localhost:5000") -> str:
+    """
+    将Markdown内容中的图片相对路径转换为完整URL路径
+    
+    参数:
+        md_content: Markdown文本内容
+        base_url: 基础URL地址，默认为"http://localhost:5000"
+        
+    返回:
+        转换后的Markdown内容
+    
+    功能:
+        将类似 ![](images/xxx.jpg) 的路径转换为
+        ![](http://localhost:5000/static/knowledge/fileimages/xxx.jpg)
+    """
+    # 定义匹配Markdown图片的正则表达式
+    pattern = r'!\[(.*?)\]\((images/.*?)\)'
+    
+    def replace_path(match):
+        alt_text = match.group(1)  # 获取图片描述文本
+        img_name = match.group(2).split('/')[-1]  # 提取图片文件名
+        # 构建新的图片URL路径
+        new_path = f"{base_url}/static/knowledge/fileimages/{img_name}"
+        return f'![{alt_text}]({new_path})'
+    
+    # 执行替换
+    return re.sub(pattern, replace_path, md_content)
 
 def create_mineru_task(file_url: str) -> Optional[str]:
     """创建Mineru解析任务"""

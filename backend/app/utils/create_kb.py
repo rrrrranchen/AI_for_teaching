@@ -30,8 +30,80 @@ def list_knowledge_bases():
     return [name for name in os.listdir(BASE_PATH) 
             if os.path.isdir(os.path.join(BASE_PATH, name))]
 
+# def create_unstructured_db(db_name: str, label_name: list):
+#     """创建非结构化知识库索引（带批处理限制）"""
+#     print(f"知识库名称为：{db_name}，类目名称为：{label_name}")
+    
+#     # 验证输入
+#     if not label_name:
+#         print("没有选择类目")
+#         return
+#     elif len(db_name) == 0:
+#         print("没有命名知识库")
+#         return
+#     elif db_name in os.listdir(BASE_PATH):
+#         print("知识库已存在，请换个名字或删除原来知识库再创建")
+#         return
+    
+#     # 初始化文档处理器
+#     node_parser = SentenceSplitter(
+#         chunk_overlap=Settings.chunk_overlap,
+#         chunk_size=6000
+#     )
+    
+#     documents = []
+#     for label in label_name:
+#         label_path = os.path.join(CATEGORY_PATH, label)
+#         if not os.path.exists(label_path):
+#             continue
+            
+#         # 分批加载文档
+#         reader = SimpleDirectoryReader(label_path)
+#         docs = reader.load_data()
+        
+#         for doc in docs:
+#             # 添加元数据
+#             category = os.path.basename(label_path)
+#             doc.metadata.update({
+#                 'db_name': db_name,
+#                 'category': category,
+#                 'data_type': 'unstructured'
+#             })
+            
+#             # 分块处理
+#             nodes = node_parser.get_nodes_from_documents([doc])
+#             for node in nodes:
+#                 # 将 TextNode 转换为 Document
+#                 document = Document(
+#                     text=node.text,
+#                     metadata=node.metadata,
+#                     id_=node.id_  # 如果 TextNode 有 id_ 属性，否则可以省略
+#                 )
+#                 documents.append(document)
+    
+#     # 分批创建索引（每批最多50个节点）
+#     index = None
+#     batch_size = 100
+#     for i in range(0, len(documents), batch_size):
+#         batch = documents[i:i+batch_size]
+#         if index is None:
+#             index = VectorStoreIndex(batch)
+#         else:
+#             for document in batch:
+#                 index.insert(document)
+    
+#     # 保存索引
+#     if index:
+#         db_path = os.path.join(BASE_PATH, db_name)
+#         os.makedirs(db_path, exist_ok=True)
+#         index.storage_context.persist(db_path)
+#         print(f"知识库 {db_name} 创建成功")
+#     else:
+#         print("没有可处理的文档内容")
+
+
 def create_unstructured_db(db_name: str, label_name: list):
-    """创建非结构化知识库索引（带批处理限制）"""
+    """创建非结构化知识库索引（优化Markdown分块，确保接近3000字符）"""
     print(f"知识库名称为：{db_name}，类目名称为：{label_name}")
     
     # 验证输入
@@ -45,10 +117,105 @@ def create_unstructured_db(db_name: str, label_name: list):
         print("知识库已存在，请换个名字或删除原来知识库再创建")
         return
     
-    # 初始化文档处理器
+    # 初始化文档处理器（chunk_size=3000）
     node_parser = SentenceSplitter(
-        chunk_overlap=Settings.chunk_overlap
+        chunk_overlap=Settings.chunk_overlap,
+        chunk_size=3000
     )
+    
+    def optimized_markdown_split(content: str) -> list[str]:
+        """优化Markdown分块逻辑，确保分块接近3000字符"""
+        chunks = []
+        current_chunk = []
+        current_length = 0
+        
+        # 按行处理
+        lines = content.split('\n')
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            stripped_line = line.strip()
+            line_length = len(line)
+            
+            # 如果当前行是标题，尝试合并后续内容
+            if stripped_line.startswith('#'):
+                # 收集标题及后续内容直到达到块大小
+                section_lines = []
+                section_length = 0
+                
+                # 添加标题行
+                section_lines.append(line)
+                section_length += line_length
+                
+                # 添加后续内容直到达到3000字符或遇到下一个标题
+                j = i + 1
+                while j < len(lines) and section_length < 2500:  # 留500字符缓冲
+                    next_line = lines[j]
+                    next_stripped = next_line.strip()
+                    
+                    # 遇到新标题则停止
+                    if next_stripped.startswith('#'):
+                        break
+                    
+                    section_lines.append(next_line)
+                    section_length += len(next_line)
+                    j += 1
+                
+                # 如果收集到的内容足够大，直接作为独立块
+                if section_length >= 500:  # 最小有效块大小
+                    chunk_text = '\n'.join(section_lines)
+                    chunks.append(chunk_text)
+                    i = j  # 跳过已处理的行
+                    continue
+                else:
+                    # 如果内容太小，添加到当前块
+                    current_chunk.extend(section_lines)
+                    current_length += section_length
+                    i = j
+                    continue
+            
+            # 普通行处理
+            if current_length + line_length <= 3000:
+                # 添加到当前块
+                current_chunk.append(line)
+                current_length += line_length
+                i += 1
+            else:
+                # 当前块已接近3000字符，保存当前块
+                if current_chunk:
+                    chunk_text = '\n'.join(current_chunk).strip()
+                    if chunk_text:
+                        chunks.append(chunk_text)
+                
+                # 开始新块（除非当前行特别长）
+                if line_length > 3000:
+                    # 处理超长行（如代码块）
+                    chunks.append(line)
+                    current_chunk = []
+                    current_length = 0
+                    i += 1
+                else:
+                    current_chunk = [line]
+                    current_length = line_length
+                    i += 1
+        
+        # 处理最后一个块
+        if current_chunk:
+            chunk_text = '\n'.join(current_chunk).strip()
+            if chunk_text:
+                chunks.append(chunk_text)
+        
+        # 合并过小的块
+        merged_chunks = []
+        for chunk in chunks:
+            if not merged_chunks or len(merged_chunks[-1]) + len(chunk) > 3000:
+                # 开始新块
+                merged_chunks.append(chunk)
+            else:
+                # 合并到前一个块
+                merged_chunks[-1] += '\n\n' + chunk
+        
+        return merged_chunks
     
     documents = []
     for label in label_name:
@@ -56,33 +223,72 @@ def create_unstructured_db(db_name: str, label_name: list):
         if not os.path.exists(label_path):
             continue
             
-        # 分批加载文档
-        reader = SimpleDirectoryReader(label_path)
-        docs = reader.load_data()
+        # 获取目录下所有文件
+        file_paths = []
+        for root, _, files in os.walk(label_path):
+            for file in files:
+                file_paths.append(os.path.join(root, file))
         
-        for doc in docs:
-            # 添加元数据
-            category = os.path.basename(label_path)
-            doc.metadata.update({
-                'db_name': db_name,
-                'category': category,
-                'data_type': 'unstructured'
-            })
+        for file_path in file_paths:
+            # 获取文件扩展名
+            file_ext = os.path.splitext(file_path)[1].lower()
             
-            # 分块处理
-            nodes = node_parser.get_nodes_from_documents([doc])
-            for node in nodes:
-                # 将 TextNode 转换为 Document
-                document = Document(
-                    text=node.text,
-                    metadata=node.metadata,
-                    id_=node.id_  # 如果 TextNode 有 id_ 属性，否则可以省略
-                )
-                documents.append(document)
+            try:
+                # 读取文件内容
+                if file_ext == '.md':
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    
+                    # 创建基础元数据
+                    base_metadata = {
+                        'file_name': os.path.basename(file_path),
+                        'file_path': file_path,
+                        'db_name': db_name,
+                        'category': label,
+                        'data_type': 'unstructured'
+                    }
+                    
+                    # 优化后的Markdown分块处理
+                    chunks = optimized_markdown_split(content)
+                    
+                    for chunk in chunks:
+                        # 检查是否包含图片
+                        if '![' in chunk or '<img' in chunk:
+                            base_metadata['has_image'] = True
+                        
+                        document = Document(
+                            text=chunk,
+                            metadata=base_metadata.copy(),
+                            id_=f"{hash(file_path)}_{hash(chunk)}"
+                        )
+                        documents.append(document)
+                else:
+                    # 其他文件类型使用SimpleDirectoryReader处理
+                    reader = SimpleDirectoryReader(input_files=[file_path])
+                    docs = reader.load_data()
+                    for doc in docs:
+                        # 添加元数据
+                        doc.metadata.update({
+                            'db_name': db_name,
+                            'category': label,
+                            'data_type': 'unstructured'
+                        })
+                        # 分块处理
+                        nodes = node_parser.get_nodes_from_documents([doc])
+                        for node in nodes:
+                            document = Document(
+                                text=node.text,
+                                metadata=node.metadata,
+                                id_=node.id_
+                            )
+                            documents.append(document)
+            except Exception as e:
+                print(f"处理文件 {file_path} 时出错: {str(e)}")
+                continue
     
-    # 分批创建索引（每批最多50个节点）
+    # 分批创建索引（每批最多100个节点）
     index = None
-    batch_size = 50
+    batch_size = 100
     for i in range(0, len(documents), batch_size):
         batch = documents[i:i+batch_size]
         if index is None:
@@ -99,7 +305,6 @@ def create_unstructured_db(db_name: str, label_name: list):
         print(f"知识库 {db_name} 创建成功")
     else:
         print("没有可处理的文档内容")
-
 
 def create_structured_db(db_name: str, data_table: list):
     """创建结构化知识库索引（带批处理限制）"""
@@ -152,7 +357,7 @@ def create_structured_db(db_name: str, data_table: list):
     
     # 分批创建索引
     index = None
-    batch_size = 50
+    batch_size = 100
     for i in range(0, len(nodes), batch_size):
         batch = nodes[i:i+batch_size]
         if index is None:
@@ -339,7 +544,176 @@ def _retrieve_chunks_from_multiple_dbs(
         logger.exception("知识库检索异常")
         return "", "", {}
 
-
+# def _retrieve_chunks_from_multiple_dbs(
+#     query: str,
+#     db_names: List[str],
+#     similarity_threshold: float,
+#     chunk_cnt: int,
+#     data_type_filter: Optional[str] = None
+# ) -> Tuple[str, str, Dict]:
+#     """
+#     从多个知识库检索相关文本块（支持混合类型）
+#     返回: (模型提示文本, 显示文本, 来源字典)
+#     """
+#     try:
+#         # 设置API Key（建议使用环境变量）
+#         dashscope.api_key = "sk-48f34d4f9c6948cbaa5198ab455f1224"
+        
+#         all_nodes = []
+        
+#         # 从所有知识库中检索节点
+#         for db_name in db_names:
+#             try:
+#                 storage_context = StorageContext.from_defaults(
+#                     persist_dir=os.path.join(BASE_PATH, db_name)
+#                 )
+#                 index = load_index_from_storage(storage_context)
+#                 retriever_engine = index.as_retriever(similarity_top_k=20)
+                
+#                 # 获取相关文本块
+#                 retrieve_chunk = retriever_engine.retrieve(query)
+                
+#                 # 为每个节点添加知识库名称
+#                 for node in retrieve_chunk:
+#                     if "db_name" not in node.metadata:
+#                         node.metadata["db_name"] = db_name
+#                 all_nodes.extend(retrieve_chunk)
+#             except Exception as e:
+#                 logger.error(f"加载知识库 {db_name} 失败: {str(e)}")
+        
+#         # 如果没有检索到任何节点
+#         if not all_nodes:
+#             logger.warning("未检索到任何节点")
+#             return "", "", {}
+        
+#         # 过滤并准备文档用于重排序
+#         valid_nodes = []
+#         documents = []
+        
+#         for i, node in enumerate(all_nodes):
+#             # 检查文档是否为空或无效
+#             if not node.text or not node.text.strip():
+#                 logger.warning(f"跳过空文档节点 (索引: {i}, 知识库: {node.metadata.get('db_name', '未知')})")
+#                 continue
+                
+#             valid_nodes.append(node)
+#             documents.append(node.text)
+        
+#         # 检查文档数量限制
+#         if len(documents) > 500:
+#             logger.warning(f"文档数量超过500限制，仅取前500个 (总数: {len(documents)})")
+#             valid_nodes = valid_nodes[:500]
+#             documents = documents[:500]
+        
+#         # 如果没有有效文档
+#         if not documents:
+#             logger.warning("无有效文档可供重排序")
+#             return "", "", {}
+        
+#         # 调用gte-rerank-v2模型进行重排序
+#         try:
+#             resp = dashscope.TextReRank.call(
+#                 model="gte-rerank-v2",
+#                 query=query,
+#                 documents=documents,
+#                 top_n=min(chunk_cnt, len(documents)),  # 确保不超过可用文档数
+#                 return_documents=True
+#             )
+            
+#             if resp.status_code == HTTPStatus.OK:
+#                 reranked_results = resp.output['results']
+                
+#                 # 创建映射：重排序索引 → 原始节点
+#                 sorted_nodes = []
+#                 for result in reranked_results:
+#                     # 获取原始索引位置
+#                     orig_index = result['index']
+                    
+#                     # 验证索引范围
+#                     if 0 <= orig_index < len(valid_nodes):
+#                         node = valid_nodes[orig_index]
+#                         # 更新节点分数为新的相关性分数
+#                         node.score = result['relevance_score']
+#                         sorted_nodes.append(node)
+#                     else:
+#                         logger.error(f"无效索引: {orig_index} (最大索引: {len(valid_nodes)-1})")
+                
+#                 results = sorted_nodes
+#             else:
+#                 logger.error(f"重排序API错误: {resp.code} - {resp.message}")
+#                 logger.info("使用原始排序")
+#                 valid_nodes.sort(key=lambda x: x.score, reverse=True)
+#                 results = valid_nodes[:chunk_cnt]
+                
+#         except Exception as e:
+#             logger.error(f"重排序失败: {str(e)}")
+#             valid_nodes.sort(key=lambda x: x.score, reverse=True)
+#             results = valid_nodes[:chunk_cnt]
+        
+#         # 构建模型提示文本
+#         model_context = ""
+#         # 构建用于显示的召回文本
+#         display_context = ""
+#         # 构建来源字典 {db_name: {category: {file_name: [chunk_info]}}}
+#         source_dict = {}
+        
+#         for i, result in enumerate(results):
+#             if result.score >= similarity_threshold:
+#                 # 获取元数据
+#                 metadata = result.metadata
+#                 stored_db_name = metadata.get("db_name", "未知知识库")
+#                 stored_category = metadata.get("category", "未知类目")
+#                 stored_filename = metadata.get("file_name", "未知文件")
+#                 data_type = metadata.get("data_type", "未知类型")
+                
+#                 # 从数据库获取原始名称
+#                 try:
+#                     # 获取知识库原始名称
+#                     kb = KnowledgeBase.query.filter_by(stored_basename=stored_db_name).first()
+#                     db_source = kb.name if kb else stored_db_name
+                    
+#                     # 获取类目原始名称
+#                     category_obj = Category.query.filter_by(stored_categoryname=stored_category).first()
+#                     category = category_obj.name if category_obj else stored_category
+                    
+#                     # 获取文件原始名称
+#                     file_obj = CategoryFile.query.filter_by(stored_filename=stored_filename).first()
+#                     file_name = file_obj.name if file_obj else stored_filename
+#                 except Exception as e:
+#                     logger.error(f"获取原始名称失败: {str(e)}")
+#                     db_source = stored_db_name
+#                     category = stored_category
+#                     file_name = stored_filename
+                
+#                 # 添加到来源字典
+#                 if db_source not in source_dict:
+#                     source_dict[db_source] = {}
+#                 if category not in source_dict[db_source]:
+#                     source_dict[db_source][category] = {}
+#                 if file_name not in source_dict[db_source][category]:
+#                     source_dict[db_source][category][file_name] = []
+                
+#                 chunk_info = {
+#                     "text": result.text,
+#                     "score": round(result.score, 2),
+#                     "position": i+1
+#                 }
+#                 source_dict[db_source][category][file_name].append(chunk_info)
+                
+#                 # 添加数据类型标记
+#                 model_context += f"## {i+1} (来自: {db_source}/{category}/{file_name}, 类型: {data_type}):\n{result.text}\n\n"
+#                 display_context += (
+#                     f"## 片段 {i+1} [评分: {round(result.score, 2)}]\n"
+#                     f"知识库: {db_source}\n"
+#                     f"类目: {category}\n"
+#                     f"文件: {file_name}\n"
+#                     f"内容: {result.text}\n\n"
+#                 )
+        
+#         return model_context, display_context, source_dict
+#     except Exception as e:
+#         logger.exception("知识库检索异常")
+#         return "", "", {}
 def _get_model_config(model: str, thinking_mode: bool) -> Dict[str, Any]:
     """获取模型配置"""
     if thinking_mode:
@@ -515,9 +889,9 @@ def format_sources(source_dict: Dict) -> str:
 
 def main():
     # 测试对话参数
-    query = " TensorFlow Lite发展历史"
-    db_names = ["389e58c2-4f8c-4269-acf5-bd418b6e34f9_嵌入式开发"]
-    model = "deepseek-reasoner"
+    query = "更新树莓派系统"
+    db_names = ["342e44cf-5c65-4689-a158-0ec22d517bd6_示例知识库"]
+    model = "deepseek-chat"
     thinking_mode=True
     print(f"用户提问: {query}\n")
     print("="*50 + " 开始对话 " + "="*50)
@@ -526,7 +900,7 @@ def main():
     reasoning_content = ""
     
     # 调用 chat_stream 函数
-    for token, chunks, status, source_dict in chat_stream(query, db_names, model, thinking_mode=thinking_mode):
+    for token, chunks, status, source_dict in chat_stream(query, db_names, model):
         if status == "chunks":
             print("\n[召回的知识片段]:")
             print(chunks)
