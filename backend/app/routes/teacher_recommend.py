@@ -1,10 +1,11 @@
 from datetime import datetime
-from flask import Blueprint, render_template, request, jsonify, session
+from flask import Blueprint, g, render_template, request, jsonify, session
 from app.utils.database import db
 from app.models.teacher_recommend import TeacherRecommend
 from app.models.teaching_design import TeachingDesign
 from app.utils.recommend_to_teachers import generate_final_markdown, recommend_pictures
 from app.models.user import User
+from app.services.log_service import LogService
 
 teacher_recommend_bp=Blueprint('teacher_recommend_bp', __name__)
 def is_logged_in():
@@ -15,13 +16,24 @@ def get_current_user():
         return User.query.get(user_id)
     return None
 
+@teacher_recommend_bp.before_request
+def before_request():
+    if request.method == 'OPTIONS':
+        return
+    # 检查用户是否已登录
+    if is_logged_in():
+        # 获取当前用户并存储到 g 对象中
+        g.current_user = get_current_user()
+        # 检查用户是否为管理员
+        if g.current_user :
+            return jsonify({'error': 'Forbidden'}), 403
+    else:
+        # 如果用户未登录，返回未授权错误
+        return jsonify({'error': 'Unauthorized'}), 401
     
 @teacher_recommend_bp.route('/generate_recommendation/<int:teaching_design_id>', methods=['POST'])
 def generate_recommendation(teaching_design_id):
-    # 检查用户是否登录
-    if not is_logged_in():
-        return jsonify({'error': '未登录'}), 401
-
+    """生成推荐教师列表"""
     current_user = get_current_user()
     if not current_user:
         return jsonify({'error': '用户不存在'}), 404
@@ -67,10 +79,7 @@ def generate_recommendation(teaching_design_id):
     
 @teacher_recommend_bp.route('/get_recommendation_by_design/<int:teaching_design_id>', methods=['GET'])
 def get_recommendation_by_design(teaching_design_id):
-    # 检查用户是否登录
-    if not is_logged_in():
-        return jsonify({'error': '未登录'}), 401
-
+    """获得推荐资源"""
     current_user = get_current_user()
     if not current_user:
         return jsonify({'error': '用户不存在'}), 404
@@ -102,3 +111,32 @@ def get_recommendation_by_design(teaching_design_id):
     except Exception as e:
         # 如果发生错误，返回错误信息
         return jsonify({"error": str(e)}), 500
+    
+@teacher_recommend_bp.after_request
+def log_after_request(response):
+    # 跳过预检请求和错误响应
+    if request.method == 'OPTIONS' or not (200 <= response.status_code < 400):
+        return response
+
+    # 获取当前用户（已通过before_request验证）
+    current_user = g.current_user
+    user_info = {
+        'id': current_user.id,
+        'role': current_user.role
+    }
+
+    # 记录所有成功请求（无需白名单检查）
+    LogService.log_operation(
+        user_id=user_info['id'],
+        user_type=user_info['role'],
+        operation_type=f"{request.method}_{request.endpoint.replace('.', '_')}",
+        details={
+            'path': request.path,
+            'method': request.method,
+            'params': dict(request.args) if request.args else None,
+            'body': request.get_json(silent=True) if request.method in ['POST', 'PUT', 'PATCH', 'DELETE'] else None,
+            'status': response.status_code,
+            'timestamp': datetime.now().isoformat()
+        }
+    )
+    return response

@@ -13,7 +13,7 @@ from app.models.relationship import teacher_class,student_class,course_coursecla
 from app.models.question import Question
 from app.utils.file_upload import upload_file_courseclass
 from app.services.rank import generate_class_recommend_ranking, generate_public_courseclass_ranking
-from app.models import CourseClassApplication
+from app.models.CourseClassApplication import CourseClassApplication
 from app.services.log_service import LogService
 courseclass_bp = Blueprint('courseclass', __name__)
 
@@ -37,8 +37,8 @@ def before_request():
         # 如果用户未登录，返回未授权错误
         return jsonify({'error': 'Unauthorized'}), 401
 
-# 检查当前用户是否为课程班的创建老师
 def is_teacher_of_courseclass(courseclass_id):
+    """检查当前用户是否为课程班的创建老师"""
     current_user = get_current_user()
     if not current_user or current_user.role != 'teacher':
         return False
@@ -52,18 +52,15 @@ def is_teacher_of_courseclass(courseclass_id):
     )
     return association > 0
 
-# 生成固定长度的邀请码
 def generate_invite_code(length=20):
+    """生成固定长度的邀请码"""
     characters = string.ascii_letters + string.digits
     invite_code = ''.join(random.choice(characters) for _ in range(length))
     return invite_code
 
-# 查询用户的所有课程班
 @courseclass_bp.route('/courseclasses', methods=['GET'])
 def get_courseclasses():
-    if not is_logged_in():
-        return jsonify({'error': 'Unauthorized'}), 401
-
+    """查询用户的所有课程班"""
     try:
         current_user = get_current_user()
         if not current_user:
@@ -112,13 +109,9 @@ def get_courseclasses():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
-# 根据 ID 查询单个课程班
 @courseclass_bp.route('/courseclasses/<int:courseclass_id>', methods=['GET'])
 def get_courseclass(courseclass_id):
-    if not is_logged_in():
-        return jsonify({'error': 'Unauthorized'}), 401
-
+    """ 根据 ID 查询单个课程班"""
     try:
         current_user = get_current_user()
         if not current_user:
@@ -153,13 +146,9 @@ def get_courseclass(courseclass_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
-# 创建课程班
 @courseclass_bp.route('/createcourseclasses', methods=['POST'])
 def create_courseclass():
-    if not is_logged_in():
-        return jsonify({'error': 'Unauthorized'}), 401
-
+    """创建课程班"""
     try:
         # 获取当前登录用户
         current_user = get_current_user()
@@ -223,11 +212,9 @@ def create_courseclass():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-# 更新课程班信息
 @courseclass_bp.route('/courseclasses/<int:courseclass_id>', methods=['PUT'])
 def update_courseclass(courseclass_id):
-    if not is_logged_in():
-        return jsonify({'error': 'Unauthorized'}), 401
+    """更新课程班信息"""
     try:
         # 检查当前用户是否为该课程班的老师
         if not is_teacher_of_courseclass(courseclass_id):
@@ -270,12 +257,9 @@ def update_courseclass(courseclass_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-#删除单个课程班
 @courseclass_bp.route('/deletecourseclasses/<int:courseclass_id>', methods=['DELETE'])
 def delete_courseclass(courseclass_id):
-    if not is_logged_in():
-        return jsonify({'error': 'Unauthorized'}), 401
-
+    """删除单个课程班"""
     try:
         # 检查当前用户是否为该课程班的老师
         if not is_teacher_of_courseclass(courseclass_id):
@@ -294,12 +278,9 @@ def delete_courseclass(courseclass_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-# 为课程班创建课程
 @courseclass_bp.route('/courseclasses/<int:courseclass_id>/create_course', methods=['POST'])
 def create_course_for_courseclass(courseclass_id):
-    if not is_logged_in():
-        return jsonify({'error': 'Unauthorized'}), 401
-
+    """为课程班创建课程"""
     try:
         # 检查当前用户是否为该课程班的老师
         if not is_teacher_of_courseclass(courseclass_id):
@@ -336,12 +317,9 @@ def create_course_for_courseclass(courseclass_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-
-#为课程班删除课程
 @courseclass_bp.route('/courseclasses/<int:courseclass_id>/remove_courses', methods=['POST'])
 def remove_courses_from_courseclass(courseclass_id):
-    if not is_logged_in():
-        return jsonify({'error': 'Unauthorized'}), 401
+    """为课程班删除课程"""
     try:
         # 检查当前用户是否为该课程班的老师
         if not is_teacher_of_courseclass(courseclass_id):
@@ -382,8 +360,7 @@ def remove_courses_from_courseclass(courseclass_id):
 
 @courseclass_bp.route('/courseclasses/<int:courseclass_id>/courses', methods=['GET'])
 def get_courses_by_courseclass(courseclass_id):
-    if not is_logged_in():
-        return jsonify({'error': 'Unauthorized'}), 401
+    """查询课程班中包含的课程"""
     try:
         current_user=get_current_user()
         # 检查当前用户是否为该课程班的老师
@@ -413,9 +390,7 @@ def get_courses_by_courseclass(courseclass_id):
 
 @courseclass_bp.route('/student_join_courseclass', methods=['POST'])
 def student_join_courseclass():
-    if not is_logged_in():
-        return jsonify({"error": "User is not logged in"}), 401
-
+    """学生通过邀请码加入课程班"""
     data = request.json
     invite_code = data.get('invite_code')  # 获取邀请码
 
@@ -441,12 +416,9 @@ def student_join_courseclass():
 
     return jsonify({"message": "Student joined the course class successfully"}), 200
 
-#学生离开课程班
 @courseclass_bp.route('/student_leave_courseclass', methods=['POST'])
 def student_leave_courseclass():
-    if not is_logged_in():
-        return jsonify({"error": "User is not logged in"}), 401
-
+    """学生离开课程班"""
     data = request.json
     courseclass_id = data.get('courseclass_id')
 
@@ -469,16 +441,9 @@ def student_leave_courseclass():
 
     return jsonify({"message": "Student left the course class successfully"}), 200
 
-
-
-
-
-#查询单个课程班的所有学生信息
 @courseclass_bp.route('/courseclasses/<int:courseclass_id>/students', methods=['GET'])
 def get_students_by_courseclass(courseclass_id):
-    if not is_logged_in():
-        return jsonify({'error': 'Unauthorized'}), 401
-
+    """查询单个课程班的所有学生信息"""
     try:
         current_user = get_current_user()
         if not current_user:
@@ -509,12 +474,9 @@ def get_students_by_courseclass(courseclass_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-#根据关键字搜索相关课程班
 @courseclass_bp.route('/search_courseclasses', methods=['GET'])
 def search_courseclasses():
-    if not is_logged_in():
-        return jsonify({'error': 'Unauthorized'}), 401
-
+    """根据关键字搜索相关课程班"""
     try:
         # 获取查询参数
         query = request.args.get('query', type=str)
@@ -554,9 +516,9 @@ def search_courseclasses():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
-# 查询所有公开的课程班
 @courseclass_bp.route('/public_courseclasses', methods=['GET'])
 def get_public_courseclasses():
+    """查询所有公开的课程班"""
     try:
         # 获取搜索查询参数
         search_query = request.args.get('search', '', type=str)
@@ -640,7 +602,7 @@ def query_student_rank(courseclass_id):
 
 @courseclass_bp.route('/query_courseclass_rank', methods=['GET'])
 def query_courseclass_rank():
-
+    """显示课程班排行榜"""
     try:
         ranking_data = generate_public_courseclass_ranking()
         
@@ -665,9 +627,9 @@ def query_courseclass_rank():
             "data": None
         }), 500
     
-# 基于学生已加入的课程和热门程度推荐课程
 @courseclass_bp.route('/courseclass/recommend_courseclasses', methods=['GET'])
 def recommend_courseclasses():
+    """基于学生已加入的课程和热门程度推荐课程"""
     try:
         if not is_logged_in():
             return jsonify({'error': 'Unauthorized'}), 401
@@ -752,11 +714,9 @@ def recommend_courseclasses():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
-
-# 申请课程班
 @courseclass_bp.route('/courseclass/<int:courseclass_id>/apply', methods=['POST'])
 def apply_to_courseclass(courseclass_id):
+    """申请课程班"""
     try:
         if not is_logged_in():
             return jsonify({'error': 'Unauthorized'}), 401
@@ -812,9 +772,9 @@ def apply_to_courseclass(courseclass_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-# 查看申请状况
 @courseclass_bp.route('/courseclass/<int:courseclass_id>/applications', methods=['GET'])
 def get_courseclass_applications(courseclass_id):
+    """查看申请状况"""
     try:
         if not is_logged_in():
             return jsonify({'error': 'Unauthorized'}), 401
@@ -855,6 +815,7 @@ def get_courseclass_applications(courseclass_id):
 
 @courseclass_bp.route('/courseclass/applications/<int:application_id>/process', methods=['POST'])
 def process_application(application_id):
+    """教师处理申请"""
     try:
         if not is_logged_in():
             return jsonify({'error': 'Unauthorized'}), 401
@@ -907,6 +868,7 @@ def process_application(application_id):
 
 @courseclass_bp.route('/courseclass/my_applications', methods=['GET'])
 def get_my_applications():
+    """查询用户个人发送的申请"""
     try:
         if not is_logged_in():
             return jsonify({'error': 'Unauthorized'}), 401
@@ -963,7 +925,7 @@ def log_after_request(response):
             'path': request.path,
             'method': request.method,
             'params': dict(request.args) if request.args else None,
-            'body': request.get_json(silent=True) if request.method in ['POST', 'PUT', 'PATCH'] else None,
+            'body': request.get_json(silent=True) if request.method in ['POST', 'PUT', 'PATCH', 'DELETE'] else None,
             'status': response.status_code,
             'timestamp': datetime.now().isoformat()
         }

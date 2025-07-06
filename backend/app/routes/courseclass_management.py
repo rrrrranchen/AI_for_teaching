@@ -242,7 +242,7 @@ def log_after_request(response):
             'path': request.path,
             'method': request.method,
             'params': dict(request.args) if request.args else None,
-            'body': request.get_json(silent=True) if request.method in ['POST', 'PUT', 'PATCH'] else None,
+            'body': request.get_json(silent=True) if request.method in ['POST', 'PUT', 'PATCH', 'DELETE'] else None,
             'status': response.status_code,
             'timestamp': datetime.now().isoformat()
         }
