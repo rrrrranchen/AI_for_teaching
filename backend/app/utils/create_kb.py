@@ -413,7 +413,8 @@ def _retrieve_chunks_from_multiple_dbs(
                     persist_dir=os.path.join(BASE_PATH, db_name)
                 )
                 index = load_index_from_storage(storage_context)
-                retriever_engine = index.as_retriever(similarity_top_k=20)
+                # 增加检索数量以捕获更多相关片段
+                retriever_engine = index.as_retriever(similarity_top_k=50)  # 从20增加到50
                 
                 # 获取相关文本块
                 retrieve_chunk = retriever_engine.retrieve(query)
@@ -441,9 +442,10 @@ def _retrieve_chunks_from_multiple_dbs(
                 logger.warning(f"跳过空文档节点 (索引: {i}, 知识库: {node.metadata.get('db_name', '未知')})")
                 continue
                 
-           
-            
-            
+            # 如果指定了数据类型过滤器，进行过滤
+            if data_type_filter and node.metadata.get("data_type") != data_type_filter:
+                continue
+                
             valid_nodes.append(node)
             documents.append(node.text)
         
@@ -464,7 +466,7 @@ def _retrieve_chunks_from_multiple_dbs(
                 model="gte-rerank-v2",
                 query=query,
                 documents=documents,
-                top_n=min(chunk_cnt, len(documents)),  # 确保不超过可用文档数
+                top_n=min(50, len(documents)),  # 增加重排序数量到50
                 return_documents=True
             )
             
@@ -491,12 +493,31 @@ def _retrieve_chunks_from_multiple_dbs(
                 logger.error(f"重排序API错误: {resp.code} - {resp.message}")
                 logger.info("使用原始排序")
                 valid_nodes.sort(key=lambda x: x.score, reverse=True)
-                results = valid_nodes[:chunk_cnt]
+                results = valid_nodes[:min(50, len(valid_nodes))]  # 同样增加到50
                 
         except Exception as e:
             logger.error(f"重排序失败: {str(e)}")
             valid_nodes.sort(key=lambda x: x.score, reverse=True)
-            results = valid_nodes[:chunk_cnt]
+            results = valid_nodes[:min(50, len(valid_nodes))]  # 同样增加到50
+        
+        # 关键优化：确保来自不同文件的片段被包含
+        # 1. 按文件分组
+        file_groups = {}
+        for result in results:
+            file_key = result.metadata.get("file_path", "unknown")
+            if file_key not in file_groups:
+                file_groups[file_key] = []
+            file_groups[file_key].append(result)
+        
+        # 2. 每个文件取前N个片段 (N=2)
+        top_results = []
+        for file, file_results in file_groups.items():
+            # 按分数排序并取前2个
+            sorted_file_results = sorted(file_results, key=lambda x: x.score, reverse=True)[:2]
+            top_results.extend(sorted_file_results)
+        
+        # 3. 所有片段按分数排序
+        final_results = sorted(top_results, key=lambda x: x.score, reverse=True)[:chunk_cnt]
         
         # 构建模型提示文本
         model_context = ""
@@ -505,7 +526,7 @@ def _retrieve_chunks_from_multiple_dbs(
         # 构建来源字典 {db_name: {category: {file_name: [chunk_info]}}}
         source_dict = {}
         
-        for i, result in enumerate(results):
+        for i, result in enumerate(final_results):
             if result.score >= similarity_threshold:
                 # 获取元数据
                 metadata = result.metadata
@@ -543,7 +564,6 @@ def _retrieve_chunks_from_multiple_dbs(
     except Exception as e:
         logger.exception("知识库检索异常")
         return "", "", {}
-
 # def _retrieve_chunks_from_multiple_dbs(
 #     query: str,
 #     db_names: List[str],
@@ -752,7 +772,7 @@ def chat_stream(
     max_tokens: int = 4068,
     history: Optional[List[dict]] = None,
     similarity_threshold: float = 0.2,
-    chunk_cnt: int = 5,
+    chunk_cnt: int = 20,
     api_key: Optional[str] = None,
     thinking_mode: bool = False,
     data_type_filter: Optional[str] = None
@@ -889,8 +909,8 @@ def format_sources(source_dict: Dict) -> str:
 
 def main():
     # 测试对话参数
-    query = "更新树莓派系统"
-    db_names = ["342e44cf-5c65-4689-a158-0ec22d517bd6_示例知识库"]
+    query = "请解释TensorFlow.js 的核心概念"
+    db_names = ["2188a331-5352-4709-a07c-15ca92e9c752_tensor知识库"]
     model = "deepseek-chat"
     thinking_mode=True
     print(f"用户提问: {query}\n")
