@@ -24,9 +24,6 @@ def before_request():
     if is_logged_in():
         # 获取当前用户并存储到 g 对象中
         g.current_user = get_current_user()
-        # 检查用户是否为管理员
-        if g.current_user :
-            return jsonify({'error': 'Forbidden'}), 403
     else:
         # 如果用户未登录，返回未授权错误
         return jsonify({'error': 'Unauthorized'}), 401
