@@ -20,6 +20,7 @@ from app.routes.courseclass_management import courseclass_management_bp
 from app.routes.ppt_templates_management import ppt_templates_management_bp
 from app.routes.dashBoard import dashboard_bp
 from app.routes.knowledge_for_teachers import knowledge_for_teachers_bp
+from app.routes.knowledge_management import knowledge_management_bp
 from app.utils.database import init_db
 from config import Config
 from flask_jwt_extended import JWTManager
@@ -53,4 +54,5 @@ def create_app():
     app.register_blueprint(ppt_templates_management_bp)
     app.register_blueprint(knowledge_for_teachers_bp)
     app.register_blueprint(ai_chat_bp)
+    app.register_blueprint(knowledge_management_bp)
     return app

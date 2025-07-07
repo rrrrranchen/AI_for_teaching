@@ -6,7 +6,7 @@ from app.models.KnowledgeBase import KnowledgeBase
 from app.models.Category import Category
 from app.utils.database import db
 
-ai_chat_bp = Blueprint('ai_chat', __name__)
+
 
 
 from flask import Blueprint, request, jsonify, Response

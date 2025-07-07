@@ -121,6 +121,9 @@ def update_category(category_id):
             'error': 'SERVER_ERROR',
             'message': str(e)
         }), 500
+    
+
+
 # 类目管理接口
 @knowledge_for_teachers_bp.route('/teacher/categories', methods=['GET'])
 def get_categories():
@@ -1033,3 +1036,197 @@ def update_knowledge_bases_of_courseclass(courseclass_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+
+@knowledge_for_teachers_bp.route('/teacher/knowledge_bases/<int:kb_id>/categories/batch_add', methods=['POST'])
+def batch_add_categories_to_knowledge_base(kb_id):
+    """为知识库批量添加类目"""
+    try:
+        data = request.get_json()
+        if not data or 'category_ids' not in data or not isinstance(data['category_ids'], list):
+            return jsonify({
+                'success': False,
+                'error': 'MISSING_REQUIRED_FIELDS',
+                'message': '缺少category_ids参数或参数格式不正确'
+            }), 400
+
+        # 验证知识库所有权
+        kb = KnowledgeBase.query.filter_by(
+            id=kb_id,
+            author_id=g.current_user.id
+        ).first()
+
+        if not kb:
+            return jsonify({
+                'success': False,
+                'error': 'KNOWLEDGE_BASE_NOT_FOUND'
+            }), 404
+
+        # 获取所有类目
+        categories = Category.query.filter(Category.id.in_(data['category_ids'])).all()
+        if len(categories) != len(data['category_ids']):
+            return jsonify({
+                'success': False,
+                'error': 'CATEGORY_NOT_FOUND',
+                'message': '部分类目未找到'
+            }), 404
+
+        added_categories = []
+        duplicate_categories = []
+        type_mismatch_categories = []
+
+        for category in categories:
+            # 检查类目是否已关联
+            if category in kb.categories:
+                duplicate_categories.append({
+                    'id': category.id,
+                    'name': category.name
+                })
+                continue
+
+            # 检查类目类型是否匹配
+            if (kb.base_type == 'non_structural' and category.category_type != 'non_structural') or \
+               (kb.base_type == 'structural' and category.category_type != 'structural'):
+                type_mismatch_categories.append({
+                    'id': category.id,
+                    'name': category.name,
+                    'type': category.category_type
+                })
+                continue
+
+            # 添加类目关联
+            kb.categories.append(category)
+            added_categories.append({
+                'id': category.id,
+                'name': category.name,
+                'type': category.category_type
+            })
+
+        if not added_categories:
+            return jsonify({
+                'success': False,
+                'error': 'NO_VALID_CATEGORIES',
+                'message': '没有有效的类目可添加',
+                'duplicates': duplicate_categories,
+                'type_mismatches': type_mismatch_categories
+            }), 400
+
+        kb.need_update = True  # 标记需要更新
+        db.session.commit()
+
+        # 自动更新知识库
+        try:
+            update_single_knowledge_base(kb)
+            return jsonify({
+                'success': True,
+                'message': '类目批量添加成功且知识库已更新',
+                'added_categories': added_categories,
+                'duplicates': duplicate_categories,
+                'type_mismatches': type_mismatch_categories
+            }), 200
+        except Exception as update_error:
+            db.session.rollback()
+            current_app.logger.error(
+                f"知识库自动更新失败 - KB ID: {kb.id}, Error: {str(update_error)}",
+                exc_info=True
+            )
+            return jsonify({
+                'success': False,
+                'error': 'AUTO_UPDATE_FAILED',
+                'message': '类目批量添加成功但知识库更新失败，请手动更新',
+                'added_categories': added_categories,
+                'duplicates': duplicate_categories,
+                'type_mismatches': type_mismatch_categories
+            }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': 'SERVER_ERROR',
+            'message': str(e)
+        }), 500
+
+
+@knowledge_for_teachers_bp.route('/teacher/knowledge_bases/<int:kb_id>/categories/batch_remove', methods=['DELETE'])
+def batch_remove_categories_from_knowledge_base(kb_id):
+    """从知识库批量删除类目"""
+    try:
+        data = request.get_json()
+        if not data or 'category_ids' not in data or not isinstance(data['category_ids'], list):
+            return jsonify({
+                'success': False,
+                'error': 'MISSING_REQUIRED_FIELDS',
+                'message': '缺少category_ids参数或参数格式不正确'
+            }), 400
+
+        # 验证知识库所有权
+        kb = KnowledgeBase.query.filter_by(
+            id=kb_id,
+            author_id=g.current_user.id
+        ).first()
+
+        if not kb:
+            return jsonify({
+                'success': False,
+                'error': 'KNOWLEDGE_BASE_NOT_FOUND'
+            }), 404
+
+        removed_categories = []
+        not_linked_categories = []
+
+        for category_id in data['category_ids']:
+            # 检查类目是否关联
+            category = next((cat for cat in kb.categories if cat.id == category_id), None)
+            if not category:
+                not_linked_categories.append(category_id)
+                continue
+
+            # 移除类目关联
+            kb.categories.remove(category)
+            removed_categories.append({
+                'id': category.id,
+                'name': category.name
+            })
+
+        if not removed_categories:
+            return jsonify({
+                'success': False,
+                'error': 'NO_VALID_CATEGORIES',
+                'message': '没有有效的类目可移除',
+                'not_linked': not_linked_categories
+            }), 400
+
+        kb.need_update = True  # 标记需要更新
+        db.session.commit()
+
+        # 自动更新知识库
+        try:
+            update_single_knowledge_base(kb)
+            return jsonify({
+                'success': True,
+                'message': '类目批量移除成功且知识库已更新',
+                'removed_categories': removed_categories,
+                'not_linked': not_linked_categories
+            }), 200
+        except Exception as update_error:
+            db.session.rollback()
+            current_app.logger.error(
+                f"知识库自动更新失败 - KB ID: {kb.id}, Error: {str(update_error)}",
+                exc_info=True
+            )
+            return jsonify({
+                'success': False,
+                'error': 'AUTO_UPDATE_FAILED',
+                'message': '类目批量移除成功但知识库更新失败，请手动更新',
+                'removed_categories': removed_categories,
+                'not_linked': not_linked_categories
+            }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': 'SERVER_ERROR',
+            'message': str(e)
+        }), 500
