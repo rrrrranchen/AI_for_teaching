@@ -17,6 +17,7 @@ class Category(db.Model):
     is_public = db.Column(db.Boolean, default=False)
     is_system = db.Column(db.Boolean, default=False)
     knowledge_bases = db.relationship('KnowledgeBase', secondary=category_knowledge_base, back_populates='categories')
+    author = db.relationship('User', back_populates='categories')
 
     def __repr__(self):
         return f'<Category {self.name}>'

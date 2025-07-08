@@ -37,6 +37,7 @@ class User(db.Model):
     analysis_reports = db.relationship('StudentAnalysisReport', back_populates='student')
     student_operation_logs = db.relationship('StudentOperationLog', back_populates='student')
     admin_operation_logs = db.relationship('AdminOperationLog', back_populates='admin')
+    categories = db.relationship('Category', back_populates='author')
     def set_password(self, password):
         self.password_hash = generate_password_hash(password, method="pbkdf2:sha256")
 

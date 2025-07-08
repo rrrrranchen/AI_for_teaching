@@ -13,7 +13,7 @@ from app.models.Category import Category
 from app.models.CategoryFile import CategoryFile
 from app.models.KnowledgeBase import KnowledgeBase
 from app.utils.create_cat import ALLOWED_NON_STRUCTURAL_EXTENSIONS, ALLOWED_STRUCTURAL_EXTENSIONS, UPLOAD_FOLDER_KNOWLEDGE, allowed_file_non_structural, allowed_file_structural, create_knowledge_base_folder, create_user_category_folder, upload_file_to_folder_non_structural, upload_file_to_folder_structural
-from app.utils.create_kb import BASE_PATH, create_structured_db, create_unstructured_db,CATEGORY_PATH
+from app.utils.create_kb import BASE_PATH, _retrieve_chunks_from_multiple_dbs, create_structured_db, create_unstructured_db,CATEGORY_PATH
 from app.models.courseclass import Courseclass
 from app.models.CategoryFileImage import CategoryFileImage
 
@@ -1230,3 +1230,250 @@ def batch_remove_categories_from_knowledge_base(kb_id):
             'error': 'SERVER_ERROR',
             'message': str(e)
         }), 500
+    
+
+@knowledge_for_teachers_bp.route('/public/knowledge_bases/search', methods=['GET'])
+def search_public_knowledge_bases():
+    """模糊搜索公开知识库（名称匹配优先于描述匹配）"""
+    try:
+        # 获取查询参数
+        keyword = request.args.get('keyword', '').strip()
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        
+        # 验证参数
+        if not keyword:
+            return jsonify({
+                'success': False,
+                'error': 'MISSING_KEYWORD',
+                'message': '请输入搜索关键字'
+            }), 400
+            
+        if page < 1 or per_page < 1:
+            return jsonify({
+                'success': False,
+                'error': 'INVALID_PAGINATION',
+                'message': '分页参数必须是正整数'
+            }), 400
+
+        # 构建基础查询（只查询非当前用户的公开知识库）
+        base_query = KnowledgeBase.query.filter(
+            KnowledgeBase.author_id != g.current_user.id,
+            KnowledgeBase.is_public == True,
+            db.or_(
+                KnowledgeBase.name.ilike(f'%{keyword}%'),
+                KnowledgeBase.description.ilike(f'%{keyword}%')
+            )
+        ).options(
+            db.joinedload(KnowledgeBase.categories).load_only(Category.id, Category.name),
+            db.joinedload(KnowledgeBase.author).load_only(User.id, User.username)
+        )
+
+        # 添加排序规则：名称匹配的优先，然后按更新时间降序
+        query = base_query.order_by(
+            db.case(
+                [KnowledgeBase.name.ilike(f'%{keyword}%'), 1],
+                else_=2
+            ),
+            KnowledgeBase.updated_at.desc()
+        )
+
+        # 执行分页查询
+        paginated_kbs = query.paginate(page=page, per_page=per_page, error_out=False)
+
+        # 构造响应数据
+        results = []
+        for kb in paginated_kbs.items:
+            # 判断匹配类型
+            name_match = keyword.lower() in kb.name.lower()
+            desc_match = kb.description and keyword.lower() in kb.description.lower()
+            
+            match_type = '名称匹配' if name_match else '描述匹配'
+            match_score = 1 if name_match else 0.5  # 名称匹配得分更高
+
+            results.append({
+                'id': kb.id,
+                'name': kb.name,
+                'description': kb.description,
+                'is_public': kb.is_public,
+                'created_at': kb.created_at.isoformat(),
+                'updated_at': kb.updated_at.isoformat() if kb.updated_at else None,
+                'author': {
+                    'id': kb.author.id,
+                    'username': kb.author.username
+                },
+                'categories': [{
+                    'id': cat.id,
+                    'name': cat.name
+                } for cat in kb.categories],
+                'match_type': match_type,
+                'match_score': match_score
+            })
+
+        # 按匹配分数降序排序（确保名称匹配的在前）
+        results.sort(key=lambda x: x['match_score'], reverse=True)
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'results': results,
+                'pagination': {
+                    'total': paginated_kbs.total,
+                    'pages': paginated_kbs.pages,
+                    'current_page': paginated_kbs.page,
+                    'per_page': paginated_kbs.per_page,
+                    'has_next': paginated_kbs.has_next,
+                    'has_prev': paginated_kbs.has_prev
+                },
+                'search_meta': {
+                    'keyword': keyword,
+                    'total_matches': paginated_kbs.total,
+                    'name_matches': sum(1 for r in results if r['match_type'] == '名称匹配'),
+                    'desc_matches': sum(1 for r in results if r['match_type'] == '描述匹配')
+                }
+            }
+        }), 200
+
+    except Exception as e:
+        current_app.logger.error(
+            f"公开知识库搜索失败 - UserID: {g.current_user.id}, Error: {str(e)}",
+            exc_info=True
+        )
+        return jsonify({
+            'success': False,
+            'error': 'SERVER_ERROR',
+            'message': str(e)
+        }), 500
+    
+
+@knowledge_for_teachers_bp.route('/public/knowledge_bases/deep_search', methods=['GET'])
+def deep_search_public_knowledge_bases():
+    """
+    深度搜索公开知识库内容
+    参数:
+        - keyword: 搜索关键词 (必需)
+        - kb_ids: 知识库ID列表，逗号分隔 (可选)
+        - similarity: 相似度阈值 (0-1, 默认0.7)
+        - chunk_count: 返回的片段数量 (默认5)
+        - data_type: 过滤数据类型 (可选)
+    """
+    try:
+        # 获取查询参数
+        keyword = request.args.get('keyword', '').strip()
+        kb_ids = request.args.get('kb_ids', '')
+        similarity = float(request.args.get('similarity', 0.7))
+        chunk_count = int(request.args.get('chunk_count', 5))
+        data_type = request.args.get('data_type', None)
+
+        # 验证必要参数
+        if not keyword:
+            return jsonify({
+                'success': False,
+                'error': 'MISSING_KEYWORD',
+                'message': '请输入搜索关键词'
+            }), 400
+
+        # 获取非当前用户的公开知识库
+        query = KnowledgeBase.query.filter(
+            KnowledgeBase.author_id != g.current_user.id,
+            KnowledgeBase.is_public == True
+        ).options(
+            db.joinedload(KnowledgeBase.author).load_only(User.id, User.username)
+        )
+        
+        # 如果有指定知识库ID，则过滤
+        if kb_ids:
+            kb_id_list = [int(id) for id in kb_ids.split(',') if id.isdigit()]
+            query = query.filter(KnowledgeBase.id.in_(kb_id_list))
+
+        knowledge_bases = query.all()
+
+        if not knowledge_bases:
+            return jsonify({
+                'success': False,
+                'error': 'NO_PUBLIC_KNOWLEDGE_BASES',
+                'message': '未找到符合条件的公开知识库'
+            }), 404
+
+        # 获取知识库名称列表
+        db_names = [kb.stored_basename for kb in knowledge_bases]
+
+        # 调用核心检索函数
+        model_context, display_context, source_dict = _retrieve_chunks_from_multiple_dbs(
+            query=keyword,
+            db_names=db_names,
+            similarity_threshold=similarity,
+            chunk_cnt=chunk_count,
+            data_type_filter=data_type
+        )
+
+        # 如果没有检索到内容
+        if not source_dict:
+            return jsonify({
+                'success': True,
+                'message': '未找到匹配内容',
+                'data': {
+                    'keyword': keyword,
+                    'matches': 0,
+                    'results': []
+                }
+            }), 200
+
+        # 重构结果格式
+        results = []
+        for db_name, categories in source_dict.items():
+            # 获取知识库信息
+            kb = next((kb for kb in knowledge_bases if kb.stored_basename == db_name), None)
+            kb_info = {
+                'id': kb.id if kb else None,
+                'name': kb.name if kb else db_name,
+                'is_public': True,
+                'author': {
+                    'id': kb.author.id if kb else None,
+                    'username': kb.author.username if kb else None
+                }
+            }
+
+            for category, files in categories.items():
+                for file_name, chunks in files.items():
+                    for chunk in chunks:
+                        results.append({
+                            'knowledge_base': kb_info,
+                            'category': category,
+                            'file': file_name,
+                            'text': chunk['text'],
+                            'score': chunk['score'],
+                            'position': chunk['position']
+                        })
+
+        # 按分数降序排序
+        results.sort(key=lambda x: x['score'], reverse=True)
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'keyword': keyword,
+                'matches': len(results),
+                'similarity_threshold': similarity,
+                'results': results,
+                'model_context': model_context,
+                'display_context': display_context
+            }
+        }), 200
+
+    except ValueError as e:
+        return jsonify({
+            'success': False,
+            'error': 'INVALID_PARAMETER',
+            'message': f'参数错误: {str(e)}'
+        }), 400
+    except Exception as e:
+        current_app.logger.error(
+            f"公开知识库深度搜索失败 - UserID: {g.current_user.id}, Error: {str(e)}",
+            exc_info=True
+        )
+        return jsonify({
+            'success': False,
+            'error': 'SERVER_ERROR',
+            'message': str(e)
+        }), 500                                           
