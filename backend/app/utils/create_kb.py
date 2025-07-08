@@ -2,12 +2,14 @@ from http import HTTPStatus
 import os
 import shutil
 from fastapi import logger
+from flask import current_app
 from llama_index.core import VectorStoreIndex, Settings, SimpleDirectoryReader
 from llama_index.embeddings.dashscope import (
     DashScopeEmbedding,
     DashScopeTextEmbeddingModels,
     DashScopeTextEmbeddingType,
 )
+from app.config import Config
 from llama_index.core.schema import TextNode, Document
 from llama_index.core.node_parser import SentenceSplitter
 
@@ -401,8 +403,8 @@ def _retrieve_chunks_from_multiple_dbs(
     返回: (模型提示文本, 显示文本, 来源字典)
     """
     try:
-        # 设置API Key（建议使用环境变量）
-        dashscope.api_key = "sk-48f34d4f9c6948cbaa5198ab455f1224"
+        
+        dashscope.api_key = Config.DASHSCOPE_API_KEY
         
         all_nodes = []
         
@@ -564,176 +566,7 @@ def _retrieve_chunks_from_multiple_dbs(
     except Exception as e:
         logger.exception("知识库检索异常")
         return "", "", {}
-# def _retrieve_chunks_from_multiple_dbs(
-#     query: str,
-#     db_names: List[str],
-#     similarity_threshold: float,
-#     chunk_cnt: int,
-#     data_type_filter: Optional[str] = None
-# ) -> Tuple[str, str, Dict]:
-#     """
-#     从多个知识库检索相关文本块（支持混合类型）
-#     返回: (模型提示文本, 显示文本, 来源字典)
-#     """
-#     try:
-#         # 设置API Key（建议使用环境变量）
-#         dashscope.api_key = "sk-48f34d4f9c6948cbaa5198ab455f1224"
-        
-#         all_nodes = []
-        
-#         # 从所有知识库中检索节点
-#         for db_name in db_names:
-#             try:
-#                 storage_context = StorageContext.from_defaults(
-#                     persist_dir=os.path.join(BASE_PATH, db_name)
-#                 )
-#                 index = load_index_from_storage(storage_context)
-#                 retriever_engine = index.as_retriever(similarity_top_k=20)
-                
-#                 # 获取相关文本块
-#                 retrieve_chunk = retriever_engine.retrieve(query)
-                
-#                 # 为每个节点添加知识库名称
-#                 for node in retrieve_chunk:
-#                     if "db_name" not in node.metadata:
-#                         node.metadata["db_name"] = db_name
-#                 all_nodes.extend(retrieve_chunk)
-#             except Exception as e:
-#                 logger.error(f"加载知识库 {db_name} 失败: {str(e)}")
-        
-#         # 如果没有检索到任何节点
-#         if not all_nodes:
-#             logger.warning("未检索到任何节点")
-#             return "", "", {}
-        
-#         # 过滤并准备文档用于重排序
-#         valid_nodes = []
-#         documents = []
-        
-#         for i, node in enumerate(all_nodes):
-#             # 检查文档是否为空或无效
-#             if not node.text or not node.text.strip():
-#                 logger.warning(f"跳过空文档节点 (索引: {i}, 知识库: {node.metadata.get('db_name', '未知')})")
-#                 continue
-                
-#             valid_nodes.append(node)
-#             documents.append(node.text)
-        
-#         # 检查文档数量限制
-#         if len(documents) > 500:
-#             logger.warning(f"文档数量超过500限制，仅取前500个 (总数: {len(documents)})")
-#             valid_nodes = valid_nodes[:500]
-#             documents = documents[:500]
-        
-#         # 如果没有有效文档
-#         if not documents:
-#             logger.warning("无有效文档可供重排序")
-#             return "", "", {}
-        
-#         # 调用gte-rerank-v2模型进行重排序
-#         try:
-#             resp = dashscope.TextReRank.call(
-#                 model="gte-rerank-v2",
-#                 query=query,
-#                 documents=documents,
-#                 top_n=min(chunk_cnt, len(documents)),  # 确保不超过可用文档数
-#                 return_documents=True
-#             )
-            
-#             if resp.status_code == HTTPStatus.OK:
-#                 reranked_results = resp.output['results']
-                
-#                 # 创建映射：重排序索引 → 原始节点
-#                 sorted_nodes = []
-#                 for result in reranked_results:
-#                     # 获取原始索引位置
-#                     orig_index = result['index']
-                    
-#                     # 验证索引范围
-#                     if 0 <= orig_index < len(valid_nodes):
-#                         node = valid_nodes[orig_index]
-#                         # 更新节点分数为新的相关性分数
-#                         node.score = result['relevance_score']
-#                         sorted_nodes.append(node)
-#                     else:
-#                         logger.error(f"无效索引: {orig_index} (最大索引: {len(valid_nodes)-1})")
-                
-#                 results = sorted_nodes
-#             else:
-#                 logger.error(f"重排序API错误: {resp.code} - {resp.message}")
-#                 logger.info("使用原始排序")
-#                 valid_nodes.sort(key=lambda x: x.score, reverse=True)
-#                 results = valid_nodes[:chunk_cnt]
-                
-#         except Exception as e:
-#             logger.error(f"重排序失败: {str(e)}")
-#             valid_nodes.sort(key=lambda x: x.score, reverse=True)
-#             results = valid_nodes[:chunk_cnt]
-        
-#         # 构建模型提示文本
-#         model_context = ""
-#         # 构建用于显示的召回文本
-#         display_context = ""
-#         # 构建来源字典 {db_name: {category: {file_name: [chunk_info]}}}
-#         source_dict = {}
-        
-#         for i, result in enumerate(results):
-#             if result.score >= similarity_threshold:
-#                 # 获取元数据
-#                 metadata = result.metadata
-#                 stored_db_name = metadata.get("db_name", "未知知识库")
-#                 stored_category = metadata.get("category", "未知类目")
-#                 stored_filename = metadata.get("file_name", "未知文件")
-#                 data_type = metadata.get("data_type", "未知类型")
-                
-#                 # 从数据库获取原始名称
-#                 try:
-#                     # 获取知识库原始名称
-#                     kb = KnowledgeBase.query.filter_by(stored_basename=stored_db_name).first()
-#                     db_source = kb.name if kb else stored_db_name
-                    
-#                     # 获取类目原始名称
-#                     category_obj = Category.query.filter_by(stored_categoryname=stored_category).first()
-#                     category = category_obj.name if category_obj else stored_category
-                    
-#                     # 获取文件原始名称
-#                     file_obj = CategoryFile.query.filter_by(stored_filename=stored_filename).first()
-#                     file_name = file_obj.name if file_obj else stored_filename
-#                 except Exception as e:
-#                     logger.error(f"获取原始名称失败: {str(e)}")
-#                     db_source = stored_db_name
-#                     category = stored_category
-#                     file_name = stored_filename
-                
-#                 # 添加到来源字典
-#                 if db_source not in source_dict:
-#                     source_dict[db_source] = {}
-#                 if category not in source_dict[db_source]:
-#                     source_dict[db_source][category] = {}
-#                 if file_name not in source_dict[db_source][category]:
-#                     source_dict[db_source][category][file_name] = []
-                
-#                 chunk_info = {
-#                     "text": result.text,
-#                     "score": round(result.score, 2),
-#                     "position": i+1
-#                 }
-#                 source_dict[db_source][category][file_name].append(chunk_info)
-                
-#                 # 添加数据类型标记
-#                 model_context += f"## {i+1} (来自: {db_source}/{category}/{file_name}, 类型: {data_type}):\n{result.text}\n\n"
-#                 display_context += (
-#                     f"## 片段 {i+1} [评分: {round(result.score, 2)}]\n"
-#                     f"知识库: {db_source}\n"
-#                     f"类目: {category}\n"
-#                     f"文件: {file_name}\n"
-#                     f"内容: {result.text}\n\n"
-#                 )
-        
-#         return model_context, display_context, source_dict
-#     except Exception as e:
-#         logger.exception("知识库检索异常")
-#         return "", "", {}
+
 def _get_model_config(model: str, thinking_mode: bool) -> Dict[str, Any]:
     """获取模型配置"""
     if thinking_mode:
@@ -741,7 +574,7 @@ def _get_model_config(model: str, thinking_mode: bool) -> Dict[str, Any]:
         return {
             "model": "deepseek-reasoner",
             "base_url": "https://api.deepseek.com",
-            "api_key": "sk-ca9d2a314fda4f8983f61e292a858d17",
+            "api_key": Config.DEEPSEEK_API_KEY,
             "system_prompt": "你是一个有帮助的助手，请根据提供的参考内容回答问题。",
             "is_reasoner": True
         }
@@ -751,7 +584,7 @@ def _get_model_config(model: str, thinking_mode: bool) -> Dict[str, Any]:
             return {
                 "model": model,
                 "base_url": "https://api.deepseek.com",
-                "api_key": "sk-ca9d2a314fda4f8983f61e292a858d17",
+                "api_key": Config.DEEPSEEK_API_KEY,
                 "system_prompt": "你是一个有帮助的助手，请根据提供的参考内容回答问题。",
                 "is_reasoner": False
             }
@@ -759,7 +592,7 @@ def _get_model_config(model: str, thinking_mode: bool) -> Dict[str, Any]:
             return {
                 "model": model,
                 "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-                "api_key": "sk-48f34d4f9c6948cbaa5198ab455f1224",
+                "api_key": Config.DASHSCOPE_API_KEY,
                 "system_prompt": "你是一个有帮助的助手，请根据提供的参考内容回答问题。",
                 "is_reasoner": False
             }

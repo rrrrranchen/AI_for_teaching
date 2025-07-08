@@ -14,13 +14,15 @@ class KnowledgeBase(db.Model):
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
     is_public = db.Column(db.Boolean, default=False)
     is_system = db.Column(db.Boolean, default=False)
-    need_update = db.Column(db.Boolean,default=False)
+    need_update = db.Column(db.Boolean, default=False)
     base_type = db.Column(Enum('structural', 'non_structural'), nullable=False)
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     author = db.relationship('User', backref='knowledge_bases')
-
-    courseclasses = db.relationship('Courseclass', secondary=courseclass_knowledge_base, back_populates='knowledge_bases', lazy='joined')
-    categories = db.relationship('Category', secondary=category_knowledge_base, back_populates='knowledge_bases')
+    usage_count = db.Column(db.Integer, default=0, nullable=False)  # 新增字段
+    courseclasses = db.relationship('Courseclass', secondary=courseclass_knowledge_base, 
+                                 back_populates='knowledge_bases', lazy='joined')
+    categories = db.relationship('Category', secondary=category_knowledge_base, 
+                               back_populates='knowledge_bases')
 
     def __repr__(self):
         return f'<KnowledgeBase {self.name}>'

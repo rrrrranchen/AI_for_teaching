@@ -1,4 +1,0 @@
-import os
-test="{\n    \"images\": [\n        \"https://images.unsplash.com/photo-1564175200452-7afb0d552003?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3MzQwOTR8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NDQyOTg1MjF8&ixlib=rb-4.0.3&q=80&w=1080\",\n        \"https://images.unsplash.com/photo-1580893246395-52aead8960dc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3MzQwOTR8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NDQyOTg1MjF8&ixlib=rb-4.0.3&q=80&w=1080\",\n        \"https://images.unsplash.com/photo-1544026230-488aeae72c0d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3MzQwOTR8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NDQyOTg1MjF8&ixlib=rb-4.0.3&q=80&w=1080\"\n    ]\n}"
-# 定义静态文件夹路径
-print(test)

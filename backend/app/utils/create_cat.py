@@ -16,6 +16,7 @@ from llama_index.embeddings.dashscope import (
     DashScopeTextEmbeddingModels,
     DashScopeTextEmbeddingType,
 )
+from app.config import Config
 from llama_index.core.node_parser import SentenceSplitter
 from typing import List, Optional
 # 配置常量
@@ -110,13 +111,13 @@ import tempfile
 import requests
 from typing import Tuple
 
-# OSS配置 (建议从环境变量或配置文件中读取)
+
 OSS_CONFIG = {
-    'endpoint': 'oss-cn-chengdu.aliyuncs.com',
-    'access_key_id': os.getenv('ALIYUN_ACCESS_KEY_ID'),
-    'access_key_secret': os.getenv('ALIYUN_ACCESS_KEY_SECRET'),
-    'bucket_name': 'knowledge-file12',
-    'public_domain': 'https://knowledge-file12.oss-cn-chengdu.aliyuncs.com'
+    'endpoint': Config.ENDPOINT,
+    'access_key_id': Config.ALIYUN_ACCESS_KEY_ID,
+    'access_key_secret': Config.ALIYUN_ACCESS_KEY_SECRET,
+    'bucket_name': Config.BUCKET_NAME,
+    'public_domain': Config.PUBLIC_DOMAIN
 }
 
 class OSSHelper:
@@ -174,7 +175,10 @@ class OSSHelper:
 
 # 全局OSS助手实例
 oss_helper = OSSHelper()
-MINERU_API_TOKEN='eyJ0eXBlIjoiSldUIiwiYWxnIjoiSFM1MTIifQ.eyJqdGkiOiI4NjMwMDg1MSIsInJvbCI6IlJPTEVfUkVHSVNURVIiLCJpc3MiOiJPcGVuWExhYiIsImlhdCI6MTc1MTUyMzYyMiwiY2xpZW50SWQiOiJsa3pkeDU3bnZ5MjJqa3BxOXgydyIsInBob25lIjoiMTUwNTAxMjU2NjAiLCJvcGVuSWQiOm51bGwsInV1aWQiOiIwYmIxYjRlMi0wMjc5LTQ4MzgtOGI2MC1iNDVhNmU3Y2Y4MWQiLCJlbWFpbCI6IiIsImV4cCI6MTc1MjczMzIyMn0.ebk7ZczL0BK64f7ZVtYr4gSf6IixaBAn801Oh7tP2xW61O9uwUOFAax7yxXlx5uPcb3dh8gncbhFOavaFWr5AQ'
+MINERU_API_TOKEN=Config.MINERU_API_TOKEN
+
+
+
 def upload_to_cdn(file_path: str) -> str:
     """上传文件到OSS并返回公开URL"""
     try:
@@ -267,124 +271,6 @@ def download_and_extract(zip_url: str, target_dir: str) -> Tuple[str, List[str]]
 MINERU_API_URL = "https://mineru.net/api/v4/extract/task"
 MINERU_RESULT_URL = "https://mineru.net/api/v4/extract/task/{task_id}"
 
-# def upload_file_to_folder_non_structural(file, folder_path: str) -> Tuple[str, List[str], str]:
-#     """上传非结构化文件并转换为TXT存储
-    
-#     Args:
-#         file: 上传的文件对象
-#         folder_path: 存储文件的目录路径
-        
-#     Returns:
-#         元组 (TXT文件相对路径, 图片文件相对路径列表, 原始文件相对路径)
-        
-#     Raises:
-#         ValueError: 文件类型不支持
-#         RuntimeError: 文件处理失败
-#     """
-#     if not (file and allowed_file_non_structural(file.filename)):
-#         raise ValueError("不支持的非结构化文件类型")
-    
-#     try:
-#         # 保存原始文件
-#         unique_filename = f"{uuid.uuid4()}_{file.filename}"
-#         file_path = os.path.join(folder_path, unique_filename)
-#         originalfile_path = os.path.join(project_root, 'static', 'knowledge', 'originalfiles', unique_filename)
-#         r_originalfile_path = os.path.join('static', 'knowledge', 'originalfiles', unique_filename)
-        
-#         # 确保目录存在
-#         os.makedirs(os.path.dirname(originalfile_path), exist_ok=True)
-#         file.save(file_path)
-#         file.save(originalfile_path)
-        
-#         # 获取文件扩展名
-#         file_ext = file.filename.split('.')[-1].lower()
-        
-#         # 对于txt、md、html、htm文件，直接处理
-#         if file_ext in ['txt', 'md', 'html', 'htm']:
-#             # 1. 读取文件内容（自动处理编码）
-#             with open(file_path, 'rb') as f:
-#                 raw_data = f.read()
-#                 encoding = chardet.detect(raw_data)['encoding'] or 'utf-8'
-            
-#             # 2. 转换内容为纯文本
-#             content = raw_data.decode(encoding)
-            
-#             # 如果是markdown文件，转换为纯文本
-#             if file_ext == 'md':
-#                 content = markdown.markdown(content)  # 先转换为HTML
-#                 # 移除HTML标签
-#                 content = re.sub(r'<[^>]+>', '', content)
-            
-#             # 如果是HTML文件，移除标签
-#             elif file_ext in ['html', 'htm']:
-#                 content = re.sub(r'<[^>]+>', '', content)
-            
-#             # 3. 生成TXT文件名
-#             txt_filename = os.path.splitext(unique_filename)[0] + '.txt'
-#             txt_filepath = os.path.join(folder_path, txt_filename)
-            
-#             # 4. 写入TXT文件
-#             with open(txt_filepath, 'w', encoding='utf-8') as f:
-#                 f.write(content)
-            
-#             # 5. 构建返回路径
-#             txt_relative_path = os.path.join('static', 'knowledge', 'category', 
-#                                            os.path.basename(folder_path), txt_filename)
-            
-#             # 6. 清理临时文件
-#             os.remove(file_path)
-            
-#             return txt_relative_path, [], r_originalfile_path
-        
-#         # 对于其他文件类型，仍然使用Mineru处理
-#         else:
-#             # 步骤1: 将文件上传到公共可访问的URL
-#             public_url = upload_to_cdn(file_path)  
-            
-#             # 步骤2: 调用Mineru API解析文件
-#             task_id = create_mineru_task(public_url)
-#             if not task_id:
-#                 raise RuntimeError("Mineru任务创建失败")
-            
-#             # 步骤3: 轮询获取解析结果
-#             zip_url = poll_mineru_result(task_id)
-#             if not zip_url:
-#                 raise RuntimeError("Mineru解析失败")
-            
-#             # 步骤4: 下载并解压结果，获取Markdown文件和图片
-#             md_file_path, image_paths = download_and_extract(zip_url, folder_path)
-            
-#             # 步骤5: 将Markdown转换为TXT
-#             txt_file_path = convert_md_to_txt(md_file_path)
-            
-#             # 构建相对路径
-#             base_relative_path = os.path.join('static', 'knowledge', 'category', 
-#                                             os.path.basename(folder_path))
-            
-#             # TXT文件相对路径
-#             txt_relative_path = os.path.join(base_relative_path, 
-#                                            os.path.basename(txt_file_path))
-            
-#             # 图片文件相对路径
-#             image_relative_paths = []
-#             for img_path in image_paths:
-#                 rel_path = os.path.join('static', 'knowledge', 'fileimages',
-#                                       os.path.basename(img_path))
-#                 image_relative_paths.append(rel_path)
-            
-#             # 清理临时文件
-#             os.remove(file_path)  # 删除原始文件
-#             os.remove(md_file_path)  # 删除Markdown文件
-            
-#             return txt_relative_path, image_relative_paths, r_originalfile_path
-            
-#     except Exception as e:
-#         # 清理可能存在的临时文件
-#         if 'file_path' in locals() and os.path.exists(file_path):
-#             os.remove(file_path)
-#         if 'md_file_path' in locals() and os.path.exists(md_file_path):
-#             os.remove(md_file_path)
-#         raise RuntimeError(f"文件处理失败: {str(e)}")
 
 def upload_file_to_folder_non_structural(file, folder_path: str) -> Tuple[str, List[str], str]:
     """上传非结构化文件并保留原始格式存储

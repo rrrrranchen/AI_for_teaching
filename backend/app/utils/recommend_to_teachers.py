@@ -1,10 +1,11 @@
 import requests
 from bs4 import BeautifulSoup
 from openai import OpenAI
+from app.config import Config
 import json
 
 # 设置 API Key
-key = 'sk-b7550aa67ed840ffacb5ca051733802c'
+key = Config.DEEPSEEK_API_KEY
 client = OpenAI(api_key=key, base_url="https://api.deepseek.com")
 
 # --------------------------------推荐视频----------------------------------------------
@@ -105,7 +106,7 @@ def generate_final_markdown(keyword):
 # 将用户输入关键词翻译成英文，使得Unsplash推荐的图片更准确
 def translate(content):
     # 初始化 DeepSeek 客户端
-    key = 'sk-b7550aa67ed840ffacb5ca051733802c'
+    key = Config.DEEPSEEK_API_KEY
     client = OpenAI(api_key=key, base_url="https://api.deepseek.com")
 
     response = client.chat.completions.create(
@@ -129,7 +130,7 @@ def translate(content):
 
 # 根据关键词推荐图片资源（使用 Unsplash API）
 def recommend_images(keyword):
-    access_key = 'GimQwr2RGVg_h6Op_FSb11kctxHCWkom_-GWbQbwqOI'
+    access_key = Config.UNSPLASH_ACCESS_KEY
     translated_keyword = translate(keyword)  # 👈 替换为 DeepSeek 翻译
 
     api_url = f'https://api.unsplash.com/photos/random?query={translated_keyword}&count=4&client_id={access_key}'

@@ -16,6 +16,7 @@ from app.utils.create_cat import ALLOWED_NON_STRUCTURAL_EXTENSIONS, ALLOWED_STRU
 from app.utils.create_kb import BASE_PATH, _retrieve_chunks_from_multiple_dbs, create_structured_db, create_unstructured_db,CATEGORY_PATH
 from app.models.courseclass import Courseclass
 from app.models.CategoryFileImage import CategoryFileImage
+from app.utils.keywords_search import calculate_keyword_match, extract_keywords
 
 knowledge_for_teachers_bp = Blueprint('knowledge_for_teachers', __name__)
 
@@ -967,75 +968,231 @@ def delete_knowledge_base(kb_id):
 @knowledge_for_teachers_bp.route('/teacher/courseclasses/<int:courseclass_id>/knowledge_bases', methods=['POST'])
 def add_knowledge_bases_to_courseclass(courseclass_id):
     """为课程班批量添加知识库"""
-    courseclass = Courseclass.query.filter_by(id=courseclass_id).first()
-    if not courseclass:
-        return jsonify({'error': 'Courseclass not found'}), 404
-    
-    data = request.get_json()
-    if not data or 'knowledge_base_ids' not in data:
-        return jsonify({'error': 'No knowledge_base_ids provided'}), 400
-    
-    knowledge_base_ids = data['knowledge_base_ids']
-    knowledge_bases = KnowledgeBase.query.filter(KnowledgeBase.id.in_(knowledge_base_ids)).all()
-    if len(knowledge_bases) != len(knowledge_base_ids):
-        return jsonify({'error': 'Some knowledge bases not found'}), 404
-    
     try:
+        # 验证课程班是否存在
+        courseclass = Courseclass.query.filter_by(id=courseclass_id).first()
+        if not courseclass:
+            return jsonify({
+                'success': False,
+                'error': 'COURSECLASS_NOT_FOUND',
+                'message': '课程班不存在'
+            }), 404
+        
+        # 验证请求数据
+        data = request.get_json()
+        if not data or 'knowledge_base_ids' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'MISSING_KNOWLEDGE_BASE_IDS',
+                'message': '缺少知识库ID列表'
+            }), 400
+        
+        knowledge_base_ids = data['knowledge_base_ids']
+        if not isinstance(knowledge_base_ids, list):
+            return jsonify({
+                'success': False,
+                'error': 'INVALID_KNOWLEDGE_BASE_IDS',
+                'message': '知识库ID列表格式不正确'
+            }), 400
+        
+        # 获取所有知识库
+        knowledge_bases = KnowledgeBase.query.filter(
+            KnowledgeBase.id.in_(knowledge_base_ids)
+        ).all()
+        
+        if len(knowledge_bases) != len(knowledge_base_ids):
+            return jsonify({
+                'success': False,
+                'error': 'SOME_KNOWLEDGE_BASES_NOT_FOUND',
+                'message': '部分知识库未找到'
+            }), 404
+        
+        # 检查权限并统计需要增加使用次数的知识库
+        kbs_to_increment = []
         for kb in knowledge_bases:
             # 检查知识库是否为开放的
             if not kb.is_public:
                 # 检查知识库的作者是否为当前登录用户
                 if kb.author_id != g.current_user.id:
-                    return jsonify({'error': 'Knowledge base is not public and you are not the author'}), 403
+                    return jsonify({
+                        'success': False,
+                        'error': 'PRIVATE_KNOWLEDGE_BASE',
+                        'message': f'知识库 "{kb.name}" 不是公开的且您不是创建者'
+                    }), 403
                 
                 # 检查该班级的教师是否为当前登录用户
                 if not any(teacher.id == g.current_user.id for teacher in courseclass.teachers):
-                    return jsonify({'error': 'You are not a teacher of this courseclass'}), 403
+                    return jsonify({
+                        'success': False,
+                        'error': 'NOT_COURSECLASS_TEACHER',
+                        'message': '您不是该课程班的教师'
+                    }), 403
+            
+            # 如果知识库不是当前用户创建的且尚未关联到课程班，则增加使用计数
+            if kb.author_id != g.current_user.id and kb not in courseclass.knowledge_bases:
+                kbs_to_increment.append(kb)
         
-        # 批量添加知识库到课程班
-        courseclass.knowledge_bases.extend(kb for kb in knowledge_bases if kb not in courseclass.knowledge_bases)
+        # 执行数据库操作
+        with db.session.begin_nested():
+            # 增加使用计数
+            for kb in kbs_to_increment:
+                kb.usage_count += 1
+            
+            # 批量添加知识库到课程班
+            courseclass.knowledge_bases.extend(
+                kb for kb in knowledge_bases 
+                if kb not in courseclass.knowledge_bases
+            )
+        
         db.session.commit()
-        return jsonify({'message': 'Knowledge bases added to courseclass successfully'})
+        
+        return jsonify({
+            'success': True,
+            'message': '知识库添加成功',
+            'data': {
+                'added_count': len(knowledge_bases),
+                'usage_incremented': len(kbs_to_increment),
+                'knowledge_bases': [{
+                    'id': kb.id,
+                    'name': kb.name,
+                    'usage_count': kb.usage_count if kb in kbs_to_increment else '未变化'
+                } for kb in knowledge_bases]
+            }
+        }), 200
+
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.error(
+            f"添加知识库到课程班失败 - CourseclassID: {courseclass_id}, UserID: {g.current_user.id}, Error: {str(e)}",
+            exc_info=True
+        )
+        return jsonify({
+            'success': False,
+            'error': 'SERVER_ERROR',
+            'message': str(e)
+        }), 500
+
     
 
 @knowledge_for_teachers_bp.route('/teacher/courseclasses/<int:courseclass_id>/knowledge_bases', methods=['PUT'])
 def update_knowledge_bases_of_courseclass(courseclass_id):
-    """更新课程班与知识库的关系"""
-    courseclass = Courseclass.query.filter_by(id=courseclass_id, author_id=g.current_user.id).first()
-    if not courseclass:
-        return jsonify({'error': 'Courseclass not found'}), 404
-    
-    data = request.get_json()
-    if not data or 'knowledge_base_ids' not in data:
-        return jsonify({'error': 'No knowledge_base_ids provided'}), 400
-    
-    knowledge_base_ids = data['knowledge_base_ids']
-    knowledge_bases = KnowledgeBase.query.filter(KnowledgeBase.id.in_(knowledge_base_ids)).all()
-    if len(knowledge_bases) != len(knowledge_base_ids):
-        return jsonify({'error': 'Some knowledge bases not found'}), 404
-    
-    for kb in knowledge_bases:
-        # 检查知识库是否为开放的
-        if not kb.is_public:
-            # 检查知识库的作者是否为当前登录用户
-            if kb.author_id != g.current_user.id:
-                return jsonify({'error': 'Knowledge base is not public and you are not the author'}), 403
-            
-            # 检查该班级的教师是否为当前登录用户
-            if not any(teacher.id == g.current_user.id for teacher in courseclass.teachers):
-                return jsonify({'error': 'You are not a teacher of this courseclass'}), 403
-    
+    """更新课程班与知识库的关系（全量更新）"""
     try:
-        # 更新课程班与知识库的关系
-        courseclass.knowledge_bases = knowledge_bases
+        # 验证课程班所有权
+        courseclass = Courseclass.query.filter_by(
+            id=courseclass_id,
+            author_id=g.current_user.id
+        ).first()
+        
+        if not courseclass:
+            return jsonify({
+                'success': False,
+                'error': 'COURSECLASS_NOT_FOUND_OR_NOT_OWNED',
+                'message': '课程班不存在或您不是创建者'
+            }), 404
+        
+        # 验证请求数据
+        data = request.get_json()
+        if not data or 'knowledge_base_ids' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'MISSING_KNOWLEDGE_BASE_IDS',
+                'message': '缺少知识库ID列表'
+            }), 400
+        
+        knowledge_base_ids = data['knowledge_base_ids']
+        if not isinstance(knowledge_base_ids, list):
+            return jsonify({
+                'success': False,
+                'error': 'INVALID_KNOWLEDGE_BASE_IDS',
+                'message': '知识库ID列表格式不正确'
+            }), 400
+        
+        # 获取所有知识库
+        knowledge_bases = KnowledgeBase.query.filter(
+            KnowledgeBase.id.in_(knowledge_base_ids)
+        ).all()
+        
+        if len(knowledge_bases) != len(knowledge_base_ids):
+            return jsonify({
+                'success': False,
+                'error': 'SOME_KNOWLEDGE_BASES_NOT_FOUND',
+                'message': '部分知识库未找到'
+            }), 404
+        
+        # 获取当前关联的知识库ID集合
+        current_kb_ids = {kb.id for kb in courseclass.knowledge_bases}
+        new_kb_ids = set(knowledge_base_ids)
+        
+        # 找出新增和移除的知识库
+        added_kb_ids = new_kb_ids - current_kb_ids
+        removed_kb_ids = current_kb_ids - new_kb_ids
+        
+        # 找出需要增加和减少使用次数的知识库
+        kbs_to_increment = [
+            kb for kb in knowledge_bases 
+            if kb.id in added_kb_ids and kb.author_id != g.current_user.id
+        ]
+        
+        kbs_to_decrement = [
+            kb for kb in courseclass.knowledge_bases
+            if kb.id in removed_kb_ids and kb.author_id != g.current_user.id
+        ]
+        
+        # 检查所有知识库权限
+        for kb in knowledge_bases:
+            if not kb.is_public and kb.author_id != g.current_user.id:
+                return jsonify({
+                    'success': False,
+                    'error': 'PRIVATE_KNOWLEDGE_BASE',
+                    'message': f'知识库 "{kb.name}" 不是公开的且您不是创建者'
+                }), 403
+        
+        # 执行数据库操作
+        with db.session.begin_nested():
+            # 增加新增知识库的使用计数
+            for kb in kbs_to_increment:
+                kb.usage_count += 1
+            
+            # 减少移除知识库的使用计数（确保不小于0）
+            for kb in kbs_to_decrement:
+                kb.usage_count = max(0, kb.usage_count - 1)
+            
+            # 更新课程班与知识库的关系
+            courseclass.knowledge_bases = knowledge_bases
+        
         db.session.commit()
-        return jsonify({'message': 'Knowledge bases of courseclass updated successfully'})
+        
+        return jsonify({
+            'success': True,
+            'message': '课程班知识库关系更新成功',
+            'data': {
+                'total_knowledge_bases': len(knowledge_bases),
+                'added': len(added_kb_ids),
+                'removed': len(removed_kb_ids),
+                'usage_incremented': len(kbs_to_increment),
+                'usage_decremented': len(kbs_to_decrement),
+                'knowledge_bases': [{
+                    'id': kb.id,
+                    'name': kb.name,
+                    'usage_count': kb.usage_count,
+                    'status': '新增' if kb.id in added_kb_ids else 
+                             '移除' if kb.id in removed_kb_ids else '保留'
+                } for kb in knowledge_bases + list(courseclass.knowledge_bases)]
+            }
+        }), 200
+
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.error(
+            f"更新课程班知识库关系失败 - CourseclassID: {courseclass_id}, UserID: {g.current_user.id}, Error: {str(e)}",
+            exc_info=True
+        )
+        return jsonify({
+            'success': False,
+            'error': 'SERVER_ERROR',
+            'message': str(e)
+        }), 500
 
 
 @knowledge_for_teachers_bp.route('/teacher/knowledge_bases/<int:kb_id>/categories/batch_add', methods=['POST'])
@@ -1477,3 +1634,196 @@ def deep_search_public_knowledge_bases():
             'error': 'SERVER_ERROR',
             'message': str(e)
         }), 500                                           
+    
+
+@knowledge_for_teachers_bp.route('/teacher/courseclasses/<int:courseclass_id>/knowledge_bases/recommendations', methods=['GET'])
+def get_recommended_knowledge_bases(courseclass_id):
+    """
+    根据课程班信息推荐相关知识库
+    参数:
+        - limit: 返回结果数量(默认5)
+        - min_usage_count: 最小使用次数阈值(默认3)
+        - keyword_weight: 关键词匹配权重(0-1, 默认0.6)
+        - category_weight: 类别匹配权重(0-1, 默认0.3)
+        - usage_weight: 使用次数权重(0-1, 默认0.1)
+    """
+    try:
+        # 验证课程班是否存在及用户权限
+        courseclass = Courseclass.query.filter_by(id=courseclass_id).first()
+        if not courseclass:
+            return jsonify({
+                'success': False,
+                'error': 'COURSECLASS_NOT_FOUND',
+                'message': '课程班不存在'
+            }), 404
+        
+        # 检查用户是否是课程班教师
+        if g.current_user not in courseclass.teachers:
+            return jsonify({
+                'success': False,
+                'error': 'PERMISSION_DENIED',
+                'message': '您不是该课程班的教师'
+            }), 403
+        
+        # 获取查询参数
+        limit = 5
+        min_usage_count = 0
+        keyword_weight = 0.6
+        category_weight = 0.3
+        usage_weight = 0.1
+        
+        # 权重归一化检查
+        total_weight = keyword_weight + category_weight + usage_weight
+        if not (0.999 <= total_weight <= 1.001):  # 允许微小的浮点误差
+            return jsonify({
+                'success': False,
+                'error': 'INVALID_WEIGHTS',
+                'message': '权重总和必须等于1'
+            }), 400
+        
+        # 获取课程班已关联的知识库ID(用于排除)
+        linked_kb_ids = {kb.id for kb in courseclass.knowledge_bases}
+        
+        # 获取课程班当前知识库的类别ID
+        current_category_ids = set()
+        for kb in courseclass.knowledge_bases:
+            current_category_ids.update(cat.id for cat in kb.categories)
+        
+        # 构建基础查询
+        query = KnowledgeBase.query.filter(
+            KnowledgeBase.is_public == True,  # 只推荐公开知识库
+            KnowledgeBase.id.notin_(linked_kb_ids),  # 排除已关联的
+            KnowledgeBase.usage_count >= min_usage_count  # 满足最小使用次数
+        ).options(
+            db.joinedload(KnowledgeBase.author).load_only(User.id, User.username),
+            db.joinedload(KnowledgeBase.categories).load_only(Category.id, Category.name)
+        )
+        
+        # 提取课程班关键词
+        class_keywords = extract_keywords(f"{courseclass.name} {courseclass.description or ''}")
+        
+        # 获取所有候选知识库
+        candidate_kbs = query.all()
+        
+        if not candidate_kbs:
+            return jsonify({
+                'success': True,
+                'data': {
+                    'courseclass_id': courseclass.id,
+                    'courseclass_name': courseclass.name,
+                    'message': '没有符合条件的推荐知识库',
+                    'recommendations': []
+                }
+            }), 200
+        
+        # 计算每个知识库的推荐分数
+        scored_kbs = []
+        max_usage = max(kb.usage_count for kb in candidate_kbs) or 1  # 避免除以0
+        
+        for kb in candidate_kbs:
+            # 1. 关键词匹配分数
+            kb_keywords = extract_keywords(f"{kb.name} {kb.description or ''}")
+            keyword_score = calculate_keyword_match(class_keywords, kb_keywords)
+            
+            # 2. 类别匹配分数
+            kb_category_ids = {cat.id for cat in kb.categories}
+            if current_category_ids:
+                category_score = len(current_category_ids & kb_category_ids) / len(current_category_ids)
+            else:
+                category_score = 0
+            
+            # 3. 使用次数分数 (归一化到0-1)
+            usage_score = kb.usage_count / max_usage
+            
+            # 综合分数
+            total_score = (keyword_weight * keyword_score +
+                          category_weight * category_score +
+                          usage_weight * usage_score)
+            
+            scored_kbs.append({
+                'kb': kb,
+                'scores': {
+                    'total': total_score,
+                    'keyword': keyword_score,
+                    'category': category_score,
+                    'usage': usage_score
+                }
+            })
+        
+        # 按总分排序
+        scored_kbs.sort(key=lambda x: x['scores']['total'], reverse=True)
+        
+        # 获取前limit个推荐
+        recommended_kbs = [item['kb'] for item in scored_kbs[:limit]]
+        
+        # 构建响应数据
+        results = []
+        for idx, kb in enumerate(recommended_kbs):
+            match_reasons = []
+            scores = scored_kbs[idx]['scores']
+            
+            # 构建匹配原因描述
+            if scores['keyword'] > 0.5:
+                match_reasons.append('高关键词匹配')
+            elif scores['keyword'] > 0.2:
+                match_reasons.append('部分关键词匹配')
+                
+            if scores['category'] > 0:
+                match_reasons.append('同类别知识库')
+                
+            if scores['usage'] > 0.7:
+                match_reasons.append('高使用量')
+            elif scores['usage'] > 0.3:
+                match_reasons.append('中等使用量')
+                
+            if not match_reasons:
+                match_reasons.append('综合推荐')
+            
+            results.append({
+                'id': kb.id,
+                'name': kb.name,
+                'description': kb.description,
+                'usage_count': kb.usage_count,
+                'author': {
+                    'id': kb.author.id,
+                    'username': kb.author.username
+                },
+                'categories': [{
+                    'id': cat.id,
+                    'name': cat.name
+                } for cat in kb.categories],
+                'match_reason': '、'.join(match_reasons),
+                'score_details': {
+                    'total_score': round(scores['total'], 3),
+                    'keyword_score': round(scores['keyword'], 3),
+                    'category_score': round(scores['category'], 3),
+                    'usage_score': round(scores['usage'], 3)
+                }
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'courseclass_id': courseclass.id,
+                'courseclass_name': courseclass.name,
+                'courseclass_keywords': class_keywords,
+                'current_category_ids': list(current_category_ids),
+                'recommendation_strategy': {
+                    'keyword_weight': keyword_weight,
+                    'category_weight': category_weight,
+                    'usage_weight': usage_weight
+                },
+                'recommendations': results
+            }
+        }), 200
+
+    except Exception as e:
+        current_app.logger.error(
+            f"获取推荐知识库失败 - CourseclassID: {courseclass_id}, UserID: {g.current_user.id}, Error: {str(e)}",
+            exc_info=True
+        )
+        return jsonify({
+            'success': False,
+            'error': 'SERVER_ERROR',
+            'message': str(e)
+        }), 500

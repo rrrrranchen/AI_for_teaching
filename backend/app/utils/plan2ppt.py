@@ -1,9 +1,10 @@
 from openai import OpenAI
+from app.config import Config
 import time
 import os
 
 # 定义自己的 API Key
-key = 'sk-b7550aa67ed840ffacb5ca051733802c'
+key = Config.DEEPSEEK_API_KEY
 api_url = "https://api.deepseek.com"  # DeepSeek 的 API 地址
 
 

@@ -18,7 +18,7 @@ from app.utils.preview_generator import generate_preview
 from werkzeug.utils import safe_join  
 from mongoengine.errors import DoesNotExist, ValidationError
 
-from app.services.plan2ppt import generate_PPT
+from app.utils.plan2ppt import generate_PPT
 from app.models.ppttemplate import PPTTemplate
 from app.models.teachingdesignversion import TeachingDesignVersion
 resource_bp=Blueprint('resource',__name__)
