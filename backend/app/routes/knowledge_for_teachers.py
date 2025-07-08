@@ -8,7 +8,7 @@ from yaml import load_all
 from app.utils.database import db
 from app.models.user import User
 from app.models.Category import Category
-
+from app.models.relationship import category_knowledge_base
 
 from app.models.CategoryFile import CategoryFile
 from app.models.KnowledgeBase import KnowledgeBase
@@ -1820,6 +1820,213 @@ def get_recommended_knowledge_bases(courseclass_id):
     except Exception as e:
         current_app.logger.error(
             f"获取推荐知识库失败 - CourseclassID: {courseclass_id}, UserID: {g.current_user.id}, Error: {str(e)}",
+            exc_info=True
+        )
+        return jsonify({
+            'success': False,
+            'error': 'SERVER_ERROR',
+            'message': str(e)
+        }), 500
+    
+
+@knowledge_for_teachers_bp.route('/teacher/knowledge_bases/migrate_public', methods=['POST'])
+def migrate_public_knowledge_base():
+    """将公共知识库迁移为个人知识库"""
+    try:
+        data = request.get_json()
+        if not data or 'knowledge_base_id' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'MISSING_KNOWLEDGE_BASE_ID',
+                'message': '缺少知识库ID'
+            }), 400
+
+        kb_id = data['knowledge_base_id']
+        public_kb = KnowledgeBase.query.filter_by(
+            id=kb_id,
+            is_public=True
+        ).first()
+
+        if not public_kb:
+            return jsonify({
+                'success': False,
+                'error': 'PUBLIC_KNOWLEDGE_BASE_NOT_FOUND',
+                'message': '公共知识库不存在或不是公开的'
+            }), 404
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        BASE_PATH = os.path.join(project_root, 'static', 'knowledge', 'base')
+        
+        # 新知识库的存储路径
+        new_basename = f"kb_{uuid.uuid4().hex}"
+        new_dir = os.path.join(BASE_PATH, new_basename)
+        
+        # 复制文件
+        if public_kb.file_path:
+            shutil.copytree(public_kb.file_path, new_dir)
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'SOURCE_KB_FILES_NOT_FOUND',
+                'message': '原知识库文件不存在'
+            }), 404
+
+        # 创建新的知识库记录
+        new_kb = KnowledgeBase(
+            name=f"{public_kb.name} (副本)",
+            stored_basename=new_basename,
+            description=public_kb.description,
+            file_path=new_dir,
+            is_public=False,
+            is_system=False,
+            base_type=public_kb.base_type,
+            author_id=g.current_user.id,
+            categories=public_kb.categories.copy()  # 复制分类关系
+        )
+
+        db.session.add(new_kb)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': '公共知识库迁移成功',
+            'data': {
+                'new_knowledge_base': {
+                    'id': new_kb.id,
+                    'name': new_kb.name,
+                    'path': new_dir
+                }
+            }
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        # 清理可能已创建的文件
+        if 'new_dir' in locals() and os.path.exists(new_dir):
+            shutil.rmtree(new_dir, ignore_errors=True)
+            
+        current_app.logger.error(
+            f"迁移公共知识库失败 - KBID: {kb_id}, UserID: {g.current_user.id}, Error: {str(e)}",
+            exc_info=True
+        )
+        return jsonify({
+            'success': False,
+            'error': 'MIGRATION_FAILED',
+            'message': f'迁移失败: {str(e)}'
+        }), 500
+    
+
+@knowledge_for_teachers_bp.route('/public/knowledge_bases', methods=['GET'])
+def get_public_knowledge_bases():
+    """获取所有公开且不属于当前用户的知识库（无分页）"""
+    try:
+        # 获取查询参数
+        sort_by = request.args.get('sort_by', 'updated_at')
+        order = request.args.get('order', 'desc')
+        category_id = request.args.get('category_id', None)
+        base_type = request.args.get('base_type', None)
+        min_usage = request.args.get('min_usage', None, type=int)
+        
+        # 验证参数
+        valid_sort_fields = ['name', 'created_at', 'updated_at', 'usage_count']
+        if sort_by not in valid_sort_fields:
+            return jsonify({
+                'success': False,
+                'error': 'INVALID_SORT_FIELD',
+                'message': f'排序字段必须是以下之一: {", ".join(valid_sort_fields)}'
+            }), 400
+            
+        if order not in ['asc', 'desc']:
+            return jsonify({
+                'success': False,
+                'error': 'INVALID_ORDER',
+                'message': '排序顺序必须是asc或desc'
+            }), 400
+            
+        if base_type and base_type not in ['structural', 'non_structural']:
+            return jsonify({
+                'success': False,
+                'error': 'INVALID_BASE_TYPE',
+                'message': '知识库类型必须是structural或non_structural'
+            }), 400
+
+        # 构建基础查询
+        query = KnowledgeBase.query.filter(
+            KnowledgeBase.is_public == True,
+            KnowledgeBase.author_id != g.current_user.id
+        ).options(
+            db.joinedload(KnowledgeBase.author).load_only(User.id, User.username),
+            db.joinedload(KnowledgeBase.categories).load_only(Category.id, Category.name)
+        )
+
+        # 应用过滤条件
+        if category_id:
+            query = query.join(
+                category_knowledge_base,
+                category_knowledge_base.c.knowledge_base_id == KnowledgeBase.id
+            ).filter(
+                category_knowledge_base.c.category_id == category_id
+            )
+            
+        if base_type:
+            query = query.filter(KnowledgeBase.base_type == base_type)
+            
+        if min_usage is not None:
+            query = query.filter(KnowledgeBase.usage_count >= min_usage)
+
+        # 应用排序
+        sort_column = getattr(KnowledgeBase, sort_by)
+        if order == 'desc':
+            sort_column = sort_column.desc()
+        query = query.order_by(sort_column)
+
+        # 获取所有结果
+        knowledge_bases = query.all()
+
+        # 构造响应数据
+        results = []
+        for kb in knowledge_bases:
+            results.append({
+                'id': kb.id,
+                'name': kb.name,
+                'description': kb.description,
+                'base_type': kb.base_type,
+                'is_public': kb.is_public,
+                'usage_count': kb.usage_count,
+                'created_at': kb.created_at.isoformat(),
+                'updated_at': kb.updated_at.isoformat() if kb.updated_at else None,
+                'author': {
+                    'id': kb.author.id,
+                    'username': kb.author.username
+                },
+                'categories': [{
+                    'id': cat.id,
+                    'name': cat.name
+                } for cat in kb.categories],
+                'can_migrate': True  # 表示当前用户可以迁移此知识库
+            })
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'knowledge_bases': results,
+                'count': len(results),
+                'filters': {
+                    'applied': {
+                        'category_id': category_id,
+                        'base_type': base_type,
+                        'min_usage': min_usage
+                    },
+                    'sort': {
+                        'by': sort_by,
+                        'order': order
+                    }
+                }
+            }
+        }), 200
+
+    except Exception as e:
+        current_app.logger.error(
+            f"获取公开知识库失败 - UserID: {g.current_user.id}, Error: {str(e)}",
             exc_info=True
         )
         return jsonify({

@@ -531,6 +531,3 @@ def get_all_ppt_templates():
         current_app.logger.error(f"获取PPT模板失败: {str(e)}")
         return jsonify({'error': '获取模板信息失败', 'details': str(e)}), 500
 
-@resource_bp.route('/re')
-def resourcetemplate():
-    return render_template('resource.html')
