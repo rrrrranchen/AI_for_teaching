@@ -200,7 +200,6 @@ import {
 import { useAuthStore } from "@/stores/auth";
 import {
   getAllCourseclasses,
-  createCourseclass,
   getRecommendedCourseclasses,
   type Courseclass,
   searchPublicCourseclasses,

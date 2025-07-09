@@ -13,7 +13,7 @@
           <a-input-search
             v-model:value="listParams.keyword"
             placeholder="搜索知识库名称"
-            style="width: 240px"
+            style="width: 300px"
             @search="fetchPublicKnowledgeBases"
             allow-clear
           />
@@ -647,5 +647,16 @@ const highlightKeyword = (text: string | undefined, keyword: string) => {
 .source-info {
   color: #666;
   font-size: 14px;
+}
+@media (max-width: 768px) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .search-bar {
+    width: 100%;
+    margin-bottom: 16px;
+    margin-right: 0;
+  }
 }
 </style>
