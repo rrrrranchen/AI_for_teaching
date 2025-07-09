@@ -9,7 +9,7 @@ from collections import defaultdict
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from transformers import AutoTokenizer, AutoModel
-
+from app.config import Config
 # 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -19,7 +19,7 @@ class ChineseGrader:
         self.BASE_DIR = os.path.dirname(os.path.abspath(__file__))
         self.cc = OpenCC('t2s')
         self._init_resources()
-        self.model_path = r'C:\\Users\13925\\.cache\\huggingface\\hub\\paraphrase-multilingual-MiniLM-L12-v2'
+        self.model_path = Config.GRADER_PATH
         
         # 初始化模型
         try:

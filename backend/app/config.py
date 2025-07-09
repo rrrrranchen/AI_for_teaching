@@ -10,6 +10,7 @@ class Config:
     BUCKET_NAME='knowledge-file12'
     ENDPOINT='oss-cn-chengdu.aliyuncs.com'
     UNSPLASH_ACCESS_KEY='GimQwr2RGVg_h6Op_FSb11kctxHCWkom_-GWbQbwqOI'
+    GRADER_PATH=r'C:\\Users\13925\\.cache\\huggingface\\hub\\paraphrase-multilingual-MiniLM-L12-v2'
     # 文件上传配置
     
     ALLOWED_EXTENSIONS = {'pdf', 'docx', 'pptx', 'jpg', 'png', 'mp4', 'mp3','doc'}
