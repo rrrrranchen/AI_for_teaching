@@ -14,14 +14,40 @@ completion = client.chat.completions.create(
         },
         {
                 "role": "user",
-                "content": """# 教备通: AI 辅助教学交互系统
+                "content": """
+
+# 教备通: AI 辅助教学交互系统
 
 ## 系统要求
 - 后端: Python 3.9+
 - 数据库: MySQL
 
 ## 前端部署
-请参考 `/frontend/README.md` 文件
+# frontend
+
+## Project setup
+```
+npm install
+```
+
+### Compiles and hot-reloads for development
+```
+npm run serve
+```
+
+### Compiles and minifies for production
+```
+npm run build
+```
+
+### Lints and fixes files
+```
+npm run lint
+```
+
+### Customize configuration
+See [Configuration Reference](https://cli.vuejs.org/config/).
+
 
 ## 后端部署
 
@@ -69,7 +95,7 @@ alembic revision --autogenerate -m "Initial migration"
 
 # 应用迁移
 alembic upgrade head
-帮我将以上内容统一格式后给出markdown文件代码
+帮我将以上内容统一格式后给出markdown文件代码,同时将前端部署改为中文
                 """
         }
     ]

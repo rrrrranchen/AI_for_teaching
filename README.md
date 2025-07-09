@@ -5,7 +5,29 @@
 - 数据库: MySQL
 
 ## 前端部署
-请参考 `/frontend/README.md` 文件
+
+### 项目安装
+```bash
+npm install
+```
+
+### 开发环境编译与热重载
+```bash
+npm run serve
+```
+
+### 生产环境编译与压缩
+```bash
+npm run build
+```
+
+### 代码检查与修复
+```bash
+npm run lint
+```
+
+### 自定义配置
+参考 [Configuration Reference](https://cli.vuejs.org/config/)
 
 ## 后端部署
 
@@ -19,7 +41,7 @@
 pip install -r requirements.txt
 ```
 
-## 后端配置与运行
+## 后端配置与运行指南
 
 ### 语言模型配置
 1. 安装并配置 `paraphrase-multilingual-MiniLM-L12-v2` 语言模型
@@ -33,12 +55,14 @@ pip install -r requirements.txt
 
 配置完成后请**重启编辑器**
 
-### 后端运行命令
+### 后端运行
 ```bash
 python backend/run.py
 ```
 
 ## 数据库迁移指南
+
+使用 Alembic 进行数据库迁移操作：
 
 ### 配置步骤
 1. 修改 `alembic.ini` 文件中的 `sqlalchemy.url` 配置
@@ -50,10 +74,3 @@ alembic revision --autogenerate -m "Initial migration"
 
 # 应用迁移
 alembic upgrade head
-```
-
-## 注意事项
-1. 确保所有配置修改后保存文件
-2. 环境变量配置完成后需要重启相关服务
-3. 数据库迁移前请备份现有数据
-```
