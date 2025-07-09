@@ -16,86 +16,233 @@ completion = client.chat.completions.create(
                 "role": "user",
                 "content": """
 
-# 教备通: AI 辅助教学交互系统
-
-## 系统要求
-- 后端: Python 3.9+
-- 数据库: MySQL
-
-## 前端部署
-# frontend
-
-## Project setup
-```
-npm install
-```
-
-### Compiles and hot-reloads for development
-```
-npm run serve
-```
-
-### Compiles and minifies for production
-```
-npm run build
-```
-
-### Lints and fixes files
-```
-npm run lint
-```
-
-### Customize configuration
-See [Configuration Reference](https://cli.vuejs.org/config/).
+from torch import nn, optim
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
+import matplotlib.pyplot as plt
+import torch
+import CNN
+import numpy as np
+import os
 
 
-## 后端部署
+os.makedirs('./data/EMNIST', exist_ok=True)
 
-### 数据库配置
-1. 新建一个空MySQL数据库
-2. 修改 `backend/app/utils/database.py` 中的数据库连接配置
-3. 运行后端服务后会自动生成所有数据表
+# 标准化数据 
+data_tf = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize((0.5,), (0.5,))  
+])
 
-### 依赖安装
-```bash
-pip install -r requirements.txt
+batch_size = 64
+
+# 加载训练集
+train_dataset = datasets.EMNIST(
+    root='./data/EMNIST', 
+    split='letters',
+    train=True,
+    transform=data_tf,
+    download=True
+)
+
+test_dataset = datasets.EMNIST(
+    root="./data/EMNIST",
+    split='letters',
+    train=False,
+    transform=data_tf
+)
+
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
 
-# 后端配置与运行指南
+CNNmodel = CNN.CNN(out=26)
 
-## 语言模型配置
-1. 安装并配置 `paraphrase-multilingual-MiniLM-L12-v2` 语言模型
-2. 修改 `backend/app/config.py` 中的 `GRADER_PATH` 为本地模型下载路径
+# 使用Adam优化器
+learning_rate = 0.001
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(CNNmodel.parameters(), lr=learning_rate)
 
-## 环境变量配置
-需要配置以下环境变量：
-- `ALIYUN_ACCESS_KEY_ID`
-- `ALIYUN_ACCESS_KEY_SECRET`
-- `DASHSCOPE_API_KEY`
+# 训练参数
+num_epochs = 50
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+CNNmodel.to(device)
 
-配置完成后请**重启编辑器**
+print(f"使用设备: {device}")
+print(f"训练样本数: {len(train_dataset)}")
+print(f"测试样本数: {len(test_dataset)}")
+print(f"模型结构:\n{CNNmodel}")
 
-## 后端运行
-```bash
-python backend/run.py
+def train():
+    CNNmodel.train()
+    for epoch in range(num_epochs):
+        total_loss = 0
+        correct = 0
+        total = 0
+        
+        for images, labels in train_loader:
+            # 将数据移动到GPU
+            images, labels = images.to(device), labels.to(device)
+            
+            # 注意：EMNIST labels是1-26，转换为0-25
+            labels = labels - 1
+            
+            optimizer.zero_grad()
+            outputs = CNNmodel(images)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            
+            total_loss += loss.item()
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+        
+        accuracy = 100 * correct / total
+        avg_loss = total_loss / len(train_loader)
+        
+        print(f'Epoch [{epoch+1}/{num_epochs}], '
+              f'Loss: {avg_loss:.4f}, '
+              f'Accuracy: {accuracy:.2f}%')
+    
+    # 保存模型
+    torch.save(CNNmodel.state_dict(), 'emnist_cnn_model.pth')
+    print("模型已保存为 'emnist_cnn_model.pth'")
 
+def test():
+    CNNmodel.eval()
+    total_loss = 0
+    correct = 0
+    total = 0
+    
+    with torch.no_grad():
+        for images, labels in test_loader:
 
-## 数据库迁移指南
+            images, labels = images.to(device), labels.to(device)
+            
+            # 标签转换 (1-26 -> 0-25)
+            labels = labels - 1
+            
+            outputs = CNNmodel(images)
+            loss = criterion(outputs, labels)
+            
+            total_loss += loss.item()
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+    
+    accuracy = 100 * correct / total
+    avg_loss = total_loss / len(test_loader)
+    
+    print(f'\n测试结果:')
+    print(f'测试损失: {avg_loss:.4f}')
+    print(f'测试准确率: {accuracy:.2f}%')
 
-使用 Alembic 进行数据库迁移操作：
+def show_predict():
+    CNNmodel.eval()
+    loader = DataLoader(dataset=test_dataset, batch_size=9, shuffle=True)
+    
 
-### 配置步骤
-1. 修改 `alembic.ini` 文件中的 `sqlalchemy.url` 配置
+    images, labels = next(iter(loader))
+    
 
-### 迁移命令
-执行以下命令完成数据库迁移：
-```bash
-# 生成迁移脚本
-alembic revision --autogenerate -m "Initial migration"
+    images, labels = images.to(device), labels.to(device)
+    
+    # 标签转换 (1-26 -> 0-25)
+    labels = labels - 1
+    
+    with torch.no_grad():
+        outputs = CNNmodel(images)
+        _, predicted = torch.max(outputs, 1)
+    
 
-# 应用迁移
-alembic upgrade head
-帮我将以上内容统一格式后给出markdown文件代码,同时将前端部署改为中文
+    images = images.cpu()
+    predicted = predicted.cpu()
+    labels = labels.cpu()
+    
+    plt.figure(figsize=(10, 10))
+    for i in range(9):
+        plt.subplot(3, 3, i+1)
+        
+
+        img = images[i].squeeze().numpy() * 0.5 + 0.5
+        plt.imshow(img, cmap='gray')
+        
+
+        pred_char = chr(predicted[i].item() + 65)  
+        true_char = chr(labels[i].item() + 65)
+        
+        title = f"预测: {pred_char}, 真实: {true_char}"
+        if pred_char == true_char:
+            plt.title(title, color='green', fontproperties='SimSun')
+        else:
+            plt.title(title, color='red', fontproperties='SimSun')
+        
+        plt.axis('off')
+    
+    plt.tight_layout()
+    plt.show()
+
+if __name__ == "__main__":
+    train()
+    test()
+    show_predict()
+
+import torch.nn as nn
+
+class CNN(nn.Module):
+    def __init__(self, out=26):  
+        super(CNN, self).__init__()
+        self.out = out
+        
+        
+        self.layer1 = nn.Sequential(
+            nn.Conv2d(1, 8, kernel_size=3, padding=1),  
+            nn.BatchNorm2d(8),
+            nn.ReLU(inplace=True)
+        )
+        
+        self.layer2 = nn.Sequential(
+            nn.Conv2d(8, 16, kernel_size=3, padding=1),  
+            nn.BatchNorm2d(16),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2)  
+        )
+        
+        self.layer3 = nn.Sequential(
+            nn.Conv2d(16, 32, kernel_size=3, padding=1), 
+            nn.BatchNorm2d(32),
+            nn.ReLU(inplace=True)
+        )
+        
+        self.layer4 = nn.Sequential(
+            nn.Conv2d(32, 64, kernel_size=3, padding=1),  
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2)  
+        )
+        
+
+        self.fc = nn.Sequential(
+            nn.Linear(64*7*7, 512),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.5),
+            nn.Linear(512, 256),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.5),
+            nn.Linear(256, self.out)
+        )
+    
+    def forward(self, x):
+
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        x = x.view(x.size(0), -1) 
+        x = self.fc(x)
+        return x
+根据以上代码写出readme.md文件，给我原始的markdown代码，使用中文描述
                 """
         }
     ]
