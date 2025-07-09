@@ -304,7 +304,7 @@ def upload_file_to_folder_non_structural(file, folder_path: str) -> Tuple[str, L
         # 确保目录存在
         os.makedirs(os.path.dirname(originalfile_path), exist_ok=True)
         file.save(file_path)
-        file.save(originalfile_path)
+        shutil.copy(file_path,originalfile_path)
         
         # 对于txt、md、html、htm文件，直接处理
         if file_ext in ['txt', 'md', 'html', 'htm']:
