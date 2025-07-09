@@ -11,12 +11,12 @@
       "
     >
       <div style="font-weight: bold; font-size: 20px; margin-left: 10px">
-        我的班级
+        我的课程
       </div>
       <div style="display: flex; align-items: center">
         <a-input-search
           v-model:value="searchKeyword"
-          placeholder="搜索课程班"
+          placeholder="搜索课程"
           enter-Button
           size="large"
           style="width: 200px; margin-right: 10px"
@@ -24,7 +24,7 @@
         />
         <a-button type="primary" size="large" @click="showCreateModal">
           <template #icon><plus-outlined /></template>
-          新建班级
+          新建课程
         </a-button>
       </div>
     </div>
