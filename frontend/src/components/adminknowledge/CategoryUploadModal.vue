@@ -1,3 +1,4 @@
+<!-- 管理员用 -->
 <template>
   <a-modal
     v-model:visible="visible"
@@ -42,7 +43,7 @@
       </p>
       <p class="ant-upload-text">点击或拖拽文件到此处上传</p>
       <p class="ant-upload-hint">
-        支持批量上传最多50个文件，单个文件不超过50MB，总大小不超过500MB
+        支持批量上传最多10个文件，单个文件不超过20MB，总大小不超过200MB
       </p>
     </a-upload-dragger>
 
@@ -220,8 +221,6 @@ const showModal = () => {
 };
 
 const resetUploadStatus = () => {
-  fileList.value = [];
-  uploadResults.value = [];
   isUploading.value = false;
   uploadProgress.value = 0;
   uploadStatus.value = "active";
@@ -246,9 +245,9 @@ const beforeUpload = (file: File) => {
   }
 
   // 检查文件大小 (50MB限制)
-  const MAX_SIZE = 50 * 1024 * 1024; // 50MB
+  const MAX_SIZE = 20 * 1024 * 1024; // 20MB
   if (file.size > MAX_SIZE) {
-    message.error(`文件 ${file.name} 超过50MB限制`);
+    message.error(`文件 ${file.name} 超过20MB限制`);
     return false;
   }
 
@@ -256,19 +255,20 @@ const beforeUpload = (file: File) => {
 };
 
 const handleOk = async () => {
+  console.log("handleOk，文件数量: " + fileList.value.length);
   if (fileList.value.length === 0) {
     message.warning("请先选择要上传的文件");
     return;
   }
 
   // 检查总大小 (500MB限制)
-  const TOTAL_MAX_SIZE = 500 * 1024 * 1024; // 500MB
+  const TOTAL_MAX_SIZE = 200 * 1024 * 1024; // 500MB
   const totalSize = fileList.value.reduce(
     (sum, file) => sum + (file.size || 0),
     0
   );
   if (totalSize > TOTAL_MAX_SIZE) {
-    message.warning("总文件大小超过500MB限制");
+    message.warning("总文件大小超过200MB限制");
     return;
   }
 
@@ -286,10 +286,9 @@ const handleOk = async () => {
   }, 100);
 
   try {
-    const result = await adminUploadFilesToCategory(
-      props.categoryId,
-      fileList.value.map((f) => f.originFileObj)
-    );
+    console.log("文件数量：", fileList.value.length);
+    const files = fileList.value.map((f) => f.originFileObj);
+    const result = await adminUploadFilesToCategory(props.categoryId, files);
 
     clearInterval(progressInterval.value!);
     progressInterval.value = null;
