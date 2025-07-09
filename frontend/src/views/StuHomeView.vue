@@ -15,6 +15,7 @@
           </a-button>
         </template>
       </a-input-search>
+      <MyApplicationsModal />
     </div>
 
     <a-row :gutter="24" class="main-content">
@@ -94,6 +95,7 @@
           <!-- 推荐课程班区域 - 使用卡片布局 -->
           <div class="section-title">
             <h2>推荐课程</h2>
+            <p>根据您的学习习惯为您精选</p>
           </div>
           <div class="recommend-courses">
             <a-row :gutter="16">
@@ -200,12 +202,11 @@ import {
 import { useAuthStore } from "@/stores/auth";
 import {
   getAllCourseclasses,
-  createCourseclass,
   getRecommendedCourseclasses,
   type Courseclass,
   searchPublicCourseclasses,
 } from "@/api/courseclass";
-import { getMyDesigns } from "@/api/teachingdesign";
+import MyApplicationsModal from "@/components/MyApplicationsModal.vue";
 
 export default defineComponent({
   name: "HomeView",
@@ -213,12 +214,12 @@ export default defineComponent({
     UserOutlined,
     BookOutlined,
     SearchOutlined,
+    MyApplicationsModal,
   },
   setup() {
     const authStore = useAuthStore();
     const courseClasses = ref<any[]>([]);
     const recommendedClasses = ref<any[]>([]);
-    const teachingDesigns = ref<any[]>([]);
     const loading = ref<boolean>(false);
     const showMoreContent = ref<boolean>(true); // 控制是否显示更多内容
 
@@ -307,30 +308,15 @@ export default defineComponent({
       }
     };
 
-    // 获取教学设计数据
-    const loadTeachingDesigns = async () => {
-      try {
-        loading.value = true;
-        const data = await getMyDesigns();
-        teachingDesigns.value = data;
-      } catch (error) {
-        console.error("获取教学设计失败:", error);
-      } finally {
-        loading.value = false;
-      }
-    };
-
     // 初始化加载数据
     if (authStore.isAuthenticated) {
       loadCourseClasses();
-      loadTeachingDesigns();
       loadRecommendedClasses();
     }
 
     return {
       courseClasses,
       recommendedClasses,
-      teachingDesigns,
       carouselImages,
       searchQuery,
       searchResults,

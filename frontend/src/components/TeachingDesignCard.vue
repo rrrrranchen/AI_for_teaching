@@ -25,7 +25,7 @@
       :confirm-loading="submitting"
     >
       <a-steps :current="currentStep - 1" class="steps">
-        <a-step title="选择课程" />
+        <a-step title="选择课程和章节" />
         <a-step title="填写信息" />
       </a-steps>
 
@@ -34,7 +34,7 @@
         <div v-show="currentStep === 1" class="step-1">
           <a-form layout="vertical">
             <a-form-item
-              label="课程班"
+              label="课程"
               required
               :validate-status="courseclassError ? 'error' : ''"
               :help="courseclassError"
@@ -42,7 +42,7 @@
               <a-select
                 v-model:value="selectedCourseclass"
                 @change="handleCourseclassChange"
-                placeholder="请选择课程班"
+                placeholder="请选择课程"
               >
                 <a-select-option
                   v-for="courseclass in courseclasses"
@@ -55,12 +55,15 @@
             </a-form-item>
 
             <a-form-item
-              label="课程"
+              label="课程章节"
               required
               :validate-status="courseError ? 'error' : ''"
               :help="courseError"
             >
-              <a-select v-model:value="selectedCourse" placeholder="请选择课程">
+              <a-select
+                v-model:value="selectedCourse"
+                placeholder="请选择课程章节"
+              >
                 <a-select-option
                   v-for="course in courses"
                   :key="course.id"
@@ -77,9 +80,9 @@
         <div v-show="currentStep === 2" class="step-2">
           <a-form layout="vertical" :model="formState" ref="formRef">
             <a-form-item
-              label="课程标题"
+              label="章节标题"
               name="title"
-              :rules="[{ required: true, message: '请输入课程标题' }]"
+              :rules="[{ required: true, message: '请输入章节标题' }]"
             >
               <a-input v-model:value="formState.title" />
             </a-form-item>

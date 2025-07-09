@@ -1,5 +1,6 @@
 import api from "@/request";
 import type { AxiosResponse } from "axios";
+import type { KnowledgeBase } from "@/api/knowledgebase";
 
 // 课程班基础类型
 export interface CourseClass {

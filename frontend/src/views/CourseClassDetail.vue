@@ -5,7 +5,7 @@
       <div class="breadcrumb-section">
         <a-breadcrumb separator=">">
           <a-breadcrumb-item>
-            <router-link to="/home/my-class">我的班级</router-link>
+            <router-link to="/home/my-class">我的课程</router-link>
           </a-breadcrumb-item>
           <a-breadcrumb-item>{{
             courseclassDetail?.name || "加载中..."
@@ -113,10 +113,22 @@
               <template #overlay>
                 <a-menu>
                   <a-menu-item key="edit" @click="showEditModal">
-                    <edit-outlined /> 编辑班级
+                    <edit-outlined /> 编辑课程
+                  </a-menu-item>
+                  <a-menu-item
+                    key="knowledge"
+                    @click="handleKnowledgeMenuClick"
+                  >
+                    <book-outlined /> 关联知识库
+                  </a-menu-item>
+                  <a-menu-item
+                    key="applications"
+                    @click="handleApplicationsMenuClick"
+                  >
+                    <solution-outlined /> 申请管理
                   </a-menu-item>
                   <a-menu-item key="delete" danger @click="handleDeleteClass">
-                    <delete-outlined /> 删除班级
+                    <delete-outlined /> 删除课程
                   </a-menu-item>
                 </a-menu>
               </template>
@@ -125,15 +137,15 @@
           <!-- 编辑课程班模态框 -->
           <a-modal
             v-model:visible="editVisible"
-            title="编辑课程班"
+            title="编辑课程"
             @ok="handleEditSubmit"
             :confirm-loading="editing"
           >
             <a-form layout="vertical" :model="editForm">
-              <a-form-item label="班级名称" required>
+              <a-form-item label="课程名称" required>
                 <a-input v-model:value="editForm.name" />
               </a-form-item>
-              <a-form-item label="班级描述">
+              <a-form-item label="课程描述">
                 <a-textarea v-model:value="editForm.description" :rows="4" />
               </a-form-item>
             </a-form>
@@ -143,14 +155,14 @@
         <!-- 标签页区域 -->
         <div class="class-tabs">
           <a-tabs v-model:activeKey="activeTab">
-            <a-tab-pane key="courses" tab="课程管理">
+            <a-tab-pane key="courses" tab="课程章节管理">
               <!-- 课程管理内容 -->
               <div class="tab-content">
                 <div class="action-bar">
                   <a-space>
                     <a-button type="primary" @click="showCreateModal">
                       <plus-outlined />
-                      新建课程
+                      新建章节
                     </a-button>
                     <a-button @click="toggleMultiSelect">
                       <select-outlined />
@@ -175,7 +187,7 @@
                 <div class="course-list-container">
                   <a-empty
                     v-if="filteredCourses.length === 0"
-                    description="暂无课程"
+                    description="暂无课程章节"
                     class="empty-placeholder"
                   />
 
@@ -298,21 +310,20 @@
       </div>
     </div>
 
-    <!-- 创建课程模态框 -->
     <a-modal
       v-model:visible="editVisible"
-      title="编辑课程班"
+      title="编辑课程"
       @ok="handleEditSubmit"
       :confirm-loading="editing"
     >
       <a-form layout="vertical" :model="editForm">
-        <a-form-item label="班级名称" required>
+        <a-form-item label="课程名称" required>
           <a-input v-model:value="editForm.name" />
         </a-form-item>
-        <a-form-item label="班级描述">
+        <a-form-item label="课程描述">
           <a-textarea v-model:value="editForm.description" :rows="4" />
         </a-form-item>
-        <a-form-item label="班级图片">
+        <a-form-item label="课程图片">
           <a-upload
             v-model:file-list="editForm.fileList"
             :before-upload="beforeUpload"
@@ -322,7 +333,7 @@
             <img
               v-if="editForm.imageUrl"
               :src="editForm.imageUrl"
-              alt="班级图片"
+              alt="课程图片"
               style="width: 100%"
             />
             <div v-else>
@@ -334,6 +345,18 @@
       </a-form>
     </a-modal>
   </div>
+  <KnowledgeBaseLinkModal
+    ref="knowledgeBaseModal"
+    :courseclassId="courseclassId"
+    :currentKnowledgeBases="courseclassDetail?.knowledge_bases || []"
+    @linked="handleKnowledgeBaseLinked"
+  />
+
+  <ClassApplicationsModal
+    ref="applicationsModal"
+    :courseclassId="courseclassId"
+    @processed="fetchCourseclassDetail"
+  />
 </template>
 
 <script lang="ts">
@@ -364,6 +387,7 @@ import {
   SyncOutlined,
   EditOutlined,
   EllipsisOutlined,
+  SolutionOutlined,
 } from "@ant-design/icons-vue";
 import { useAuthStore } from "@/stores/auth";
 
@@ -371,6 +395,8 @@ import { getClassAnalysisReport, updateClassReport } from "@/api/studentanswer";
 import MarkdownIt from "markdown-it";
 import hljs from "highlight.js";
 import "highlight.js/styles/github.css";
+import KnowledgeBaseLinkModal from "@/components/teacherknowledge/KnowledgeBaseLinkModal.vue";
+import ClassApplicationsModal from "@/components/courseclass/ClassApplicationsModal.vue";
 
 export default defineComponent({
   name: "CourseClassDetail",
@@ -385,6 +411,9 @@ export default defineComponent({
     SyncOutlined,
     EditOutlined,
     EllipsisOutlined,
+    SolutionOutlined,
+    KnowledgeBaseLinkModal,
+    ClassApplicationsModal,
   },
   setup() {
     const route = useRoute();
@@ -697,7 +726,7 @@ export default defineComponent({
     const handleDeleteClass = () => {
       Modal.confirm({
         title: "确认删除？",
-        content: "此操作将永久删除该课程班及所有关联数据",
+        content: "此操作将永久删除该课程及所有关联数据",
         okText: "确认",
         okType: "danger",
         cancelText: "取消",
@@ -712,6 +741,47 @@ export default defineComponent({
         },
       });
     };
+
+    // 获取模态框引用
+    const knowledgeBaseModal =
+      ref<InstanceType<typeof KnowledgeBaseLinkModal>>();
+    const applicationsModal =
+      ref<InstanceType<typeof ClassApplicationsModal>>();
+
+    // 处理关联知识库菜单点击
+    const handleKnowledgeMenuClick = () => {
+      knowledgeBaseModal.value?.showModal();
+    };
+
+    // 处理申请管理菜单点击
+    const handleApplicationsMenuClick = () => {
+      applicationsModal.value?.showModal();
+    };
+
+    // 知识库关联成功后的回调
+    const handleKnowledgeBaseLinked = async () => {
+      await fetchCourseclassDetail();
+      message.success("知识库关联更新成功");
+    };
+
+    // 修改菜单项点击处理
+    const handleMenuClick = (e: { key: string }) => {
+      switch (e.key) {
+        case "edit":
+          showEditModal();
+          break;
+        case "knowledge":
+          handleKnowledgeMenuClick();
+          break;
+        case "applications":
+          handleApplicationsMenuClick();
+          break;
+        case "delete":
+          handleDeleteClass();
+          break;
+      }
+    };
+
     return {
       handleCourseClick,
       courseclassId,
@@ -751,6 +821,13 @@ export default defineComponent({
       handleEditSubmit,
       handleDeleteClass,
       beforeUpload,
+      fetchCourseclassDetail,
+      knowledgeBaseModal,
+      applicationsModal,
+      handleKnowledgeBaseLinked,
+      handleMenuClick,
+      handleKnowledgeMenuClick,
+      handleApplicationsMenuClick,
     };
   },
 });
