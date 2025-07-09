@@ -1461,7 +1461,7 @@ def search_public_knowledge_bases():
                 #     'username': kb.author.username
                 # },
                 'author_id': kb.author_id,
-                'author_name': kb.author.name,
+                'author_name': kb.author.username,
                 'categories': [{
                     'id': cat.id,
                     'name': cat.name
@@ -2009,7 +2009,7 @@ def get_public_knowledge_bases():
                 #     'username': kb.author.username
                 # },
                 'author_id': kb.author_id,
-                'author_name': kb.author.name,
+                'author_name': kb.author.username,
                 'categories': [{
                     'id': cat.id,
                     'name': cat.name

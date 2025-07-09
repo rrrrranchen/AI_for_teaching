@@ -876,10 +876,12 @@ def admin_search_categories():
             'is_system': cat.is_system,
             'created_at': cat.created_at.isoformat(),
             'updated_at': cat.updated_at.isoformat() if cat.updated_at else None,
-            'author': {
-                'id': cat.author.id if cat.author else None,
-                'username': cat.author.username if cat.author else None
-            },
+            # 'author': {
+            #     'id': cat.author.id if cat.author else None,
+            #     'username': cat.author.username if cat.author else None
+            # },
+            'author_id': cat.author_id if cat.author else None,
+            'author_name': cat.author.username if cat.author else None,
             'file_count': len(cat.category_files)
         } for cat in paginated_categories.items]
 
