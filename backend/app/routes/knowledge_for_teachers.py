@@ -1455,10 +1455,12 @@ def search_public_knowledge_bases():
                 'is_public': kb.is_public,
                 'created_at': kb.created_at.isoformat(),
                 'updated_at': kb.updated_at.isoformat() if kb.updated_at else None,
-                'author': {
-                    'id': kb.author.id,
-                    'username': kb.author.username
-                },
+                # 'author': {
+                #     'id': kb.author.id,
+                #     'username': kb.author.username
+                # },
+                'author_id': kb.author_id,
+                'author_name': kb.author.name,
                 'categories': [{
                     'id': cat.id,
                     'name': cat.name
@@ -1585,10 +1587,12 @@ def deep_search_public_knowledge_bases():
                 'id': kb.id if kb else None,
                 'name': kb.name if kb else db_name,
                 'is_public': True,
-                'author': {
-                    'id': kb.author.id if kb else None,
-                    'username': kb.author.username if kb else None
-                }
+                # 'author': {
+                #     'id': kb.author.id if kb else None,
+                #     'username': kb.author.username if kb else None
+                # }
+                'author_id': kb.author.id if kb else None,
+                'author_name': kb.author.username if kb else None,
             }
 
             for category, files in categories.items():
@@ -1999,10 +2003,12 @@ def get_public_knowledge_bases():
                 'usage_count': kb.usage_count,
                 'created_at': kb.created_at.isoformat(),
                 'updated_at': kb.updated_at.isoformat() if kb.updated_at else None,
-                'author': {
-                    'id': kb.author.id,
-                    'username': kb.author.username
-                },
+                # 'author': {
+                #     'id': kb.author.id,
+                #     'username': kb.author.username
+                # },
+                'author_id': kb.author_id,
+                'author_name': kb.author.name,
                 'categories': [{
                     'id': cat.id,
                     'name': cat.name

@@ -65,7 +65,7 @@ export interface KnowledgeBase {
     name: string;
     type?: CategoryType; // 新增字段
   }[];
-  updating?: boolean;
+  updating?: boolean; // 新增字段
 }
 
 // 课程班基础类型
@@ -411,17 +411,87 @@ export const updateCourseclassKnowledgeBases = async (
 };
 
 // ======================== 公共知识库API ========================
+/**
+ * 迁移公共知识库为个人知识库
+ * @param knowledgeBaseId 公共知识库ID
+ */
+export const migratePublicKnowledgeBase = async (
+  knowledgeBaseId: number
+): Promise<{
+  success: boolean;
+  message: string;
+  data: {
+    new_knowledge_base: {
+      id: number;
+      name: string;
+      path: string;
+      original_author: string;
+    };
+  };
+}> => {
+  const response: AxiosResponse = await api.post(
+    "/teacher/knowledge_bases/migrate_public",
+    { knowledge_base_id: knowledgeBaseId }
+  );
+  return response.data;
+};
 
 /**
- * 搜索公共知识库
+ * 获取公开知识库列表
+ * @param params 查询参数
+ */
+export const getPublicKnowledgeBases = async (params?: {
+  sort_by?: "name" | "created_at" | "updated_at" | "usage_count";
+  order?: "asc" | "desc";
+  category_id?: number;
+  base_type?: KnowledgeBaseType;
+  min_usage?: number;
+}): Promise<{
+  knowledge_bases: Array<{
+    id: number;
+    name: string;
+    description?: string;
+    base_type: KnowledgeBaseType;
+    usage_count: number;
+    created_at: string;
+    updated_at?: string;
+    author_id: number;
+    author_name: string;
+    categories: Array<{
+      id: number;
+      name: string;
+    }>;
+    can_migrate: boolean;
+  }>;
+  count: number;
+  filters: {
+    applied: {
+      category_id?: number;
+      base_type?: KnowledgeBaseType;
+      min_usage?: number;
+    };
+    sort: {
+      by: string;
+      order: string;
+    };
+  };
+}> => {
+  const response: AxiosResponse = await api.get("/public/knowledge_bases", {
+    params,
+  });
+  return response.data.data;
+};
+
+/**
+ * 搜索公开知识库
  * @param keyword 搜索关键词
  * @param page 页码
- * @param perPage 每页数量
+ * @param per_page 每页数量
  */
 export const searchPublicKnowledgeBases = async (
   keyword: string,
   page = 1,
-  perPage = 10
+  per_page = 10
 ): Promise<{
   results: Array<{
     id: number;
@@ -430,10 +500,8 @@ export const searchPublicKnowledgeBases = async (
     is_public: boolean;
     created_at: string;
     updated_at?: string;
-    author: {
-      id: number;
-      username: string;
-    };
+    author_id: number;
+    author_name: string;
     categories: Array<{
       id: number;
       name: string;
@@ -459,30 +527,23 @@ export const searchPublicKnowledgeBases = async (
   const response: AxiosResponse = await api.get(
     "/public/knowledge_bases/search",
     {
-      params: {
-        keyword,
-        page,
-        per_page: perPage,
-      },
+      params: { keyword, page, per_page },
     }
   );
   return response.data.data;
 };
 
 /**
- * 深度搜索公共知识库内容
- * @param keyword 搜索关键词
- * @param kbIds 知识库ID列表(可选)
- * @param similarity 相似度阈值(0-1, 默认0.7)
- * @param chunkCount 返回的片段数量(默认5)
- * @param dataType 过滤数据类型(可选)
+ * 深度搜索公开知识库内容
+ * @param params 搜索参数
  */
-export const deepSearchPublicKnowledgeBases = async (
-  keyword: string,
-  kbIds?: number[],
-  chunkCount = 5,
-  dataType?: string
-): Promise<{
+export const deepSearchPublicKnowledgeBases = async (params: {
+  keyword: string;
+  kb_ids?: string; // 逗号分隔的知识库ID字符串
+  similarity?: number; // 0-1之间的相似度阈值
+  chunk_count?: number; // 返回的片段数量
+  data_type?: string; // 过滤数据类型
+}): Promise<{
   keyword: string;
   matches: number;
   similarity_threshold: number;
@@ -491,10 +552,8 @@ export const deepSearchPublicKnowledgeBases = async (
       id: number;
       name: string;
       is_public: boolean;
-      author: {
-        id: number;
-        username: string;
-      };
+      author_id: number;
+      author_name: string;
     };
     category: string;
     file: string;
@@ -502,131 +561,15 @@ export const deepSearchPublicKnowledgeBases = async (
     score: number;
     position: number;
   }>;
-  model_context: string;
-  display_context: string;
+  model_context?: string;
+  display_context?: string;
 }> => {
   const response: AxiosResponse = await api.get(
     "/public/knowledge_bases/deep_search",
     {
-      params: {
-        keyword,
-        kb_ids: kbIds?.join(","),
-        similarity,
-        chunk_count: chunkCount,
-        data_type: dataType,
-      },
+      params,
     }
   );
-  return response.data.data;
-};
-
-/**
- * 获取课程班推荐知识库
- * @param courseclassId 课程班ID
- * @param limit 返回结果数量(默认5)
- * @param minUsageCount 最小使用次数阈值(默认3)
- * @param keywordWeight 关键词匹配权重(0-1, 默认0.6)
- * @param categoryWeight 类别匹配权重(0-1, 默认0.3)
- * @param usageWeight 使用次数权重(0-1, 默认0.1)
- */
-export const getRecommendedKnowledgeBases = async (
-  courseclassId: number,
-  limit = 5,
-  minUsageCount = 3,
-  keywordWeight = 0.6,
-  categoryWeight = 0.3,
-  usageWeight = 0.1
-): Promise<{
-  courseclass_id: number;
-  courseclass_name: string;
-  courseclass_keywords: string[];
-  current_category_ids: number[];
-  recommendation_strategy: {
-    keyword_weight: number;
-    category_weight: number;
-    usage_weight: number;
-  };
-  recommendations: Array<{
-    id: number;
-    name: string;
-    description?: string;
-    usage_count: number;
-    author: {
-      id: number;
-      username: string;
-    };
-    categories: Array<{
-      id: number;
-      name: string;
-    }>;
-    match_reason: string;
-    score_details: {
-      total_score: number;
-      keyword_score: number;
-      category_score: number;
-      usage_score: number;
-    };
-  }>;
-}> => {
-  const response: AxiosResponse = await api.get(
-    `/teacher/courseclasses/${courseclassId}/knowledge_bases/recommendations`,
-    {
-      params: {
-        limit,
-        min_usage_count: minUsageCount,
-        keyword_weight: keywordWeight,
-        category_weight: categoryWeight,
-        usage_weight: usageWeight,
-      },
-    }
-  );
-  return response.data.data;
-};
-
-/**
- * 迁移公共知识库为个人知识库
- * @param knowledgeBaseId 公共知识库ID
- */
-export const migratePublicKnowledgeBase = async (
-  knowledgeBaseId: number
-): Promise<{
-  new_knowledge_base: {
-    id: number;
-    name: string;
-    path: string;
-  };
-}> => {
-  const response: AxiosResponse = await api.post(
-    "/teacher/knowledge_bases/migrate_public",
-    {
-      knowledge_base_id: knowledgeBaseId,
-    }
-  );
-  return response.data.data;
-};
-
-/**
- * 获取公共知识库列表
- */
-export const getPublicKnowledgeBases = async (): Promise<
-  Array<{
-    id: number;
-    name: string;
-    description?: string;
-    is_public: boolean;
-    created_at: string;
-    updated_at?: string;
-    author: {
-      id: number;
-      username: string;
-    };
-    categories: Array<{
-      id: number;
-      name: string;
-    }>;
-  }>
-> => {
-  const response: AxiosResponse = await api.get("/public/knowledge_bases");
   return response.data.data;
 };
 
@@ -658,9 +601,8 @@ export default {
   updateCourseclassKnowledgeBases,
 
   // 公共知识库相关
-  searchPublicKnowledgeBases,
-  deepSearchPublicKnowledgeBases,
-  getRecommendedKnowledgeBases,
   migratePublicKnowledgeBase,
   getPublicKnowledgeBases,
+  searchPublicKnowledgeBases,
+  deepSearchPublicKnowledgeBases,
 };

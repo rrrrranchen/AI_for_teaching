@@ -51,7 +51,7 @@
         <!-- 共享资源 -->
         <div v-show="activeTab[0] === 'shared'" class="tab-content-wrapper">
           <div class="tab-content">
-            <a-empty description="共享资源功能开发中" />
+            <ShareKnowledgebases ref="shareKnowledgebase" />
           </div>
         </div>
       </a-layout-content>
@@ -68,10 +68,12 @@ import {
 } from "@ant-design/icons-vue";
 import UserCategories from "@/components/teacherknowledge/UserCategoriesList.vue";
 import KnowledgeBases from "@/components/teacherknowledge/UserKnowledgeBasesList.vue";
+import ShareKnowledgebases from "@/components/teacherknowledge/ShareKnowledgebase.vue";
 
 const activeTab = ref<string[]>(["categories"]);
 const userCategories = ref();
 const knowledgeBases = ref();
+const shareKnowledgebases = ref();
 </script>
 
 <style scoped>
