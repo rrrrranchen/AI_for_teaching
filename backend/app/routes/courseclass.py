@@ -228,14 +228,19 @@ def update_courseclass(courseclass_id):
         data = request.form
         name = data.get('name')
         description = data.get('description')
-        image_file = request.files.get('image')  # 获取上传的图片文件
+        image_file = request.files.get('image')
+        is_public_str=data.get('is_public')
 
         # 更新课程班信息
         if name:
             courseclass.name = name
         if description:
             courseclass.description = description
-
+        if is_public_str is not None:
+            if is_public_str.lower() == 'true':
+                courseclass.is_public = True
+            elif is_public_str.lower() == 'false':
+                courseclass.is_public = False
         # 更新图片
         if image_file:
             image_path = upload_file_courseclass(image_file)
@@ -251,7 +256,8 @@ def update_courseclass(courseclass_id):
             'name': courseclass.name,
             'description': courseclass.description,
             'created_at': courseclass.created_at,
-            'image_path': courseclass.image_path  # 返回更新后的图片路径
+            'image_path': courseclass.image_path,
+            'is_public':courseclass.is_public
         }), 200
     except Exception as e:
         db.session.rollback()
