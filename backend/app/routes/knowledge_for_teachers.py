@@ -1853,6 +1853,11 @@ def migrate_public_knowledge_base():
                 'error': 'PUBLIC_KNOWLEDGE_BASE_NOT_FOUND',
                 'message': '公共知识库不存在或不是公开的'
             }), 404
+        
+        # 获取作者信息
+        author = User.query.get(public_kb.author_id)
+        author_name = author.username if author else "未知作者"
+
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         BASE_PATH = os.path.join(project_root, 'static', 'knowledge', 'base')
         
@@ -1879,8 +1884,7 @@ def migrate_public_knowledge_base():
             is_public=False,
             is_system=False,
             base_type=public_kb.base_type,
-            author_id=g.current_user.id,
-            categories=public_kb.categories.copy()  # 复制分类关系
+            author_id=public_kb.author_id
         )
 
         db.session.add(new_kb)
@@ -1893,7 +1897,8 @@ def migrate_public_knowledge_base():
                 'new_knowledge_base': {
                     'id': new_kb.id,
                     'name': new_kb.name,
-                    'path': new_dir
+                    'path': new_dir,
+                    'original_author': author_name  # 添加原作者名称
                 }
             }
         }), 200
@@ -1913,7 +1918,7 @@ def migrate_public_knowledge_base():
             'error': 'MIGRATION_FAILED',
             'message': f'迁移失败: {str(e)}'
         }), 500
-    
+
 
 @knowledge_for_teachers_bp.route('/public/knowledge_bases', methods=['GET'])
 def get_public_knowledge_bases():
