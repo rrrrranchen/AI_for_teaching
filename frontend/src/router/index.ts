@@ -46,6 +46,12 @@ const routes: Array<RouteRecordRaw> = [
         component: () => import("../views/admin/CourseClassManage.vue"),
         meta: { menuKey: 4 },
       },
+      {
+        path: "knowledge-base",
+        name: "knowledge-base",
+        component: () => import("../views/admin/AdminKnowledgeBase.vue"),
+        meta: { menuKey: 5 },
+      },
     ],
   },
   {
@@ -55,7 +61,29 @@ const routes: Array<RouteRecordRaw> = [
       {
         path: "",
         name: "home",
+        redirect: () => {
+          const authStore = useAuthStore();
+          return authStore.user?.role === "teacher"
+            ? "/home/t-home"
+            : "/home/s-home";
+        },
+      },
+      {
+        path: "t-home",
+        name: "t-home",
         component: HomeView,
+        meta: { menuKey: 1 },
+      },
+      {
+        path: "s-home",
+        name: "s-home",
+        component: () => import("../views/StuHomeView.vue"),
+        meta: { menuKey: 1 },
+      },
+      {
+        path: "public-courseclass/:id",
+        name: "publicclass",
+        component: () => import("../views/PublicCourseClassDetail.vue"),
         meta: { menuKey: 1 },
       },
       {
@@ -169,11 +197,20 @@ const routes: Array<RouteRecordRaw> = [
         ],
       },
       {
+        path: "knowledgebase",
+        name: "knowledgebase",
+        component: () => import("../views/TeacherKnowledgeBase.vue"),
+        meta: {
+          menuKey: 5,
+          requiresAuth: true,
+        },
+      },
+      {
         path: "profile", // 修改为相对路径
         name: "profile",
         component: MyProfileView,
         meta: {
-          menuKey: 5, // 可以分配一个新的菜单键
+          menuKey: 6, // 可以分配一个新的菜单键
           requiresAuth: true, // 需要登录
         },
       },

@@ -1,5 +1,6 @@
 import api from "@/request";
 import type { AxiosResponse } from "axios";
+import type { KnowledgeBase } from "@/api/knowledgebase";
 
 export interface MongoDate {
   $date: string;
@@ -19,6 +20,21 @@ export interface Courseclass {
   course_count?: number;
   is_joined?: boolean; // 当前用户是否已加入
   teachers?: Teacher[]; // 存储课程班的老师信息
+  knowledge_bases?: KnowledgeBase[];
+}
+
+// 课程班申请类型
+export interface CourseClassApplication {
+  id: number;
+  student_id: number;
+  student_name?: string;
+  courseclass_id: number;
+  courseclass_name?: string;
+  status: "pending" | "approved" | "rejected";
+  application_date: string;
+  processed_date?: string;
+  message?: string;
+  admin_notes?: string;
 }
 
 // 老师类型
@@ -66,6 +82,17 @@ interface LeaveCourseclassParams {
   courseclass_id: number;
 }
 
+// 申请课程班参数
+interface ApplyCourseclassParams {
+  message?: string;
+}
+
+// 处理申请参数
+interface ProcessApplicationParams {
+  action: "approve" | "reject";
+  admin_notes?: string;
+}
+
 // 公用部分
 //
 //
@@ -105,6 +132,17 @@ export const searchCourseclasses = async (
   const response: AxiosResponse<Courseclass[]> = await api.get(
     "/search_courseclasses",
     { params: { query } }
+  );
+  return response.data;
+};
+
+// 获取推荐课程班
+export const getRecommendedCourseclasses = async (
+  limit = 5
+): Promise<Courseclass[]> => {
+  const response: AxiosResponse<Courseclass[]> = await api.get(
+    "/courseclass/recommend_courseclasses",
+    { params: { limit } }
   );
   return response.data;
 };
@@ -153,6 +191,34 @@ export const deleteCourseclass = async (id: number): Promise<void> => {
   await api.delete(`/deletecourseclasses/${id}`);
 };
 
+// 老师获取课程班申请列表
+export const getCourseclassApplications = async (
+  courseclassId: number,
+  status?: string
+): Promise<CourseClassApplication[]> => {
+  const response: AxiosResponse<CourseClassApplication[]> = await api.get(
+    `/courseclass/${courseclassId}/applications`,
+    { params: { status } }
+  );
+  return response.data;
+};
+
+// 处理课程班申请
+export const processApplication = async (
+  applicationId: number,
+  params: ProcessApplicationParams
+): Promise<{ message: string; application_id: number; status: string }> => {
+  const response: AxiosResponse<{
+    message: string;
+    application_id: number;
+    status: string;
+  }> = await api.post(
+    `/courseclass/applications/${applicationId}/process`,
+    params
+  );
+  return response.data;
+};
+
 // 学生部分
 //
 //
@@ -173,4 +239,35 @@ export const leaveCourseclass = async (
   data: LeaveCourseclassParams
 ): Promise<void> => {
   await api.post("/student_leave_courseclass", data);
+};
+
+// 申请加入课程班
+export const applyToCourseclass = async (
+  courseclassId: number,
+  params: ApplyCourseclassParams
+): Promise<{ message: string; application_id: number }> => {
+  const response: AxiosResponse<{ message: string; application_id: number }> =
+    await api.post(`/courseclass/${courseclassId}/apply`, params);
+  return response.data;
+};
+
+// 获取我的申请列表
+export const getMyApplications = async (
+  status?: string
+): Promise<CourseClassApplication[]> => {
+  const response: AxiosResponse<CourseClassApplication[]> = await api.get(
+    "/courseclass/my_applications",
+    { params: { status } }
+  );
+  return response.data;
+};
+
+export const searchPublicCourseclasses = async (
+  searchQuery = ""
+): Promise<Courseclass[]> => {
+  const response: AxiosResponse<Courseclass[]> = await api.get(
+    "/public_courseclasses",
+    { params: { search: searchQuery } }
+  );
+  return response.data;
 };

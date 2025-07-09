@@ -5,7 +5,7 @@
       <div class="breadcrumb-section">
         <a-breadcrumb separator=">">
           <a-breadcrumb-item>
-            <router-link to="/home/my-class">我的班级</router-link>
+            <router-link to="/home/my-class">我的课程</router-link>
           </a-breadcrumb-item>
           <a-breadcrumb-item>{{
             courseclassDetail?.name || "加载中..."
@@ -102,22 +102,29 @@
         <!-- 标签页区域 -->
         <div class="class-tabs">
           <a-tabs v-model:activeKey="activeTab">
-            <a-tab-pane key="courses" tab="课程管理">
+            <a-tab-pane key="courses" tab="课程章节管理">
               <!-- 课程管理内容 -->
               <div class="tab-content">
                 <div class="action-bar">
                   <a-input-search
                     v-model:value="searchCourseKey"
                     placeholder="搜索课程"
-                    style="width: 200px"
-                  />
+                    class="custom-search-input"
+                  >
+                    <template #enterButton>
+                      <a-button type="primary" class="search-button">
+                        <template #icon><search-outlined /></template>
+                        搜索
+                      </a-button>
+                    </template>
+                  </a-input-search>
                 </div>
 
                 <!-- 改进后的课程列表 -->
                 <div class="course-list-container">
                   <a-empty
                     v-if="filteredCourses.length === 0"
-                    description="暂无课程"
+                    description="暂无章节"
                     class="empty-placeholder"
                   />
 
@@ -137,7 +144,7 @@
                       </div>
 
                       <p class="course-description">
-                        {{ course.description || "暂无课程描述" }}
+                        {{ course.description || "暂无章节描述" }}
                       </p>
                     </div>
                   </div>
@@ -152,8 +159,15 @@
                   <a-input-search
                     v-model:value="searchStudentKey"
                     placeholder="搜索学生"
-                    style="width: 200px"
-                  />
+                    class="custom-search-input"
+                  >
+                    <template #enterButton>
+                      <a-button type="primary" class="search-button">
+                        <template #icon><search-outlined /></template>
+                        搜索
+                      </a-button>
+                    </template>
+                  </a-input-search>
                 </div>
 
                 <!-- 改进后的学生列表 -->
@@ -167,7 +181,6 @@
                   <div class="student-table">
                     <div class="student-table-header">
                       <div class="header-cell" style="flex: 2">学生姓名</div>
-                      <div class="header-cell" style="flex: 1">操作</div>
                     </div>
 
                     <div
@@ -185,14 +198,6 @@
                           <UserOutlined />
                         </a-avatar>
                         <span class="student-name">{{ student.username }}</span>
-                      </div>
-                      <div class="student-cell" style="flex: 1">
-                        <a-popconfirm title="确定要移除此学生吗？">
-                          <a-button type="text" danger size="small">
-                            <template #icon><delete-outlined /></template>
-                            移除
-                          </a-button>
-                        </a-popconfirm>
                       </div>
                     </div>
                   </div>
@@ -224,7 +229,8 @@
                 <div
                   v-else
                   id="myReportViewer"
-                  class="vditor-container"
+                  class="markdown-content"
+                  v-html="renderedReport"
                   style="background: white; padding: 16px"
                 ></div>
               </div>
@@ -251,8 +257,8 @@ import {
   UserOutlined,
   CalendarOutlined,
   BookOutlined,
-  DeleteOutlined,
   SyncOutlined,
+  SearchOutlined,
 } from "@ant-design/icons-vue";
 import MarkdownIt from "markdown-it";
 import hljs from "highlight.js";
@@ -269,8 +275,8 @@ export default defineComponent({
     UserOutlined,
     CalendarOutlined,
     BookOutlined,
-    DeleteOutlined,
     SyncOutlined,
+    SearchOutlined,
   },
   setup() {
     const route = useRoute();
@@ -330,7 +336,9 @@ export default defineComponent({
           courseclassId.value
         );
         myReport.value = data.markdown_report;
+        console.log("....", myReport.value);
         renderedReport.value = md.render(myReport.value || "");
+        console.log("....", renderedReport.value);
       } catch (error) {
         message.error("获取报告失败");
       }
@@ -509,6 +517,7 @@ export default defineComponent({
       myReport,
       handleUpdateMyReport,
       updatingReport,
+      renderedReport,
     };
   },
 });
@@ -525,6 +534,11 @@ export default defineComponent({
   background: inherit;
   width: 100%;
   overflow: hidden;
+}
+
+.class-content {
+  width: 80%;
+  margin: 0 auto;
 }
 
 .class-header {
@@ -929,7 +943,7 @@ export default defineComponent({
   background: #fbfaef;
   border: 5px solid #fcf9d3;
   border-radius: 8px;
-  min-height: 500px;
+  height: 65vh;
 }
 
 .report-header {
@@ -949,7 +963,7 @@ export default defineComponent({
 .markdown-content {
   flex: 1;
   overflow-y: auto;
-  max-height: 70vh; /* 根据视口高度自动调整 */
+  max-height: 55vh; /* 根据视口高度自动调整 */
   padding: 24px;
   background: white;
   border-radius: 8px;
@@ -963,5 +977,60 @@ export default defineComponent({
   background: #f6f8fa;
   padding: 16px;
   border-radius: 6px;
+}
+
+/* 搜索框样式 */
+.custom-search-input {
+  width: 350px;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.custom-search-input:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.custom-search-input :deep(.ant-input) {
+  height: 40px;
+  padding: 0 16px;
+  border: none;
+  background-color: #f8f9fa;
+}
+
+.custom-search-input :deep(.ant-input:focus) {
+  box-shadow: none;
+  background-color: #fff;
+}
+
+.custom-search-input :deep(.ant-input-group-addon) {
+  background: transparent;
+}
+
+.search-button {
+  height: 40px;
+  border-radius: 0 20px 20px 0 !important;
+  padding: 0 20px;
+  background: linear-gradient(135deg, #1890ff, #096dd9);
+  border: none;
+  transition: all 0.3s ease;
+}
+
+.search-button:hover {
+  background: linear-gradient(135deg, #40a9ff, #1890ff);
+  transform: translateY(-1px);
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .custom-search-input {
+    width: 100%;
+  }
+
+  .action-bar {
+    flex-direction: column;
+    gap: 16px;
+  }
 }
 </style>

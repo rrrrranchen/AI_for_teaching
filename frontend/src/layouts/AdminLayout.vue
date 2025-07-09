@@ -143,7 +143,7 @@ const handleMenuClick = ({ key }: { key: string }) => {
       router.push("/admin/class-manage");
       break;
     case "5":
-      router.push("/admin/local-knowledge-base");
+      router.push("/admin/knowledge-base");
       break;
   }
 };

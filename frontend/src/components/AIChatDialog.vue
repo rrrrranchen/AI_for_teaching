@@ -2,7 +2,7 @@
   <a-modal
     :visible="internalVisible"
     title="DeepSeek AI助手"
-    :width="1200"
+    :width="1350"
     :footer="null"
     :bodyStyle="{ padding: '0' }"
     :style="{ top: '20px' }"
@@ -11,6 +11,21 @@
     class="ai-chat-modal"
   >
     <div class="ai-chat-container">
+      <!-- 班级选择和思考模式切换 -->
+      <div class="chat-header">
+        <a-select
+          v-model:value="selectedClassId"
+          placeholder="选择班级"
+          style="width: 200px"
+          :options="classOptions"
+          :loading="loadingClasses"
+          @focus="loadClasses"
+        />
+        <a-checkbox v-model:checked="thinkingMode" class="thinking-checkbox">
+          深度思考模式
+        </a-checkbox>
+      </div>
+
       <!-- 消息列表 -->
       <div class="chat-messages" ref="messagesContainer">
         <!-- AI欢迎消息 -->
@@ -26,40 +41,184 @@
         </div>
 
         <!-- 历史消息 -->
-        <div
-          v-for="(msg, index) in messages"
-          :key="index"
-          class="message"
-          :class="msg.role"
-        >
-          <div class="message-content">
-            <div class="user-avatar" v-if="msg.role === 'user'">
-              <UserOutlined />
+        <template v-for="(msg, index) in messages" :key="index">
+          <!-- 用户消息 -->
+          <div v-if="msg.role === 'user'" class="message user">
+            <div class="message-content">
+              <div class="user-avatar">
+                <a-avatar
+                  v-if="auth.user?.avatar"
+                  size="large"
+                  :src="'http://localhost:5000/' + auth.user?.avatar"
+                  class="nav-avatar"
+                >
+                </a-avatar>
+                <a-avatar v-else :size="48" class="nav-avatar">
+                  <UserOutlined />
+                </a-avatar>
+              </div>
+              <div class="text-content">
+                {{ msg.content }}
+              </div>
             </div>
-            <div class="ai-avatar" v-else>
+          </div>
+
+          <!-- AI消息 -->
+          <div v-else class="message assistant">
+            <!-- 正常回复内容 -->
+            <div class="message-content">
+              <div class="ai-avatar">
+                <RobotOutlined />
+              </div>
+              <div class="text-content">
+                <!-- 思考过程（深度思考模式且存在思考内容） -->
+                <div
+                  v-if="msg.thinkingMode && msg.thinkingContent"
+                  class="thinking-bubble"
+                >
+                  <div class="thinking-header">
+                    <span class="thinking-title">思考过程</span>
+                  </div>
+                  <div class="thinking-text">
+                    {{ msg.thinkingContent }}
+                  </div>
+                </div>
+                <Markdown :source="msg.content" />
+              </div>
+            </div>
+
+            <!-- 知识参考 -->
+            <div v-if="msg.sources" class="sources-container">
+              <a-collapse class="sources-collapse" :bordered="false">
+                <a-collapse-panel key="1" :header="msg.sources.message">
+                  <div
+                    v-for="(source, sIndex) in msg.sources.sources"
+                    :key="sIndex"
+                    class="source-section"
+                  >
+                    <div class="source-meta">
+                      <span v-if="source.knowledge_base"
+                        >知识库: {{ source.knowledge_base.name }}</span
+                      >
+                      <span v-if="source.category"
+                        >分类: {{ source.category.name }}</span
+                      >
+                      <span v-if="source.file"
+                        >文件: {{ source.file.name }}</span
+                      >
+                    </div>
+                    <div
+                      v-for="(chunk, cIndex) in source.chunks"
+                      :key="cIndex"
+                      class="chunk-item"
+                    >
+                      <div
+                        class="chunk-header"
+                        @click="toggleChunk(index, sIndex, cIndex)"
+                      >
+                        <span>片段 #{{ chunk.position }}</span>
+                        <span class="toggle-icon">
+                          {{
+                            isChunkExpanded(index, sIndex, cIndex)
+                              ? "收起"
+                              : "展开"
+                          }}
+                        </span>
+                      </div>
+                      <div
+                        v-if="isChunkExpanded(index, sIndex, cIndex)"
+                        class="chunk-content"
+                      >
+                        <Markdown :source="chunk.text" />
+                      </div>
+                    </div>
+                  </div>
+                </a-collapse-panel>
+              </a-collapse>
+            </div>
+          </div>
+        </template>
+
+        <!-- 流式输出中的消息 -->
+        <div v-if="isStreaming" class="message assistant">
+          <!-- 流式回复内容 -->
+          <div class="message-content">
+            <div class="ai-avatar">
               <RobotOutlined />
             </div>
             <div class="text-content">
-              <Markdown v-if="msg.role === 'assistant'" :source="msg.content" />
-              <template v-else>{{ msg.content }}</template>
-              <div v-if="msg.isTyping" class="typing-indicator">
+              <!-- 流式思考过程 -->
+              <div
+                v-if="thinkingMode && streamingThinkingContent"
+                class="thinking-bubble"
+              >
+                <div class="thinking-header">
+                  <span class="thinking-title">思考中...</span>
+                  <div class="typing-indicator">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                </div>
+                <div class="thinking-text">
+                  {{ streamingThinkingContent }}
+                </div>
+              </div>
+              <Markdown :source="streamingContent" />
+              <div v-if="!streamingContent" class="typing-indicator">
                 <span></span>
                 <span></span>
                 <span></span>
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- 加载状态 -->
-        <div v-if="loading" class="message assistant">
-          <div class="message-content">
-            <div class="ai-avatar">
-              <RobotOutlined />
-            </div>
-            <div class="text-content">
-              <a-spin size="large" />
-            </div>
+          <!-- 流式知识参考（仅在结束时显示） -->
+          <div v-if="streamingSources" class="sources-container">
+            <a-collapse class="sources-collapse" :bordered="false">
+              <a-collapse-panel key="1" :header="streamingSources.message">
+                <div
+                  v-for="(source, sIndex) in streamingSources.sources"
+                  :key="sIndex"
+                  class="source-section"
+                >
+                  <div class="source-meta">
+                    <span v-if="source.knowledge_base"
+                      >知识库: {{ source.knowledge_base.name }}</span
+                    >
+                    <span v-if="source.category"
+                      >分类: {{ source.category.name }}</span
+                    >
+                    <span v-if="source.file">文件: {{ source.file.name }}</span>
+                  </div>
+                  <div
+                    v-for="(chunk, cIndex) in source.chunks"
+                    :key="cIndex"
+                    class="chunk-item"
+                  >
+                    <div
+                      class="chunk-header"
+                      @click="toggleStreamingChunk(sIndex, cIndex)"
+                    >
+                      <span>片段 #{{ chunk.position }}</span>
+                      <span class="toggle-icon">
+                        {{
+                          isStreamingChunkExpanded(sIndex, cIndex)
+                            ? "收起"
+                            : "展开"
+                        }}
+                      </span>
+                    </div>
+                    <div
+                      v-if="isStreamingChunkExpanded(sIndex, cIndex)"
+                      class="chunk-content"
+                    >
+                      <Markdown :source="chunk.text" />
+                    </div>
+                  </div>
+                </div>
+              </a-collapse-panel>
+            </a-collapse>
           </div>
         </div>
       </div>
@@ -72,14 +231,15 @@
           :rows="4"
           allow-clear
           @pressEnter="handleSend"
+          :disabled="isLoading"
         />
         <div class="input-actions">
           <span class="char-count">{{ inputMessage.length }}/2000</span>
           <a-button
             type="primary"
-            @click="sendMessage"
-            :loading="loading"
-            :disabled="!inputMessage.trim()"
+            @click="handleSend"
+            :loading="isLoading"
+            :disabled="!inputMessage.trim() || !selectedClassId"
           >
             发送
           </a-button>
@@ -90,10 +250,22 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick, defineProps, defineEmits } from "vue";
+import {
+  ref,
+  watch,
+  nextTick,
+  defineProps,
+  defineEmits,
+  onUnmounted,
+} from "vue";
 import { RobotOutlined, UserOutlined } from "@ant-design/icons-vue";
 import Markdown from "vue3-markdown-it";
 import "highlight.js/styles/github.css";
+import { courseClassChat } from "@/api/aichat";
+import { getAllCourseclasses } from "@/api/courseclass";
+import { useAuthStore } from "@/stores/auth";
+
+const auth = useAuthStore();
 
 const props = defineProps({
   visible: {
@@ -107,20 +279,34 @@ const emit = defineEmits(["update:visible"]);
 // 数据
 const internalVisible = ref(props.visible);
 const inputMessage = ref("");
-const loading = ref(false);
+const isLoading = ref(false);
+const isStreaming = ref(false);
 const messagesContainer = ref(null);
 const messages = ref([]);
+const streamingContent = ref("");
+const streamingThinkingContent = ref("");
+const streamingSources = ref(null);
+const selectedClassId = ref(null);
+const thinkingMode = ref(false);
+const classOptions = ref([]);
+const loadingClasses = ref(false);
+
+// 用于管理展开/收起状态
+const expandedChunks = ref({});
+const expandedStreamingChunks = ref({});
+
 const welcomeMessage = ref(`
 # 欢迎使用 DeepSeek AI 助手
 
-我是您的智能助手，可以帮助您解决各种问题，包括：
+我是您的智能助手，基于班级知识库为您提供帮助：
 
-- **代码编写**：Python、Java、C++等
-- **学习辅导**：数学、物理、编程等
-- **内容创作**：文章、报告、邮件等
-- **问题解答**：技术问题、生活常识等
+1. **选择班级**：从下拉菜单中选择您的班级
+2. **提问方式**：
+   - 普通模式：快速回答
+   - 深度思考模式：额外展示思考过程
+3. **知识参考**：所有回答都会显示参考的知识片段
 
-请随时向我提问！
+请选择班级后开始提问！
 `);
 
 // 监听visible变化
@@ -135,6 +321,51 @@ watch(
     }
   }
 );
+
+// 加载班级列表
+const loadClasses = async () => {
+  if (classOptions.value.length > 0) return;
+
+  try {
+    loadingClasses.value = true;
+    const classes = await getAllCourseclasses();
+    classOptions.value = classes.map((c) => ({
+      value: c.id,
+      label: c.name,
+    }));
+    if (classes.length > 0 && !selectedClassId.value) {
+      selectedClassId.value = classes[0].id;
+    }
+  } finally {
+    loadingClasses.value = false;
+  }
+};
+
+// 检查片段是否展开
+const isChunkExpanded = (msgIndex, sourceIndex, chunkIndex) => {
+  return expandedChunks.value[`${msgIndex}-${sourceIndex}-${chunkIndex}`];
+};
+
+const isStreamingChunkExpanded = (sourceIndex, chunkIndex) => {
+  return expandedStreamingChunks.value[`${sourceIndex}-${chunkIndex}`];
+};
+
+// 切换片段展开状态
+const toggleChunk = (msgIndex, sourceIndex, chunkIndex) => {
+  const key = `${msgIndex}-${sourceIndex}-${chunkIndex}`;
+  expandedChunks.value = {
+    ...expandedChunks.value,
+    [key]: !expandedChunks.value[key],
+  };
+};
+
+const toggleStreamingChunk = (sourceIndex, chunkIndex) => {
+  const key = `${sourceIndex}-${chunkIndex}`;
+  expandedStreamingChunks.value = {
+    ...expandedStreamingChunks.value,
+    [key]: !expandedStreamingChunks.value[key],
+  };
+};
 
 // 方法
 const handleClose = () => {
@@ -151,53 +382,105 @@ const handleSend = (e) => {
 };
 
 const sendMessage = async () => {
-  if (!inputMessage.value.trim()) return;
+  if (!inputMessage.value.trim() || !selectedClassId.value || isLoading.value)
+    return;
 
   const userMsg = {
     role: "user",
     content: inputMessage.value,
-    isTyping: false,
   };
 
   messages.value.push(userMsg);
-  const aiMsg = {
-    role: "assistant",
-    content: "",
-    isTyping: true,
-  };
-  messages.value.push(aiMsg);
 
   inputMessage.value = "";
-  loading.value = true;
+  isLoading.value = true;
+  isStreaming.value = true;
+  streamingContent.value = "";
+  streamingThinkingContent.value = "";
+  streamingSources.value = null;
+  expandedStreamingChunks.value = {};
   scrollToBottom();
 
+  let cancelFunction;
+
   try {
-    // 模拟API调用
-    const response = await simulateAPI(userMsg.content);
-    aiMsg.content = response;
-    aiMsg.isTyping = false;
+    cancelFunction = courseClassChat(
+      {
+        query: userMsg.content,
+        class_id: selectedClassId.value,
+        thinking_mode: thinkingMode.value,
+      },
+      (response) => {
+        switch (response.status) {
+          case "reasoning":
+            // 累积思考内容
+            streamingThinkingContent.value += response.content;
+            scrollToBottom();
+            break;
+          case "content":
+            // 累积回复内容
+            streamingContent.value += response.content;
+            scrollToBottom();
+            break;
+          case "end":
+            // 保存资源
+            if (response.sources) {
+              streamingSources.value = response.sources;
+            }
+            break;
+        }
+      },
+      (error) => {
+        console.error("AI聊天错误:", error);
+        addAssistantMessage("抱歉，处理您的请求时出错了。", "", null, null);
+      },
+      () => {
+        isLoading.value = false;
+        isStreaming.value = false;
+        // 将流式内容保存为正式消息
+        if (streamingContent.value || streamingThinkingContent.value) {
+          addAssistantMessage(
+            streamingContent.value,
+            thinkingMode.value,
+            thinkingMode.value ? streamingThinkingContent.value : "",
+            streamingSources.value
+          );
+
+          // 重置流式内容
+          streamingContent.value = "";
+          streamingThinkingContent.value = "";
+          streamingSources.value = null;
+          inputMessage.value = "";
+        }
+
+        scrollToBottom();
+      }
+    );
   } catch (error) {
-    aiMsg.content = "抱歉，获取回复时出现错误，请稍后再试。";
-    aiMsg.isTyping = false;
-    console.error("API调用错误:", error);
-  } finally {
-    loading.value = false;
-    scrollToBottom();
+    console.error("请求错误:", error);
+    isLoading.value = false;
+    isStreaming.value = false;
+    addAssistantMessage("请求发送失败，请稍后再试", "", null, null);
   }
+
+  // 组件卸载时取消请求
+  onUnmounted(() => {
+    cancelFunction?.();
+  });
 };
 
-const simulateAPI = (prompt) => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const responses = [
-        `## 关于 "${prompt}" 的解答\n\n根据您的问题，我建议您可以尝试以下方法...\n\n\`\`\`python\n# 示例代码\ndef solution():\n    return "这是Python示例代码"\n\`\`\``,
-        `### 这是一个很好的问题\n\n关于"${prompt}"，让我为您详细解释：\n\n1. **第一步**：理解问题\n2. **第二步**：分析原因\n3. **第三步**：解决方案\n\n> 提示：这是Markdown渲染的引用块`,
-        `**教育领域**的${prompt}通常可以通过以下方式解决：\n\n- 方法一\n- 方法二\n- 方法三\n\n更多信息请参考[官方文档](https://example.com)`,
-        `我理解您的困惑，让我们一步步分析${prompt}：\n\n\`\`\`javascript\n// JavaScript示例\nconsole.log("代码示例");\n\`\`\`\n\n**关键点**：\n- 要点1\n- 要点2`,
-        `基于我的知识库，关于${prompt}的最佳实践是：\n\n\`\`\`\n代码块或命令示例\n\`\`\`\n\n**注意事项**：\n1. 注意一\n2. 注意二`,
-      ];
-      resolve(responses[Math.floor(Math.random() * responses.length)]);
-    }, 1500);
+const addAssistantMessage = (
+  content,
+  thinkingMode,
+  thinkingContent,
+  sources
+) => {
+  messages.value.push({
+    role: "assistant",
+    content: content,
+    thinkingMode: thinkingMode,
+    thinkingContent: thinkingContent,
+    sources: sources,
   });
 };
 
@@ -235,8 +518,21 @@ const scrollToBottom = () => {
 .ai-chat-container {
   display: flex;
   flex-direction: column;
-  height: 80vh;
+  height: 85vh;
   background: #f8fafc;
+}
+
+.chat-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: white;
+
+  .thinking-checkbox {
+    margin-left: auto;
+  }
 }
 
 .chat-messages {
@@ -271,26 +567,12 @@ const scrollToBottom = () => {
     .message-content {
       margin-left: 8px;
     }
-
-    .message-bubble {
-      background: #ffffff;
-      border: 2px solid rgba(0, 0, 0, 0.08);
-      border-radius: 20px 20px 20px 6px;
-      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-    }
   }
 
   &.user {
     .message-content {
       margin-right: 8px;
       flex-direction: row-reverse;
-    }
-
-    .message-bubble {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      border-radius: 20px 20px 6px 20px;
-      box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
     }
   }
 }
@@ -334,7 +616,9 @@ const scrollToBottom = () => {
   line-height: 1.6;
   word-break: break-word;
   font-size: 14px;
-  background: #e7ecff;
+  background: white;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 
   :deep(*) {
     margin-top: 0;
@@ -372,6 +656,19 @@ const scrollToBottom = () => {
     margin-left: 0;
     color: #666;
   }
+}
+
+/* 思考过程文本样式 - 普通文本 */
+.thinking-text {
+  white-space: pre-wrap;
+  color: #666;
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border-radius: 6px;
+  border-left: 3px solid #667eea;
 }
 
 .typing-indicator {
@@ -425,7 +722,7 @@ const scrollToBottom = () => {
     height: 40px;
     padding: 0 24px;
     font-size: 16px;
-    color: #e2e8f0;
+    color: white;
     border-radius: 20px;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     border: none;
@@ -434,7 +731,150 @@ const scrollToBottom = () => {
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
     }
+
+    &:disabled {
+      background: #f0f0f0;
+      color: #bfbfbf;
+      cursor: not-allowed;
+    }
   }
+}
+
+/* 知识参考部分样式 */
+.sources-collapse {
+  max-width: 80%;
+  margin: 12px auto 0;
+  border: none;
+
+  :deep(.ant-collapse-header) {
+    padding: 8px 16px !important;
+    background: #f0f5ff;
+    border-radius: 6px;
+    color: #667eea;
+    font-weight: 500;
+  }
+
+  :deep(.ant-collapse-content) {
+    border: none;
+    background: transparent;
+  }
+}
+
+/* 知识参考容器样式 */
+.sources-container {
+  max-width: 90%;
+}
+
+.sources-collapse {
+  border: none;
+  background: transparent;
+
+  :deep(.ant-collapse-header) {
+    padding: 8px 16px !important;
+    background: #f0f5ff;
+    border-radius: 6px;
+    color: #667eea;
+    font-weight: 500;
+  }
+
+  :deep(.ant-collapse-content) {
+    border: none;
+    background: transparent;
+  }
+}
+
+.source-section {
+  padding: 12px;
+  background: white;
+  border-radius: 6px;
+  margin-top: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.source-meta {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 0.9em;
+  color: #666;
+  flex-wrap: wrap;
+
+  span {
+    padding: 2px 6px;
+    background: #f0f0f0;
+    border-radius: 4px;
+  }
+}
+
+.chunk-item {
+  margin-bottom: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.chunk-header {
+  padding: 8px 12px;
+  background: #f8fafc;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9em;
+
+  &:hover {
+    background: #f0f5ff;
+  }
+}
+
+.toggle-icon {
+  color: #667eea;
+  font-size: 0.8em;
+}
+
+.chunk-content {
+  padding: 12px;
+  background: white;
+  border-top: 1px solid #e2e8f0;
+
+  :deep(*) {
+    margin-top: 0;
+    margin-bottom: 0.8em;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+}
+
+/* 思考过程折叠面板 */
+.thinking-collapse {
+  max-width: 80%;
+  margin: 12px auto 0;
+  border: none;
+
+  :deep(.ant-collapse-header) {
+    padding: 8px 16px !important;
+    background: #f8fafc;
+    border-radius: 6px;
+  }
+
+  :deep(.ant-collapse-content) {
+    border: none;
+    background: transparent;
+  }
+}
+
+.thinking-section {
+  padding: 12px;
+  background: white;
+  border-radius: 6px;
+  margin-top: 8px;
+  border: 1px solid #e2e8f0;
 }
 
 @keyframes fadeInUp {

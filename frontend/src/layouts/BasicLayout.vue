@@ -25,21 +25,25 @@
         mode="inline"
         @click="handleMenuClick"
       >
-        <a-menu-item v-if="auth.user?.role === 'teacher'" key="1">
+        <a-menu-item key="1">
           <HomeFilled />
           <span class="nav-text">主页</span>
         </a-menu-item>
         <a-menu-item key="2">
           <TeamOutlined />
-          <span class="nav-text">我的班级</span>
+          <span class="nav-text">我的课程</span>
         </a-menu-item>
         <a-menu-item v-if="auth.user?.role === 'teacher'" key="3">
           <ReconciliationFilled />
           <span class="nav-text">智能备课</span>
         </a-menu-item>
-        <a-menu-item v-if="auth.user?.role === 'teacher'" key="4">
+        <a-menu-item key="4">
           <SlackCircleFilled />
           <span class="nav-text">学习社区</span>
+        </a-menu-item>
+        <a-menu-item v-if="auth.user?.role === 'teacher'" key="5">
+          <DatabaseFilled />
+          <span class="nav-text">我的知识库</span>
         </a-menu-item>
       </a-menu>
       <div
@@ -124,7 +128,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, watch, nextTick } from "vue";
+import { ref, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import { message } from "ant-design-vue";
@@ -139,17 +143,13 @@ import {
   SlackCircleFilled,
   UserOutlined,
   QuestionCircleOutlined,
+  DatabaseFilled,
 } from "@ant-design/icons-vue";
 
 const collapsed = ref<boolean>(false);
 const selectedKeys = ref<string[]>(["1"]);
 const showAIChat = ref<boolean>(false);
-const userInput = ref<string>("");
-const chatMessages = ref<Array<{ role: string; content: string }>>([]);
-const isLoading = ref<boolean>(false);
-const messagesContainer = ref<HTMLElement | null>(null);
 const showAIChatDialog = () => {
-  collapsed.value = true;
   showAIChat.value = true;
 };
 const router = useRouter();
@@ -185,82 +185,14 @@ const handleMenuClick = ({ key }: { key: string }) => {
     case "4":
       router.push("/home/community");
       break;
+    case "5":
+      router.push("/home/knowledgebase");
+      break;
   }
 };
 
 const goToProfile = () => {
   router.push("/home/profile");
-};
-
-// 切换AI聊天窗口
-const toggleAIChat = () => {
-  collapsed.value = true;
-  showAIChat.value = !showAIChat.value;
-  if (showAIChat.value) {
-    // 可以在这里添加初始欢迎消息
-    if (chatMessages.value.length === 0) {
-      chatMessages.value.push({
-        role: "assistant",
-        content: "您好！我是DeepSeek AI助手，有什么可以帮您的吗？",
-      });
-    }
-    scrollToBottom();
-  }
-};
-
-// 发送消息
-const sendMessage = async () => {
-  if (!userInput.value.trim()) return;
-
-  const userMessage = userInput.value;
-  chatMessages.value.push({ role: "user", content: userMessage });
-  userInput.value = "";
-  isLoading.value = true;
-
-  scrollToBottom();
-
-  try {
-    // 这里调用DeepSeek API
-    const response = await callDeepSeekAPI(userMessage);
-    chatMessages.value.push({ role: "assistant", content: response });
-  } catch (error) {
-    message.error("获取AI回复失败");
-    console.error("API调用错误:", error);
-    chatMessages.value.push({
-      role: "assistant",
-      content: "抱歉，获取回复时出现错误，请稍后再试。",
-    });
-  } finally {
-    isLoading.value = false;
-    scrollToBottom();
-  }
-};
-
-// 调用DeepSeek API的示例函数
-const callDeepSeekAPI = async (prompt: string): Promise<string> => {
-  // 实际使用时替换为真实的API调用
-  // 示例代码，模拟API响应
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const responses = [
-        "根据您的问题，我建议您可以尝试以下方法...",
-        "这是一个很好的问题，让我为您详细解释...",
-        "在教育领域，这个问题通常可以通过...来解决",
-        "我理解您的困惑，让我们一步步分析这个问题...",
-        "基于我的知识库，关于这个问题的最佳实践是...",
-      ];
-      resolve(responses[Math.floor(Math.random() * responses.length)]);
-    }, 1500);
-  });
-};
-
-// 滚动到消息底部
-const scrollToBottom = () => {
-  nextTick(() => {
-    if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
-    }
-  });
 };
 </script>
 

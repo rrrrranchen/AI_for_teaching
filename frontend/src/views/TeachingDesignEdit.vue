@@ -194,7 +194,7 @@ import {
 } from "@/api/resource";
 import type { PPTTemplate, MultimediaResource } from "@/api/resource";
 import TeacherRecommendations from "@/components/TeacherRecommendations.vue";
-import MindMapEditor from "@/components/MindMapEditor.vue";
+import MindMapEditor from "@/components/mindmap/MindMapEditor.vue";
 
 export default defineComponent({
   name: "TeachingDesignEdit",
