@@ -357,6 +357,28 @@
     :courseclassId="courseclassId"
     @processed="fetchCourseclassDetail"
   />
+
+  <!-- 在模板中添加新建章节的模态框 -->
+  <a-modal
+    v-model:visible="createVisible"
+    title="新建章节"
+    @ok="addNewCourse"
+    @cancel="createVisible = false"
+    :confirm-loading="creating"
+  >
+    <a-form layout="vertical">
+      <a-form-item label="章节名称" required>
+        <a-input v-model:value="newCourse.name" placeholder="请输入章节名称" />
+      </a-form-item>
+      <a-form-item label="章节描述">
+        <a-textarea
+          v-model:value="newCourse.description"
+          placeholder="请输入章节描述（可选）"
+          :rows="4"
+        />
+      </a-form-item>
+    </a-form>
+  </a-modal>
 </template>
 
 <script lang="ts">
