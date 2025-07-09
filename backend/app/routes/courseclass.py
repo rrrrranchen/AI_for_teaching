@@ -641,7 +641,7 @@ def recommend_courseclasses():
             return jsonify({'error': 'Unauthorized'}), 401
 
         current_user = g.current_user
-        limit = int(request.args.get('limit', 5))  # 默认返回10个推荐
+        limit = int(request.args.get('limit', 9))  # 默认返回10个推荐
 
         # 获取学生已加入的课程班
         joined_classes = current_user.student_courseclasses
