@@ -43,7 +43,7 @@ def calculate_node_color(knowledge_point_id):
             if not current_node:
                 continue
             nodes.append(current_node)
-            # 假设子节点关系存储在children字段
+            
             for child in current_node.children:
                 stack.append(child.id)
         return nodes
@@ -71,12 +71,8 @@ def calculate_node_color(knowledge_point_id):
     # 计算平均正确率（限制在0-100范围）
     total_correct = sum(answer.correct_percentage for answer in answers)
     avg_correct = max(0, min(total_correct / len(answers), 100))
-
-    # 颜色计算逻辑（从#ff7373到#ffffff）
-    # 红色通道固定为ff（255）
-    # 绿色和蓝色通道从0x73（115）到0xff（255）线性变化
-    base_gb = 115  # 对应#ff7373中的73
-    target_gb = 255  # 对应#ffffff中的ff
+    base_gb = 115  
+    target_gb = 255  
     
     # 计算当前绿色/蓝色值
     gb_value = int(base_gb + (target_gb - base_gb) * (avg_correct / 100))
