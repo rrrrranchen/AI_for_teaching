@@ -11,7 +11,7 @@ from app.utils.database import db
 
 from flask import Blueprint, request, jsonify, Response
 from app.models.courseclass import Courseclass
-from app.utils.create_kb import chat_stream
+from app.utils.ai_chat import chat_stream
 import json
 
 ai_chat_bp = Blueprint('ai_chat', __name__)

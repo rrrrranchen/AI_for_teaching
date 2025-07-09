@@ -13,7 +13,8 @@ from app.models.relationship import category_knowledge_base
 from app.models.CategoryFile import CategoryFile
 from app.models.KnowledgeBase import KnowledgeBase
 from app.utils.create_cat import ALLOWED_NON_STRUCTURAL_EXTENSIONS, ALLOWED_STRUCTURAL_EXTENSIONS, UPLOAD_FOLDER_KNOWLEDGE, allowed_file_non_structural, allowed_file_structural, create_knowledge_base_folder, create_user_category_folder, upload_file_to_folder_non_structural, upload_file_to_folder_structural
-from app.utils.create_kb import BASE_PATH, _retrieve_chunks_from_multiple_dbs, create_structured_db, create_unstructured_db,CATEGORY_PATH
+from app.utils.create_kb import BASE_PATH, create_structured_db, create_unstructured_db,CATEGORY_PATH
+from app.utils.ai_chat import _retrieve_chunks_from_multiple_dbs
 from app.models.courseclass import Courseclass
 from app.models.CategoryFileImage import CategoryFileImage
 from app.utils.keywords_search import calculate_keyword_match, extract_keywords
