@@ -3,7 +3,7 @@ from datetime import datetime
 import os
 import uuid
 from venv import logger
-from flask import Blueprint, app, current_app, json, make_response, redirect, render_template, request, jsonify, send_file, session
+from flask import Blueprint, app, current_app, g, json, make_response, redirect, render_template, request, jsonify, send_file, session
 from jwt import InvalidKeyError
 from pymysql import IntegrityError
 from sqlalchemy import func, select
@@ -18,19 +18,34 @@ from app.models.question import Question
 from app.services.lesson_plan import generate_knowledge_mind_map, generate_post_class_questions, generate_teaching_plans
 from app.models.MindMapNode import MindMapNode
 from app.models.studentanswer import StudentAnswer
+from app.models.teachingDesignTime import TeachingDesignTime
+from app.services.log_service import LogService
 
+teaching_design_bp=Blueprint('teachingdesign',__name__)
 def is_logged_in():
-    """ 检查用户是否登录 """
     return 'user_id' in session
-
 def get_current_user():
-    """ 获取当前登录用户 """
     user_id = session.get('user_id')
     if user_id:
         return User.query.get(user_id)
     return None
 
-teaching_design_bp=Blueprint('teachingdesign',__name__)
+@teaching_design_bp.before_request
+def before_request():
+    if request.method == 'OPTIONS':
+        return
+    # 检查用户是否已登录
+    if is_logged_in():
+        # 获取当前用户并存储到 g 对象中
+        g.current_user = get_current_user()
+        # 检查用户权限，只有管理员和教师可以查看
+        if g.current_user and g.current_user.role != 'teacher' and g.current_user.role != 'admin':
+            return jsonify({"error":'Forbidden'}), 403
+    else:
+        # 如果用户未登录，返回未授权错误
+        return jsonify({'error': 'Unauthorized'}), 401
+
+
 def calculate_node_color(knowledge_point_id):
     """ 定义一个函数来计算节点颜色 """
     # 获取该知识点及其所有子节点
@@ -194,7 +209,6 @@ async def generate_teaching_plans_async(course_content, student_feedback):
     # 假设 generate_teaching_plans 是同步函数，我们在这里调用它
     return generate_teaching_plans(course_content=course_content, student_feedback=student_feedback)
 
-
 async def save_teaching_design_versions_async(new_design, teaching_plans):
     """异步保存教学设计版本"""
     versions = []
@@ -214,13 +228,11 @@ async def save_teaching_design_versions_async(new_design, teaching_plans):
     await asyncio.gather(*[asyncio.to_thread(db.session.add, version) for version in versions])
     return versions
 
-
 async def set_current_version_async(new_design, versions):
     """异步设置当前版本"""
     best_version = max(versions, key=lambda v: v.recommendation_score)
     new_design.current_version_id = best_version.id
     await asyncio.to_thread(db.session.commit)
-
 
 @teaching_design_bp.route('/createteachingdesign', methods=['POST'])
 async def create_teaching_design():
@@ -279,15 +291,12 @@ async def create_teaching_design():
         logger.error(f"创建教学设计失败: {str(e)}")
         return jsonify(code=500, message="服务器内部错误"), 500
 
-
 @teaching_design_bp.route('/<int:design_id>/versions', methods=['GET'])
 def get_design_versions(design_id):
     """查询单个教学设计的所有教学设计版本"""
     try:
         # 1. 基础验证
         current_user = get_current_user()
-        if not current_user:
-            return jsonify(code=401, message="请先登录"), 401
 
         # 2. 查询教学设计
         design = TeachingDesign.query.get(design_id)
@@ -295,7 +304,7 @@ def get_design_versions(design_id):
             return jsonify(code=404, message="教学设计不存在"), 404
 
         # 3. 权限验证（教师只能查看自己课程的）
-        if not TeachingDesign.is_public and current_user.role == 'teacher' and not is_teacher_of_course(design.course_id):
+        if not design.is_public and current_user.role == 'teacher' and not is_teacher_of_course(design.course_id):
             return jsonify(code=403, message="无访问权限"), 403
 
         # 4. 查询所有版本（按版本号排序）
@@ -377,16 +386,14 @@ def get_teaching_design_version(version_id):
     try:
         # 1. 基础验证
         current_user = get_current_user()
-        if not current_user:
-            return jsonify(code=401, message="请先登录"), 401
 
         # 2. 查询教学设计版本
         version = TeachingDesignVersion.query.get(version_id)
         if not version:
             return jsonify(code=404, message="教学设计版本不存在"), 404
-
+        design =TeachingDesign.query.get(version.design_id)
         # 3. 权限验证（教师只能查看自己创建的版本）
-        if not TeachingDesign.is_public and current_user.role == 'teacher' and version.author_id != current_user.id:
+        if not design.is_public and current_user.role == 'teacher' and version.author_id != current_user.id:
             return jsonify(code=403, message="无访问权限"), 403
         # 4. 构建响应数据
         try:
@@ -425,9 +432,8 @@ def get_course_designs(course_id):
     try:
         # 1. 基础验证
         current_user = get_current_user()
-        if not current_user:
-            return jsonify(code=401, message="请先登录"), 401
-
+        if current_user.role == 'teacher' and design.creator_id != current_user.id:
+            return jsonify(code=403, message="无操作权限"), 403
         # 2. 查询课程是否存在
         course = Course.query.get(course_id)
         if not course:
@@ -463,8 +469,6 @@ def update_teaching_design(design_id):
     try:
         # 1. 基础验证
         current_user = get_current_user()
-        if not current_user:
-            return jsonify(code=401, message="请先登录"), 401
 
         # 2. 查询教学设计
         design = TeachingDesign.query.get(design_id)
@@ -472,7 +476,7 @@ def update_teaching_design(design_id):
             return jsonify(code=404, message="教学设计不存在"), 404
 
         # 3. 权限验证（教师只能修改自己创建的教学设计）
-        if current_user.role == 'teacher' and design.creator_id != current_user.id:
+        if current_user != 'teacher' or (current_user.role == 'teacher' and design.creator_id != current_user.id):
             return jsonify(code=403, message="无操作权限"), 403
 
         # 4. 获取请求数据并更新
@@ -503,8 +507,6 @@ def update_teaching_design_version(design_id, version_id):
     try:
         # 1. 基础验证
         current_user = get_current_user()
-        if not current_user:
-            return jsonify(code=401, message="请先登录"), 401
 
         # 2. 查询教学设计和版本
         design = TeachingDesign.query.get(design_id)
@@ -563,7 +565,6 @@ def update_teaching_design_version(design_id, version_id):
         logger.error(f"更新教学设计版本失败: {str(e)}")
         return jsonify(code=500, message="服务器内部错误"), 500
 
-
 @teaching_design_bp.route('/design/<int:design_id>', methods=['GET'])
 def get_teaching_design(design_id):
     """
@@ -572,8 +573,6 @@ def get_teaching_design(design_id):
     try:
         # 1. 基础验证
         current_user = get_current_user()
-        if not current_user:
-            return jsonify(code=401, message="请先登录"), 401
 
         # 2. 查询教学设计
         design = TeachingDesign.query.get(design_id)
@@ -611,8 +610,6 @@ def migrate_course_designs(source_course_id, target_course_id):
     try:
         # 1. 基础验证
         current_user = get_current_user()
-        if not current_user:
-            return jsonify(code=401, message="请先登录"), 401
 
         # 2. 查询源课程和目标课程
         source_course = Course.query.get(source_course_id)
@@ -674,8 +671,6 @@ def migrate_course_designs(source_course_id, target_course_id):
         db.session.rollback()
         logger.error(f"迁移教学设计失败: {str(e)}")
         return jsonify(code=500, message="服务器内部错误"), 500
-
-
 
 @teaching_design_bp.route('/generatemindmap/<int:design_id>', methods=['POST'])
 async def generate_and_store_mindmap(design_id):
@@ -781,11 +776,6 @@ def store_and_get_adjusted_map(teachingdesignid, parent_node_id, node_data):
 
     return adjusted_node
 
-
-
-
-
-
 # 智能更新思维导图数据
 @teaching_design_bp.route('/updatemindmap/<int:design_id>', methods=['POST'])
 def update_mind_map(design_id):
@@ -799,8 +789,6 @@ def update_mind_map(design_id):
     try:
         # 1. 基础验证
         current_user = get_current_user()
-        if not current_user:
-            return jsonify(code=401, message="请先登录"), 401
 
         design = TeachingDesign.query.get(design_id)
         if not design:
@@ -947,17 +935,12 @@ def update_mind_map(design_id):
         logger.error(f"思维导图更新失败: {str(e)}", exc_info=True)
         return jsonify(code=500, message="服务器内部错误"), 500
 
-
-
-
 @teaching_design_bp.route('/<int:design_id>/generate_mindmap', methods=['POST'])
 def generate_and_store_mind_map(design_id):
     """将单个教学设计的所有节点组成思维导图并存储"""
     try:
         # 1. 基础验证
         current_user = get_current_user()
-        if not current_user:
-            return jsonify(code=401, message="请先登录"), 401
 
         # 2. 查询教学设计
         design = TeachingDesign.query.get(design_id)
@@ -1006,13 +989,9 @@ def generate_and_store_mind_map(design_id):
         logger.error(f"生成并存储思维导图失败: {str(e)}")
         return jsonify(code=500, message="服务器内部错误"), 500
     
-
 @teaching_design_bp.route('/teaching-design/<int:design_id>/mindmap', methods=['GET'])
 def get_teaching_design_mindmap(design_id):
     """获取单个教学设计的思维导图接口"""
-    if not is_logged_in():
-        return jsonify({'error': 'Unauthorized'}), 401
-
     try:
         # 获取当前登录用户
         current_user = get_current_user()
@@ -1104,9 +1083,6 @@ def set_design_visibility(design_id):
     try:
         # 1. 验证用户
         current_user = get_current_user()
-        if not current_user:
-            logger.error("未获取到当前用户")
-            return jsonify(code=401, message="请先登录"), 401
             
         if current_user.role != 'teacher':
             logger.error(f"用户无权限: {current_user.id}")
@@ -1160,3 +1136,136 @@ def set_design_visibility(design_id):
         db.session.rollback()
         logger.error(f"更新教学设计可见性失败: {str(e)}", exc_info=True)
         return jsonify(code=500, message=f"服务器内部错误: {str(e)}"), 500
+    
+@teaching_design_bp.route('/design/<int:design_id>/timer', methods=['POST'])
+def handle_teaching_design_timer(design_id):
+    """
+    处理教学设计计时器操作
+    :param design_id: 教学设计ID
+    :return: JSON响应
+    """
+    try:
+        current_user = get_current_user()
+        # 2. 查询教学设计
+        design = TeachingDesign.query.get(design_id)
+        if not design:
+            return jsonify(code=404, message="教学设计不存在"), 404
+
+        # 3. 权限验证（教师只能操作自己创建的教学设计）
+        if current_user.role == 'teacher' and design.creator_id != current_user.id:
+            return jsonify(code=403, message="无操作权限"), 403
+
+        # 4. 获取请求数据
+        data = request.get_json()
+        if not data or 'action' not in data:
+            return jsonify(code=400, message="缺少必要参数"), 400
+
+        # 5. 查询或创建计时记录
+        time_record = TeachingDesignTime.query.filter_by(
+            design_id=design_id,
+            user_id=current_user.id
+        ).first()
+
+        if not time_record:
+            time_record = TeachingDesignTime(
+                design_id=design_id,
+                user_id=current_user.id
+            )
+            db.session.add(time_record)
+
+        # 6. 处理计时操作
+        action = data['action']
+        if action == 'start':
+            time_record.start_timer()
+        elif action == 'pause':
+            time_record.pause_timer()
+        else:
+            return jsonify(code=400, message="无效的操作类型"), 400
+
+        # 7. 返回响应
+        return jsonify(
+            code=200,
+            message="操作成功",
+            data={
+                "design_id": design_id,
+                "total_seconds": time_record.get_current_time(),
+                "is_active": time_record.is_active
+            }
+        ), 200
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"处理计时器操作失败: {str(e)}")
+        return jsonify(code=500, message="服务器内部错误"), 500
+
+
+@teaching_design_bp.route('/design/<int:design_id>/timer', methods=['GET'])
+def get_teaching_design_timer(design_id):
+    """
+    获取教学设计计时器状态
+    :param design_id: 教学设计ID
+    :return: JSON响应
+    """
+    try:
+        current_user = get_current_user()
+        # 2. 查询教学设计
+        design = TeachingDesign.query.get(design_id)
+        if not design:
+            return jsonify(code=404, message="教学设计不存在"), 404
+
+        # 3. 权限验证（教师只能查看自己创建的教学设计计时）
+        if current_user.role == 'teacher' and design.creator_id != current_user.id:
+            return jsonify(code=403, message="无访问权限"), 403
+
+        # 4. 查询计时记录
+        time_record = TeachingDesignTime.query.filter_by(
+            design_id=design_id,
+            user_id=current_user.id
+        ).first()
+
+        # 5. 构建响应数据
+        timer_data = {
+            "design_id": design_id,
+            "total_seconds": time_record.get_current_time() if time_record else 0,
+            "is_active": time_record.is_active if time_record else False
+        }
+
+        return jsonify(
+            code=200,
+            message="获取成功",
+            data=timer_data
+        ), 200
+
+    except Exception as e:
+        logger.error(f"获取计时器状态失败: {str(e)}")
+        return jsonify(code=500, message="服务器内部错误"), 500
+
+
+@teaching_design_bp.after_request
+def log_after_request(response):
+    # 跳过预检请求和错误响应
+    if request.method == 'OPTIONS' or not (200 <= response.status_code < 400):
+        return response
+
+    # 获取当前用户（已通过before_request验证）
+    current_user = g.current_user
+    user_info = {
+        'id': current_user.id,
+        'role': current_user.role
+    }
+
+    # 记录所有成功请求（无需白名单检查）
+    LogService.log_operation(
+        user_id=user_info['id'],
+        user_type=user_info['role'],
+        operation_type=f"{request.method}_{request.endpoint.replace('.', '_')}",
+        details={
+            'path': request.path,
+            'method': request.method,
+            'params': dict(request.args) if request.args else None,
+            'body': request.get_json(silent=True) if request.method in ['POST', 'PUT', 'PATCH', 'DELETE'] else None,
+            'status': response.status_code,
+            'timestamp': datetime.now().isoformat()
+        }
+    )
+    return response
