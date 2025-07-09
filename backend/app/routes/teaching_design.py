@@ -430,10 +430,9 @@ def get_course_designs(course_id):
     查询单个课程的所有教学设计
     """
     try:
-        # 1. 基础验证
+        # 1. 获取当前用户
         current_user = get_current_user()
-        if current_user.role == 'teacher' and design.creator_id != current_user.id:
-            return jsonify(code=403, message="无操作权限"), 403
+        
         # 2. 查询课程是否存在
         course = Course.query.get(course_id)
         if not course:
@@ -442,15 +441,21 @@ def get_course_designs(course_id):
         # 3. 查询该课程的所有教学设计
         designs = TeachingDesign.query.filter_by(course_id=course_id).all()
 
-        # 4. 构建响应数据
+        # 4. 构建响应数据（同时检查权限）
         designs_data = []
         for design in designs:
+            # 权限检查：如果是教师，只能查看自己创建的教学设计
+            if current_user.role == 'teacher' and design.creator_id != current_user.id:
+                continue  # 跳过非自己创建的设计
+                
             design_data = {
                 "design_id": design.id,
                 "title": design.title,
                 "default_version_id": design.current_version_id,
                 "creator_id": design.creator_id,
-                "created_at": design.created_at.isoformat() if design.created_at else None
+                "created_at": design.created_at.isoformat() if design.created_at else None,
+                "is_public": design.is_public,
+                "is_recommended": design.is_recommended
             }
             designs_data.append(design_data)
 
@@ -459,7 +464,8 @@ def get_course_designs(course_id):
     except Exception as e:
         logger.error(f"查询课程教学设计失败: {str(e)}")
         return jsonify(code=500, message="服务器内部错误"), 500
-
+    
+    
 #修改单个教学设计的基本信息
 @teaching_design_bp.route('/design/<int:design_id>', methods=['PUT'])
 def update_teaching_design(design_id):
