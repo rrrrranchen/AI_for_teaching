@@ -32,7 +32,6 @@
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'student'">
-            <a-avatar :src="record.student?.avatar" />
             <span style="margin-left: 8px">{{ record.student_name }}</span>
           </template>
           <template v-else-if="column.key === 'status'">
