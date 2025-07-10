@@ -288,6 +288,7 @@ const handleOk = async () => {
     creationStatusText.value = "创建成功！";
 
     message.success("系统知识库创建成功");
+    isCreating.value = false;
     emit("created", result);
     handleCancel();
   } catch (error: any) {
