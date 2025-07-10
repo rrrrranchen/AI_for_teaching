@@ -1430,7 +1430,7 @@ def search_public_knowledge_bases():
         # 添加排序规则：名称匹配的优先，然后按更新时间降序
         query = base_query.order_by(
             db.case(
-                [KnowledgeBase.name.ilike(f'%{keyword}%'), 1],
+                (KnowledgeBase.name.ilike(f'%{keyword}%'), 1),
                 else_=2
             ),
             KnowledgeBase.updated_at.desc()
