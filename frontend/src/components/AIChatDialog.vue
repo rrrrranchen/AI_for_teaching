@@ -72,7 +72,7 @@
               </div>
               <div class="text-content">
                 <!-- 思考过程（深度思考模式且存在思考内容） -->
-                <div
+                <!-- <div
                   v-if="msg.thinkingMode && msg.thinkingContent"
                   class="thinking-bubble"
                 >
@@ -82,6 +82,32 @@
                   <div class="thinking-text">
                     {{ msg.thinkingContent }}
                   </div>
+                </div> -->
+                <div
+                  v-if="msg.thinkingMode && msg.thinkingContent"
+                  class="thinking-container"
+                >
+                  <a-collapse
+                    :bordered="false"
+                    :activeKey="thinkingExpanded[msg.id] ? '1' : []"
+                  >
+                    <a-collapse-panel key="1" :showArrow="false">
+                      <template #header>
+                        <div
+                          class="thinking-header"
+                          @click.stop="toggleThinking(msg.id)"
+                        >
+                          <span class="thinking-title">思考过程</span>
+                          <span class="toggle-icon">
+                            {{ thinkingExpanded[msg.id] ? "收起" : "展开" }}
+                          </span>
+                        </div>
+                      </template>
+                      <div class="thinking-text">
+                        {{ msg.thinkingContent }}
+                      </div>
+                    </a-collapse-panel>
+                  </a-collapse>
                 </div>
                 <Markdown :source="msg.content" />
               </div>
@@ -469,19 +495,36 @@ const sendMessage = async () => {
   });
 };
 
+// 添加思考过程的展开状态
+const thinkingExpanded = ref({});
+
+// 切换思考过程展开状态的方法
+const toggleThinking = (msgId) => {
+  thinkingExpanded.value = {
+    ...thinkingExpanded.value,
+    [msgId]: !thinkingExpanded.value[msgId],
+  };
+};
+
+// 修改addAssistantMessage方法，为每条消息添加唯一ID
+let messageIdCounter = 0;
 const addAssistantMessage = (
   content,
   thinkingMode,
   thinkingContent,
   sources
 ) => {
+  const msgId = messageIdCounter++;
   messages.value.push({
+    id: msgId, // 添加唯一ID
     role: "assistant",
     content: content,
     thinkingMode: thinkingMode,
     thinkingContent: thinkingContent,
     sources: sources,
   });
+  // 默认收起思考过程
+  thinkingExpanded.value[msgId] = false;
 };
 
 const scrollToBottom = () => {
@@ -852,24 +895,52 @@ const scrollToBottom = () => {
 }
 
 /* 思考过程折叠面板 */
-.thinking-collapse {
-  max-width: 80%;
-  margin: 12px auto 0;
-  border: none;
+/* 思考过程容器样式 */
+.thinking-container {
+  margin-bottom: 12px;
 
-  :deep(.ant-collapse-header) {
-    padding: 8px 16px !important;
-    background: #f8fafc;
-    border-radius: 6px;
-  }
-
-  :deep(.ant-collapse-content) {
+  :deep(.ant-collapse) {
     border: none;
     background: transparent;
   }
+
+  :deep(.ant-collapse-item) {
+    border: none;
+  }
 }
 
-.thinking-section {
+/* 思考过程头部样式 */
+.thinking-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #667eea;
+
+  &:hover {
+    background: #f0f5ff;
+  }
+}
+
+.thinking-title {
+  font-weight: 500;
+}
+
+.toggle-icon {
+  font-size: 12px;
+  color: #667eea;
+}
+
+/* 思考过程文本样式 */
+.thinking-text {
+  white-space: pre-wrap;
+  color: #666;
+  font-size: 14px;
+  line-height: 1.6;
   padding: 12px;
   background: white;
   border-radius: 6px;

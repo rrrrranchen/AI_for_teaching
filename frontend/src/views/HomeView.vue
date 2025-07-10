@@ -299,6 +299,7 @@ export default defineComponent({
         loading.value = true;
         const data = await getRecommendedCourseclasses();
         recommendedClasses.value = data;
+        console.log(data);
       } catch (error) {
         console.error("获取推荐课程班失败:", error);
       } finally {
