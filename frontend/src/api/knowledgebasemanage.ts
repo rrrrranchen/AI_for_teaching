@@ -200,12 +200,10 @@ interface UpdateSingleKBResponse {
  * Admin - Update single knowledge base content
  */
 export const adminUpdateSingleKnowledgeBase = async (
-  kbId: number,
-  force = false
+  kbId: number
 ): Promise<UpdateSingleKBResponse> => {
   const response: AxiosResponse = await api.post(
-    `/admin/knowledge_bases/${kbId}/update`,
-    { force }
+    `/admin/knowledge_bases/${kbId}/update`
   );
   return response.data;
 };
