@@ -158,7 +158,7 @@
             <div class="other-info">
               <a-descriptions bordered :column="1">
                 <a-descriptions-item label="最后登录时间">
-                  <span class="info-value">2023-06-15 14:30:22</span>
+                  <span class="info-value">2025-07-10 14:30:22</span>
                 </a-descriptions-item>
                 <a-descriptions-item label="登录IP">
                   <span class="info-value">192.168.1.100</span>
@@ -167,7 +167,7 @@
                   <a-tag color="green" class="status-tag">正常</a-tag>
                 </a-descriptions-item>
                 <a-descriptions-item label="登录设备">
-                  <span class="info-value">Windows 10 / Chrome 114</span>
+                  <span class="info-value">Windows 11 / Edge</span>
                 </a-descriptions-item>
               </a-descriptions>
             </div>

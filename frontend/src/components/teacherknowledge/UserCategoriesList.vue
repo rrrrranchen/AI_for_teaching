@@ -61,8 +61,13 @@
               <down-outlined
                 v-if="!expandedCategories.includes(item.id)"
                 style="margin-left: 8px"
+                @click="toggleExpand(item.id)"
               />
-              <up-outlined v-else style="margin-left: 8px" />
+              <up-outlined
+                v-else
+                style="margin-left: 8px"
+                @click="toggleExpand(item.id)"
+              />
             </template>
             <template #description>
               {{ item.description || "暂无描述" }}
