@@ -1,3 +1,4 @@
+<!-- 管理员 -->
 <template>
   <a-modal
     v-model:visible="visible"
@@ -59,14 +60,6 @@
           option-filter-prop="label"
           :loading="categoriesLoading"
         >
-          <template #dropdownRender="{ menuNode: menu }">
-            <v-nodes :vnodes="menu" />
-            <a-divider style="margin: 4px 0" />
-            <div style="padding: 4px 8px; cursor: pointer">
-              <plus-outlined />
-              系统类目不足？请先创建系统类目
-            </div>
-          </template>
         </a-select>
       </a-form-item>
       <a-form-item label="可见性设置" name="is_public">
@@ -191,6 +184,7 @@ const rules = {
 };
 
 const showModal = async () => {
+  console.log("showModal");
   visible.value = true;
   resetCreationStatus();
   if (allCategoryOptions.value.length === 0) {
@@ -217,7 +211,7 @@ const fetchSystemCategories = async () => {
       is_system: true,
       per_page: 1000, // 获取所有系统类目
     });
-
+    console.log("获取到的系统类目", result);
     allCategoryOptions.value = result.data.map((cat: Category) => ({
       value: cat.id,
       label: `${cat.name} (${
@@ -245,6 +239,7 @@ const filterCategoriesByType = () => {
     const cat = allCategoryOptions.value.find((c) => c.value === id);
     return cat?.type === formState.base_type && cat.is_system;
   });
+  console.log("过滤后的系统类目:", filteredCategoryOptions.value);
 };
 
 const filterOption = (input: string, option: any) => {
