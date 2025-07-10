@@ -37,7 +37,7 @@ class CourseClassApplication(db.Model):
     
     courseclass = db.relationship(
         'Courseclass',
-        backref=db.backref('applications', lazy='dynamic')
+        back_populates='class_applications'  # 匹配Courseclass中的关系名称
     )
     
     # 辅助方法

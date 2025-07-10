@@ -10,7 +10,7 @@ from app.routes.teaching_design import get_question_type_name
 from app.models.studentanswer import StudentAnswer
 from sqlalchemy.orm import Session
 from app.models.student_recommend import StudentRecommend
-from app.services.recommend_to_students import extract_keywords_from_report, generate_final_json
+from app.utils.recommend_to_students import extract_keywords_from_report, generate_final_json
 from app.models.studentanalysisreport import StudentAnalysisReport
 student_recommend_bp=Blueprint('student_recommend_bp', __name__)
 def is_logged_in():

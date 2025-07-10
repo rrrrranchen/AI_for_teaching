@@ -1889,7 +1889,7 @@ def migrate_public_knowledge_base():
             is_public=False,
             is_system=False,
             base_type=public_kb.base_type,
-            author_id=public_kb.author_id
+            author_id=g.current_user.id
         )
 
         db.session.add(new_kb)

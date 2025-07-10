@@ -15,6 +15,9 @@ from app.utils.file_upload import upload_file_courseclass
 from app.services.rank import generate_class_recommend_ranking, generate_public_courseclass_ranking
 from app.models.CourseClassApplication import CourseClassApplication
 from app.services.log_service import LogService
+from app.models.classanalysisreport import ClassAnalysisReport
+from app.models.relationship import courseclass_knowledge_base
+from app.models.studentanalysisreport import StudentAnalysisReport
 courseclass_bp = Blueprint('courseclass', __name__)
 
 def is_logged_in():
@@ -265,24 +268,51 @@ def update_courseclass(courseclass_id):
 
 @courseclass_bp.route('/deletecourseclasses/<int:courseclass_id>', methods=['DELETE'])
 def delete_courseclass(courseclass_id):
-    """删除单个课程班"""
     try:
-        # 检查当前用户是否为该课程班的老师
         if not is_teacher_of_courseclass(courseclass_id):
-            return jsonify({'error': 'You are not authorized to delete this course class'}), 403
+            return jsonify({'error': 'Unauthorized'}), 403
 
-        courseclass = Courseclass.query.get(courseclass_id)
+        # 使用显式连接加载所有相关数据
+        courseclass = Courseclass.query.options(
+            db.joinedload(Courseclass.student_reports),
+            db.joinedload(Courseclass.class_reports),
+            db.joinedload(Courseclass.class_applications),  # 使用新名称
+            db.joinedload(Courseclass.teachers),
+            db.joinedload(Courseclass.students),
+            db.joinedload(Courseclass.courses),
+            db.joinedload(Courseclass.knowledge_bases)
+        ).get(courseclass_id)
+        
         if not courseclass:
             return jsonify({'error': 'CourseClass not found'}), 404
 
+        # 1. 删除分析报告
+        for report in list(courseclass.student_reports):
+            db.session.delete(report)
         
+        for report in list(courseclass.class_reports):
+            db.session.delete(report)
+        
+        # 2. 删除申请记录（使用新名称）
+        for application in list(courseclass.class_applications):
+            db.session.delete(application)
+        
+        # 3. 清空多对多关系
+        courseclass.teachers.clear()
+        courseclass.students.clear()
+        courseclass.courses.clear()
+        courseclass.knowledge_bases.clear()
+        
+        # 4. 删除课程班本身
         db.session.delete(courseclass)
         db.session.commit()
 
         return jsonify({'message': 'CourseClass deleted successfully'}), 200
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Error deleting courseclass")  # 记录完整堆栈
+        return jsonify({'error': 'Internal server error'}), 500
+    
 
 @courseclass_bp.route('/courseclasses/<int:courseclass_id>/create_course', methods=['POST'])
 def create_course_for_courseclass(courseclass_id):
