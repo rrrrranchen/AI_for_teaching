@@ -480,11 +480,10 @@ def update_teaching_design(design_id):
         design = TeachingDesign.query.get(design_id)
         if not design:
             return jsonify(code=404, message="教学设计不存在"), 404
-
         # 3. 权限验证（教师只能修改自己创建的教学设计）
-        if current_user != 'teacher' or (current_user.role == 'teacher' and design.creator_id != current_user.id):
+        if current_user.role != 'teacher' or (current_user.role == 'teacher' and design.creator_id != current_user.id):
             return jsonify(code=403, message="无操作权限"), 403
-
+        
         # 4. 获取请求数据并更新
         data = request.get_json()
         if not data:
