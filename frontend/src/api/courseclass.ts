@@ -138,7 +138,7 @@ export const searchCourseclasses = async (
 
 // 获取推荐课程班
 export const getRecommendedCourseclasses = async (
-  limit = 5
+  limit = 9
 ): Promise<Courseclass[]> => {
   const response: AxiosResponse<Courseclass[]> = await api.get(
     "/courseclass/recommend_courseclasses",
