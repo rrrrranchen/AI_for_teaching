@@ -79,19 +79,25 @@ def fetch_video_info(link):
 # 步骤3：发送标题 & 简介给 AI，让它润色，不输出链接
 def polish_title_description(video_infos):
     content_blocks = [
-        f"原始标题：{info['title']}\n原始简介：{info['description']}"
+        f"原始标题：{info['title']}\n原始简介：{info['description']}\n原始链接：{info['link']}"
         for info in video_infos
     ]
     content = "\n\n".join(content_blocks)
 
     prompt = f"""
-请你对以下 Bilibili 视频的标题和简介进行语言润色，使其更正式、清晰、有教学感。
+请你对以下 Bilibili 视频的标题和简介进行语言润色，用markdown文本进行输出，使其更正式、清晰、有教学感。
 请注意：
-- 不要添加视频链接
 - 不要改变原始视频顺序
-- 每条输出格式如下：
-  - 资源推荐：润色后的标题
-  - 资源简介：润色后的简介
+- 输出格式示例如下：
+
+"
+根据学情分析报告，以下是针对TCP协议学习的三类补充资源推荐：
+ 
+ ### 1. 可视化学习资源
+ - **资源推荐**：TCP/IP协议栈交互式学习网站（Computer Networking: A Top-Down Approach配套资源）
+ - **资源简介**：通过动画演示TCP三次握手、流量控制等核心机制，适合直观理解抽象概念。建议配合教材章节边看边操作，重点观察数据包交互过程。
+ - **相关链接**：[https://gaia.cs.umass.edu/kurose_ross/interactive/](https://gaia.cs.umass.edu/kurose_ross/interactive/)
+"
 
 以下是原始内容：
 {content}
@@ -142,7 +148,7 @@ def generate_final_json(keyword):
 
     # 转换为 JSON 格式的字符串并返回
     json_result = json.dumps(result_list, ensure_ascii=False, indent=4)
-    return json_result
+    return ai_result
 
 
 # 示例调用
