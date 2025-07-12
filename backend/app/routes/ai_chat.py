@@ -1,6 +1,6 @@
 
-from flask import Blueprint, current_app
-
+from flask import Blueprint, current_app, session
+from app.models.chat_history import ChatHistory
 from app.models.CategoryFile import CategoryFile
 from app.models.KnowledgeBase import KnowledgeBase
 from app.models.Category import Category
@@ -14,8 +14,15 @@ from app.models.courseclass import Courseclass
 from app.utils.ai_chat import chat_stream
 import json
 
-ai_chat_bp = Blueprint('ai_chat', __name__)
+from app.models.chat_history import ChatHistory
+from app.models.user import User
 
+ai_chat_bp = Blueprint('ai_chat', __name__)
+def get_current_user():
+    user_id = session.get('user_id')
+    if user_id:
+        return User.query.get(user_id)
+    return None
 class NameResolver:
     """名称解析器，用于高效查询显示名称"""
     def __init__(self):
@@ -125,13 +132,15 @@ def format_sources(sources, name_resolver):
         "sources": result
     }
 
-@ai_chat_bp.route('/course_class_chat', methods=['POST'])
-def course_class_chat():
+from flask import current_app
+
+
+@ai_chat_bp.route('/course_class_chat/<int:chat_history_id>', methods=['POST'])
+def course_class_chat(chat_history_id):
     """
-    基于班级知识库的AI聊天接口
+    基于班级知识库的AI聊天接口（使用现有会话ID）
     请求参数 (JSON):
     {
-        "class_id": 123,               // 班级ID (必填)
         "query": "如何安装Python?",     // 用户问题 (必填)
         "thinking_mode": true,         // 是否思考模式 (必填)
         "history": [],                 // 对话历史 (可选)
@@ -142,17 +151,30 @@ def course_class_chat():
     }
     """
     try:
+        # 获取当前应用的实际对象（非代理）
+        app = current_app._get_current_object()
+        
         data = request.get_json()
         if not data:
             return jsonify({"error": "请求体必须为JSON格式"}), 400
         
         # 验证必要参数
-        required_fields = ['class_id', 'query', 'thinking_mode']
+        required_fields = ['query', 'thinking_mode']
         if not all(field in data for field in required_fields):
-            return jsonify({"error": "缺少必要字段: class_id, query, thinking_mode"}), 400
+            return jsonify({"error": "缺少必要字段: query, thinking_mode"}), 400
+        
+        # 获取会话记录
+        chat_record = ChatHistory.query.filter_by(id=chat_history_id).first()
+        if not chat_record:
+            return jsonify({"error": "会话记录未找到"}), 404
+        
+        # 从会话记录中获取班级ID
+        class_id = chat_record.courseclass_id
+        if not class_id:
+            return jsonify({"error": "该会话未关联班级"}), 400
         
         # 获取班级及关联知识库
-        course_class = Courseclass.query.get(data['class_id'])
+        course_class = Courseclass.query.get(class_id)
         if not course_class:
             return jsonify({"error": "班级未找到"}), 404
         
@@ -165,56 +187,280 @@ def course_class_chat():
         name_resolver = NameResolver()
         name_resolver.preload_names(db_names)
         
+        # 从数据库加载现有对话历史
+        existing_history = chat_record.get_content()
+        
+        # 如果是新会话（历史记录为空），则更新会话名称为问题的前7个字符
+        if not existing_history and chat_record.name == "New Conversation":
+            new_name = (data['query'][:12] + "...") if len(data['query']) > 12 else data['query']
+            chat_record.name = new_name
+            db.session.commit()  # 提前提交名称更新
+        
         # 流式响应生成器
         def generate():
-            formatted_sources = None
-            
-            for token, chunks, status, sources in chat_stream(
-                query=data['query'],
-                db_names=db_names,
-                model="deepseek-chat",
-                history=data.get('history', []),
-                thinking_mode=data['thinking_mode'],
-                similarity_threshold=data.get('similarity_threshold', 0.2),
-                chunk_cnt=data.get('chunk_cnt', 5),
-                api_key=data.get('api_key'),
-                data_type_filter=data.get('data_type_filter')
-            ):
-                if status == "chunks":
-                    # 格式化来源信息
-                    formatted_sources = format_sources(sources, name_resolver) if sources else {
-                        "message": "未引用特定来源",
-                        "sources": []
-                    }
-                    yield f"data: {json.dumps({'status': 'chunks', 'content': chunks})}\n\n"
+            # 在生成器内部手动创建应用上下文
+            with app.app_context():
+                formatted_sources = None
+                new_messages = []
+                full_response = ""
+                thinking_content = ""  # 初始化思考内容变量
                 
-                elif status == "reasoning":
-                    yield f"data: {json.dumps({'status': 'reasoning', 'content': token})}\n\n"
+                # 重新获取会话记录（确保在应用上下文中）
+                chat_record_internal = ChatHistory.query.filter_by(id=chat_history_id).first()
+                if not chat_record_internal:
+                    yield f"data: {json.dumps({'status': 'error', 'content': '会话记录未找到'})}\n\n"
+                    return
                 
-                elif status in ["content", "tokens"]:
-                    yield f"data: {json.dumps({'status': 'content', 'content': token})}\n\n"
+                # 从数据库加载现有对话历史
+                existing_history_internal = chat_record_internal.get_content()
                 
-                elif status == "end":
-                    response_data = {
-                        "status": "end",
-                        "content": token,
-                        "sources": formatted_sources or {
+                # 添加用户问题到临时历史
+                current_history = existing_history_internal + [{
+                    "id": len(existing_history_internal),
+                    "role": "user",
+                    "content": data['query']
+                }]
+                
+                # 调用流式聊天函数
+                for token, chunks, status, sources in chat_stream(
+                    query=data['query'],
+                    db_names=db_names,
+                    model="deepseek-chat",
+                    history=current_history,  # 使用包含新问题的完整历史
+                    thinking_mode=data['thinking_mode'],
+                    similarity_threshold=data.get('similarity_threshold', 0.2),
+                    chunk_cnt=data.get('chunk_cnt', 5),
+                    api_key=data.get('api_key'),
+                    data_type_filter=data.get('data_type_filter')
+                ):
+                    if status == "chunks":
+                        # 格式化来源信息
+                        formatted_sources = format_sources(sources, name_resolver) if sources else {
                             "message": "未引用特定来源",
                             "sources": []
                         }
-                    }
-                    yield f"data: {json.dumps(response_data)}\n\n"
+                        yield f"data: {json.dumps({'status': 'chunks', 'content': chunks})}\n\n"
+                    
+                    elif status == "reasoning":
+                        thinking_content += token  # 累积思考内容
+                        yield f"data: {json.dumps({'status': 'reasoning', 'content': token})}\n\n"
+                    
+                    elif status in ["content", "tokens"]:
+                        full_response += token  # 累积完整响应
+                        yield f"data: {json.dumps({'status': 'content', 'content': token})}\n\n"
+                    
+                    elif status == "end":
+                        # 构造助手回复
+                        assistant_message = {
+                            "id": len(existing_history_internal) + 1,
+                            "role": "assistant",
+                            "content": full_response,
+                            "thinkingMode": data['thinking_mode'],
+                            "thinkingContent": thinking_content,  # 添加思考内容
+                            "sources": formatted_sources or {
+                                "message": "未引用特定来源",
+                                "sources": []
+                            }
+                        }
+                        
+                        # 添加到新消息列表
+                        new_messages = [
+                            {"id": len(existing_history_internal), "role": "user", "content": data['query']},
+                            assistant_message
+                        ]
+                        
+                        response_data = {
+                            "status": "end",
+                            "content": full_response,
+                            "sources": formatted_sources or {
+                                "message": "未引用特定来源",
+                                "sources": []
+                            }
+                        }
+                        yield f"data: {json.dumps(response_data)}\n\n"
+                    
+                    elif status == "error":
+                        yield f"data: {json.dumps({'status': 'error', 'content': token})}\n\n"
                 
-                elif status == "error":
-                    yield f"data: {json.dumps({'status': 'error', 'content': token})}\n\n"
+                # 流结束后更新数据库
+                if new_messages:
+                    try:
+                        # 重新获取记录（确保在应用上下文中）
+                        updated_record = ChatHistory.query.filter_by(id=chat_history_id).first()
+                        if updated_record:
+                            # 获取最新历史记录并追加新消息
+                            current_history = updated_record.get_content()
+                            updated_history = current_history + new_messages
+                            
+                            # 安全设置内容
+                            updated_record.set_content(updated_history)
+                            db.session.commit()
+                            
+                            # 记录成功
+                            app.logger.info(f"成功更新会话记录 ID: {chat_history_id}")
+                    except Exception as e:
+                        db.session.rollback()
+                        app.logger.error(f"更新会话记录失败: {str(e)}")
+                        # 尝试记录错误数据
+                        try:
+                            app.logger.debug(f"更新失败的数据: {str(new_messages)[:500]}")
+                        except:
+                            pass
         
         return Response(generate(), mimetype='text/event-stream')
     
     except Exception as e:
         import traceback
         traceback.print_exc()
+        db.session.rollback()
         return jsonify({"error": f"服务器内部错误: {str(e)}"}), 500
+
+@ai_chat_bp.route('/create_conversation/<int:courseclass_id>', methods=['POST'])
+def create_conversation(courseclass_id):
+    current_user = get_current_user()
+    if not current_user:
+        return jsonify({"error": "Unauthorized"}), 401  # 用户未登录
+
+    student_id = current_user.id
+
+    # 初始化一个新的会话，默认名称和空内容
+    new_chat_history = ChatHistory(
+        courseclass_id=courseclass_id,
+        student_id=student_id,
+        name="New Conversation",  # 默认会话名称
+        content=json.dumps([])    # 初始化为空对话列表
+    )
+
+    db.session.add(new_chat_history)
+    db.session.commit()
+
+    # 返回新创建的会话信息
+    return jsonify({
+        "success": True,
+        "chat_id": new_chat_history.id,
+        "name": new_chat_history.name,
+        "created_at": new_chat_history.created_at.isoformat() if new_chat_history.created_at else None
+    }), 201
+
+
+@ai_chat_bp.route('/course_class_conversations/<int:courseclass_id>', methods=['GET'])
+def get_course_class_conversations(courseclass_id):
+    """
+    获取指定课程班的所有对话记录
+    返回: [{
+        "id": 会话ID,
+        "name": "会话名称",
+        "created_at": "创建时间(ISO格式)"
+    }]
+    """
+    try:
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({"error": "未授权访问"}), 401
+
+        # 查询该课程班下当前用户的所有会话
+        conversations = ChatHistory.query.filter_by(
+            courseclass_id=courseclass_id,
+            student_id=current_user.id
+        ).order_by(ChatHistory.created_at.desc()).all()
+
+        result = [{
+            "id": conv.id,
+            "name": conv.name,
+            "created_at": conv.created_at.isoformat() if conv.created_at else None
+        } for conv in conversations]
+
+        return jsonify(result)
+
+    except Exception as e:
+        current_app.logger.error(f"获取课程班对话列表失败: {str(e)}")
+        return jsonify({"error": "服务器内部错误"}), 500
+
+
+@ai_chat_bp.route('/conversation_detail/<int:chat_history_id>', methods=['GET'])
+def get_conversation_detail(chat_history_id):
+    """
+    获取指定会话的详细信息
+    返回: {
+        "id": 会话ID,
+        "name": "会话名称",
+        "created_at": "创建时间",
+        "courseclass_id": 关联课程班ID,
+        "messages": [对话历史],
+        "student_id": 学生ID
+    }
+    """
+    try:
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({"error": "未授权访问"}), 401
+
+        # 查询会话记录
+        conversation = ChatHistory.query.filter_by(
+            id=chat_history_id,
+            student_id=current_user.id  # 确保只能访问自己的会话
+        ).first()
+
+        if not conversation:
+            return jsonify({"error": "会话记录未找到"}), 404
+
+        return jsonify({
+            "id": conversation.id,
+            "name": conversation.name,
+            "created_at": conversation.created_at.isoformat(),
+            "courseclass_id": conversation.courseclass_id,
+            "messages": conversation.get_content(),
+            "student_id": conversation.student_id
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"获取会话详情失败: {str(e)}")
+        return jsonify({"error": "服务器内部错误"}), 500
     
+@ai_chat_bp.route('/update_conversation_name/<int:chat_history_id>', methods=['PUT'])
+def update_conversation_name(chat_history_id):
+    """
+    修改会话名称
+    请求参数 (JSON):
+    {
+        "new_name": "新的会话名称"  // 必填
+    }
+    """
+    try:
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({"error": "未授权访问"}), 401
+
+        data = request.get_json()
+        if not data or 'new_name' not in data:
+            return jsonify({"error": "缺少new_name参数"}), 400
+
+        new_name = data['new_name'].strip()
+        if not new_name:
+            return jsonify({"error": "会话名称不能为空"}), 400
+
+        # 查询并更新会话记录
+        conversation = ChatHistory.query.filter_by(
+            id=chat_history_id,
+            student_id=current_user.id  # 确保只能修改自己的会话
+        ).first()
+
+        if not conversation:
+            return jsonify({"error": "会话记录未找到"}), 404
+
+        conversation.name = new_name
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "new_name": new_name,
+            "chat_id": chat_history_id
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"更新会话名称失败: {str(e)}")
+        return jsonify({"error": "服务器内部错误"}), 500
 
 # @ai_chat_bp.route('/course_class_chat', methods=['POST'])
 # def course_class_chat():
