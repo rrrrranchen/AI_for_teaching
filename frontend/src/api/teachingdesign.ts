@@ -252,3 +252,41 @@ export async function setDesignVisibility(
   );
   return response.data.data;
 }
+
+// 计时器相关类型
+export interface TeachingDesignTimer {
+  design_id: number;
+  total_seconds: number;
+  is_active: boolean;
+}
+
+export interface TimerActionParams {
+  action: "start" | "pause";
+}
+
+/**
+ * 控制教学设计计时器
+ * @param designId 教学设计ID
+ * @param params 计时器操作参数
+ */
+export async function controlDesignTimer(
+  designId: number,
+  params: TimerActionParams
+): Promise<TeachingDesignTimer> {
+  const response: AxiosResponse = await api.post(
+    `/design/${designId}/timer`,
+    params
+  );
+  return response.data.data;
+}
+
+/**
+ * 获取教学设计计时器状态
+ * @param designId 教学设计ID
+ */
+export async function getDesignTimer(
+  designId: number
+): Promise<TeachingDesignTimer> {
+  const response: AxiosResponse = await api.get(`/design/${designId}/timer`);
+  return response.data.data;
+}
