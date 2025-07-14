@@ -1,0 +1,4 @@
+llm:
+  api_type: dashscope
+  api_key: 'sk-48f34d4f9c6948cbaa5198ab455f1224'
+  model: 'qwen-max'

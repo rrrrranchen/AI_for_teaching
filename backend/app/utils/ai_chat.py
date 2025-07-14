@@ -1,7 +1,8 @@
 from http import HTTPStatus
 import os
 import shutil
-from fastapi import logger
+from venv import logger
+
 from openai import OpenAI
 from llama_index.core import StorageContext, load_index_from_storage
 from typing import Generator, List, Tuple, Optional, Dict, Any
@@ -294,7 +295,7 @@ def chat_stream(
     model_context, display_chunks, source_dict = _retrieve_chunks_from_multiple_dbs(
         query, db_names, similarity_threshold, chunk_cnt, data_type_filter
     )
-    
+    print(model_context)
     # 返回召回文本和来源字典
     yield "", display_chunks, "chunks", source_dict
     
