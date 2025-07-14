@@ -414,6 +414,7 @@ def get_courses_by_courseclass(courseclass_id):
                 'id': course.id,
                 'name': course.name,
                 'description': course.description,
+                'created_at': course.created_at,
                 'has_public_questions': Question.query.filter_by(course_id=course.id, is_public=True).count() > 0
             }
             for course in courses

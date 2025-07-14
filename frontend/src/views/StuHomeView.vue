@@ -7,11 +7,12 @@
         placeholder="搜索课程..."
         size="large"
         @search="handleSearch"
-        class="header-search-input"
+        class="custom-search-input"
       >
         <template #enterButton>
-          <a-button type="primary">
-            <SearchOutlined />
+          <a-button type="primary" class="search-button">
+            <template #icon><search-outlined /></template>
+            搜索
           </a-button>
         </template>
       </a-input-search>
@@ -349,20 +350,48 @@ export default defineComponent({
   }
 }
 
-.header-search-input :deep(.ant-input) {
-  height: 40px;
-  border-radius: 20px 0 0 20px !important;
+/* 搜索框样式 */
+.custom-search-input {
+  width: 500px;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
 }
 
-.header-search-input :deep(.ant-input-group-addon) {
+.custom-search-input:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.custom-search-input :deep(.ant-input) {
+  height: 40px;
+  padding: 0 16px;
+  border: none;
+  background-color: #f8f9fa;
+}
+
+.custom-search-input :deep(.ant-input:focus) {
+  box-shadow: none;
+  background-color: #fff;
+}
+
+.custom-search-input :deep(.ant-input-group-addon) {
   background: transparent;
 }
 
-.header-search-input :deep(.ant-input-search-button) {
+.search-button {
   height: 40px;
   border-radius: 0 20px 20px 0 !important;
+  padding: 0 20px;
+  background: linear-gradient(135deg, #1890ff, #096dd9);
+  border: none;
+  transition: all 0.3s ease;
 }
 
+.search-button:hover {
+  background: linear-gradient(135deg, #40a9ff, #1890ff);
+  transform: translateY(-1px);
+}
 .main-content {
   margin-top: 16px;
   height: calc(100vh - 120px); /* 根据实际情况调整 */

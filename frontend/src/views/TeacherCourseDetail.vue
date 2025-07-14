@@ -3,7 +3,7 @@
   <div class="breadcrumb-section">
     <a-breadcrumb separator=">">
       <a-breadcrumb-item>
-        <router-link to="/home/my-class">我的班级</router-link>
+        <router-link to="/home/my-class">我的课程</router-link>
       </a-breadcrumb-item>
       <a-breadcrumb-item>
         <router-link
