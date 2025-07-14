@@ -7,9 +7,7 @@ import pandas as pd
 from datetime import datetime
 import time
 from werkzeug.utils import secure_filename
-from llama_index.core import VectorStoreIndex, StorageContext, load_index_from_storage, Settings
-from llama_index.core.schema import TextNode
-from llama_index.core import SimpleDirectoryReader
+from llama_index.core import Settings
 from app.models.relationship import category_knowledge_base
 from llama_index.embeddings.dashscope import (
     DashScopeEmbedding,
@@ -17,7 +15,6 @@ from llama_index.embeddings.dashscope import (
     DashScopeTextEmbeddingType,
 )
 from app.config import Config
-from llama_index.core.node_parser import SentenceSplitter
 from typing import List, Optional
 # 配置常量
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

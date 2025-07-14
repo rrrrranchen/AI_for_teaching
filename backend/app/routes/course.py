@@ -257,7 +257,92 @@ def set_post_class_deadline(course_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
-    
+
+
+
+# 获取课程内容与目标
+@course_bp.route('/courses/<int:course_id>/content', methods=['GET'])
+def get_course_content(course_id):
+    if not is_logged_in():
+        return jsonify({'error': 'Unauthorized'}), 401
+    try:
+        course = Course.query.get(course_id)
+        if not course:
+            return jsonify({'error': 'Course not found'}), 404
+
+        # 获取当前用户
+        current_user = get_current_user()
+
+        # 检查当前用户是否为该课程所属课程班的老师或学生
+        is_teacher = any(is_teacher_of_courseclass(cc.id) for cc in course.courseclasses)
+        is_student = any(
+            db.session.scalar(
+                select(func.count()).where(
+                    student_class.c.student_id == current_user.id,
+                    student_class.c.class_id == cc.id
+                )
+            ) > 0
+            for cc in course.courseclasses
+        )
+
+        if not is_teacher and not is_student:
+            return jsonify({'error': 'You are not authorized to access this course content'}), 403
+
+        result = {
+            'id': course.id,
+            'name': course.name,
+            'content': course.content,
+            'objectives': course.objectives
+        }
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# 更新课程内容与目标 (老师权限)
+@course_bp.route('/courses/<int:course_id>/content', methods=['PUT'])
+def update_course_content(course_id):
+    if not is_logged_in():
+        return jsonify({'error': 'Unauthorized'}), 401
+    try:
+        course = Course.query.get(course_id)
+        if not course:
+            return jsonify({'error': 'Course not found'}), 404
+
+        # 检查当前用户是否为该课程所属课程班的老师
+        if not any(is_teacher_of_courseclass(cc.id) for cc in course.courseclasses):
+            return jsonify({'error': 'You are not authorized to update this course content'}), 403
+
+        data = request.json
+        content = data.get('content')
+        objectives = data.get('objectives')
+
+        # 至少提供一个要更新的字段
+        if content is None and objectives is None:
+            return jsonify({'error': 'At least one field (content or objectives) is required'}), 400
+
+        if content is not None:                                          
+            course.content = content
+        if objectives is not None:
+            course.objectives = objectives                                    
+
+        db.session.commit()
+
+        return jsonify({
+            'id': course.id,
+            'name': course.name,
+            'content': course.content,
+            'objectives': course.objectives,
+            'message': 'Course content updated successfully'
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+
+
+
+  
 @course_bp.after_request
 def log_after_request(response):
     # 跳过预检请求和错误响应
