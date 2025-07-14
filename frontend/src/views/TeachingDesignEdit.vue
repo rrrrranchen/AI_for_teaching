@@ -6,14 +6,20 @@
       </a-breadcrumb-item>
       <a-breadcrumb-item>{{ design?.title }}</a-breadcrumb-item>
     </a-breadcrumb>
-    <a-switch
-      checked-children="已公开"
-      un-checked-children="未公开"
-      :checked="isPublic"
-      :loading="togglingVisibility"
-      @change="toggleVisibility"
-      class="visibility-switch"
-    />
+    <div class="header-right">
+      <div class="preparation-timer">
+        <clock-circle-outlined />
+        <span class="timer-text">备课时长: {{ formattedTime }}</span>
+      </div>
+      <a-switch
+        checked-children="已公开"
+        un-checked-children="未公开"
+        :checked="isPublic"
+        :loading="togglingVisibility"
+        @change="toggleVisibility"
+        class="visibility-switch"
+      />
+    </div>
   </div>
   <div class="teaching-design-edit">
     <a-tabs v-model:activeKey="activeTab">
@@ -171,10 +177,20 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, onMounted, onBeforeUnmount } from "vue";
+import {
+  defineComponent,
+  ref,
+  onMounted,
+  onBeforeUnmount,
+  computed,
+} from "vue";
 import { useRoute } from "vue-router";
 import { message } from "ant-design-vue";
-import { FilePptOutlined, SaveOutlined } from "@ant-design/icons-vue";
+import {
+  FilePptOutlined,
+  SaveOutlined,
+  ClockCircleOutlined,
+} from "@ant-design/icons-vue";
 import {
   getDesignVersions,
   getDesignVersionDetail,
@@ -182,6 +198,8 @@ import {
   updateDesignVersion,
   updateTeachingDesign,
   setDesignVisibility,
+  controlDesignTimer,
+  getDesignTimer,
   type TeachingDesignVersion,
   type TeachingDesign,
 } from "@/api/teachingdesign";
@@ -203,6 +221,7 @@ export default defineComponent({
     SaveOutlined,
     TeacherRecommendations,
     MindMapEditor,
+    ClockCircleOutlined,
   },
   setup() {
     const route = useRoute();
@@ -369,6 +388,7 @@ export default defineComponent({
         message.error("初始化失败");
         console.error("初始化错误:", err);
       }
+      await initTimer();
     });
 
     // 组件卸载前销毁 Vditor 实例
@@ -376,6 +396,11 @@ export default defineComponent({
       if (vditor.value) {
         vditor.value.destroy();
       }
+      if (timerInterval.value) {
+        clearInterval(timerInterval.value);
+        timerInterval.value = null;
+      }
+      saveTimerState();
     });
 
     // 新增PPT相关状态
@@ -525,6 +550,78 @@ export default defineComponent({
       }
     };
 
+    const totalSeconds = ref(0);
+    const isTimerActive = ref(false);
+    const timerInterval = ref<number | null>(null); // 修改为 number 类型
+    const formattedTime = computed(() => {
+      const hours = Math.floor(totalSeconds.value / 3600);
+      const minutes = Math.floor((totalSeconds.value % 3600) / 60);
+      const seconds = totalSeconds.value % 60;
+      return `${hours.toString().padStart(2, "0")}:${minutes
+        .toString()
+        .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+    });
+
+    // 启动计时器
+    const startTimer = () => {
+      if (!timerInterval.value) {
+        timerInterval.value = window.setInterval(() => {
+          // 使用 window.setInterval
+          if (isTimerActive.value) {
+            totalSeconds.value += 1;
+          }
+        }, 1000);
+      }
+      isTimerActive.value = true;
+    };
+
+    // 暂停计时器
+    const pauseTimer = () => {
+      isTimerActive.value = false;
+    };
+
+    // 初始化计时器
+    const initTimer = async () => {
+      try {
+        const timerData = await getDesignTimer(designId.value);
+        totalSeconds.value = timerData.total_seconds;
+        isTimerActive.value = timerData.is_active;
+
+        if (isTimerActive.value) {
+          startTimer();
+        }
+      } catch (error) {
+        console.error("获取计时器状态失败:", error);
+        // 如果获取失败，默认开始新计时
+        startNewTimer();
+      }
+    };
+
+    // 开始新计时
+    const startNewTimer = async () => {
+      try {
+        const timerData = await controlDesignTimer(designId.value, {
+          action: "start",
+        });
+        totalSeconds.value = timerData.total_seconds;
+        isTimerActive.value = timerData.is_active;
+        startTimer();
+      } catch (error) {
+        console.error("启动计时器失败:", error);
+      }
+    };
+
+    // 保存计时状态
+    const saveTimerState = async () => {
+      try {
+        if (isTimerActive.value) {
+          await controlDesignTimer(designId.value, { action: "pause" });
+        }
+      } catch (error) {
+        console.error("保存计时状态失败:", error);
+      }
+    };
+
     return {
       design,
       designId,
@@ -556,6 +653,8 @@ export default defineComponent({
       isPublic,
       togglingVisibility,
       toggleVisibility,
+      formattedTime,
+      ClockCircleOutlined,
     };
   },
 });
@@ -793,5 +892,29 @@ h3 {
 :deep(.fixed-modal .ant-modal-body) {
   flex: 1;
   overflow: hidden;
+}
+
+/* 新增样式 */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.preparation-timer {
+  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  color: rgba(0, 0, 0, 0.85);
+  background: #f0f9ff;
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid #d9f7be;
+}
+
+.timer-text {
+  font-weight: 600;
 }
 </style>

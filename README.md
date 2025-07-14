@@ -3,7 +3,8 @@
 ## 系统要求
 
 - 后端: Python 3.9+
-- 数据库: MySQL
+- 数据库: MySQL MongoDB
+- 前端：node.js 16.0+ vue3
 
 ## 前端部署（具体参考 frontend/README.md）
 
