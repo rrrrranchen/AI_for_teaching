@@ -21,7 +21,8 @@
 
   <div class="course-container">
     <!-- 新增报告标签页 -->
-    <a-tabs v-model:activeKey="activeTab">
+    <a-tabs v-model:activeKey="activeTab" class="custom-tabs">
+      <a-tab-pane key="smartpreparation" tab="智能备课"> </a-tab-pane>
       <!-- 原有标签页保持不变 -->
       <a-tab-pane key="questions" tab="资源管理">
         <!-- 题目列表 -->
@@ -786,6 +787,23 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+.custom-tabs {
+  margin-top: 16px;
+}
+
+.custom-tabs :deep(.ant-tabs-nav) {
+  margin: 0;
+}
+
+.custom-tabs :deep(.ant-tabs-tab) {
+  padding: 12px 24px;
+  font-weight: 500;
+}
+
+.custom-tabs :deep(.ant-tabs-tab-active) {
+  color: #1677ff;
 }
 
 /* 面包屑导航样式 */
