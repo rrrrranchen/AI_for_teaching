@@ -39,11 +39,12 @@
               v-model:value="searchKeyword"
               placeholder="搜索帖子..."
               @search="handleSearch"
-              class="header-search-input"
+              class="custom-search-input"
             >
               <template #enterButton>
                 <a-button type="primary" class="search-button">
-                  <SearchOutlined />
+                  <template #icon><search-outlined /></template>
+                  搜索
                 </a-button>
               </template>
             </a-input-search>
@@ -146,22 +147,47 @@ const handleSearch = () => {
   justify-content: flex-end;
 }
 
-.header-search-input {
-  width: 100%;
+/* 搜索框样式 */
+.custom-search-input {
+  width: 500px;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
 }
 
-.header-search-input :deep(.ant-input) {
+.custom-search-input:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.custom-search-input :deep(.ant-input) {
   height: 40px;
-  border-radius: 20px 0 0 20px !important;
+  padding: 0 16px;
+  border: none;
+  background-color: #f8f9fa;
 }
 
-.header-search-input :deep(.ant-input-group-addon) {
+.custom-search-input :deep(.ant-input:focus) {
+  box-shadow: none;
+  background-color: #fff;
+}
+
+.custom-search-input :deep(.ant-input-group-addon) {
   background: transparent;
 }
 
-.header-search-input :deep(.ant-input-search-button) {
+.search-button {
   height: 40px;
   border-radius: 0 20px 20px 0 !important;
+  padding: 0 20px;
+  background: linear-gradient(135deg, #1890ff, #096dd9);
+  border: none;
+  transition: all 0.3s ease;
+}
+
+.search-button:hover {
+  background: linear-gradient(135deg, #40a9ff, #1890ff);
+  transform: translateY(-1px);
 }
 
 .content {

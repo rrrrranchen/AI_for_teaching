@@ -75,6 +75,14 @@
           }}</span>
         </div>
       </div>
+      <!-- <video
+        src="/videos/7月14日.mp4"
+        autoplay
+        loop
+        muted
+        playsinline
+        width="300"
+      /> -->
     </a-layout-sider>
     <a-layout
       :style="{

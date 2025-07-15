@@ -1,7 +1,7 @@
 <template>
   <a-modal
     :visible="internalVisible"
-    title="DeepSeek AI助手"
+    title="小智AI助手"
     :width="1350"
     :footer="null"
     :bodyStyle="{ padding: '0' }"
@@ -396,8 +396,6 @@ const welcomeMessage = ref(`
    - 普通模式：快速回答
    - 深度思考模式：额外展示思考过程
 3. **知识参考**：所有回答都会显示参考的知识片段
-
-![图片](http://localhost:5000/static/uploads/markdownpic.png)
 `);
 
 // 监听visible变化
@@ -823,9 +821,10 @@ const scrollToBottom = () => {
 .ai-avatar,
 .user-avatar {
   flex-shrink: 0;
-  width: 40px;
-  height: 40px;
+  width: 50px;
+  height: 50px;
   border-radius: 50%;
+  border: 4px solid rgb(198, 217, 254);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -836,7 +835,7 @@ const scrollToBottom = () => {
 .ai-avatar {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-  box-shadow: 0 3px 12px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 3px 12px rgba(35, 35, 36, 0.3);
 }
 
 .user-avatar {

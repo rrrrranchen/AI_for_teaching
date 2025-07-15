@@ -124,28 +124,47 @@
                 <div class="course-list-container">
                   <a-empty
                     v-if="filteredCourses.length === 0"
-                    description="暂无章节"
+                    description="暂无课程章节"
                     class="empty-placeholder"
                   />
 
-                  <div v-else class="course-grid">
-                    <div
-                      v-for="course in filteredCourses"
-                      :key="course.id"
-                      class="course-card"
-                      @click="handleCourseClick(course.id, course.name)"
-                    >
-                      <div class="course-card-header">
-                        <a-checkbox
-                          v-if="multiSelecting"
-                          class="course-checkbox"
-                        />
-                        <h3 class="course-title">{{ course.name }}</h3>
-                      </div>
+                  <div v-else class="course-timeline-container">
+                    <!-- 时间轴 -->
+                    <div class="timeline-line"></div>
 
-                      <p class="course-description">
-                        {{ course.description || "暂无章节描述" }}
-                      </p>
+                    <!-- 课程时间轴列表 -->
+                    <div class="course-timeline-list">
+                      <div
+                        v-for="(course, index) in filteredCourses"
+                        :key="course.id"
+                        class="course-timeline-item"
+                        :style="{ '--index': index }"
+                      >
+                        <!-- 时间节点 -->
+                        <div class="timeline-node">
+                          <div class="node-dot"></div>
+                          <div class="node-date"></div>
+                        </div>
+
+                        <!-- 课程卡片 -->
+                        <div
+                          class="course-card"
+                          @click="handleCourseClick(course.id, course.name)"
+                        >
+                          <div class="course-card-header">
+                            <h3 class="course-title">{{ course.name }}</h3>
+                          </div>
+                          <p class="course-description">
+                            {{ course.description || "暂无课程描述" }}
+                          </p>
+                          <div class="course-meta">
+                            <span class="create-time">
+                              <calendar-outlined />
+                              {{ formatCreatedAt(course.created_at) }}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -373,10 +392,17 @@ export default defineComponent({
       });
     };
 
+    // 修改filteredCourses计算属性，按创建时间倒序排列
     const filteredCourses = computed(() => {
-      return courses.value.filter((c) =>
-        c.name.toLowerCase().includes(searchCourseKey.value.toLowerCase())
-      );
+      return courses.value
+        .filter((c) =>
+          c.name.toLowerCase().includes(searchCourseKey.value.toLowerCase())
+        )
+        .sort((a, b) => {
+          const dateA = new Date(a.created_at).getTime();
+          const dateB = new Date(b.created_at).getTime();
+          return dateA - dateB; // 最新在上
+        });
     });
 
     const filteredStudents = computed(() => {
@@ -492,6 +518,14 @@ export default defineComponent({
         return "无效日期格式";
       }
     };
+
+    // 在setup()中添加formatTimelineDate方法
+    const formatTimelineDate = (dateString: string): string => {
+      console.log("时间", dateString);
+      if (!dateString) return "";
+      const date = new Date(dateString);
+      return `${date.getMonth() + 1}/${date.getDate()}`;
+    };
     return {
       handleCourseClick,
       courseclassId,
@@ -518,6 +552,7 @@ export default defineComponent({
       handleUpdateMyReport,
       updatingReport,
       renderedReport,
+      formatTimelineDate,
     };
   },
 });
@@ -542,23 +577,108 @@ export default defineComponent({
 }
 
 .class-header {
-  padding: 0px 24px;
+  padding: 12px 0;
   display: flex;
   gap: 24px;
   flex-wrap: wrap;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid #f0f2f5;
 }
+
+.class-info-section {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+.class-basic {
+  flex: 1;
+  min-width: 300px;
+}
+
+.class-title {
+  font-weight: 600;
+  font-size: 28px;
+  color: #1d2129;
+  margin-bottom: 16px;
+}
+
+.class-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.invite-code {
+  margin-top: 8px;
+  max-width: 300px;
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: 500;
+  transition: all 0.3s;
+}
+
+.invite-code:hover {
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.class-description-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #4e5969;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.meta-icon {
+  color: #86909c;
+}
+
+.teacher-section {
+  min-width: 200px;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: #1d2129;
+  margin-bottom: 12px;
+}
+
+.teacher-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  transition: all 0.3s;
+}
+
+.teacher-card:hover {
+  background: #e6f4ff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.teacher-actions {
+  align-self: flex-start;
+}
+
 .class-image-container {
   width: 250px;
-  height: 200px;
+  height: 175px;
   flex-shrink: 0;
-  border-radius: 12px;
+  border-radius: 8px;
   overflow: hidden;
-  background-color: #f5f5f5;
+  background: linear-gradient(135deg, #f0f7ff, #e6f4ff);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
 }
 
 .class-image {
@@ -573,223 +693,217 @@ export default defineComponent({
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #e6f7ff;
+  background: linear-gradient(135deg, #f0f7ff, #e6f4ff);
 }
 
 .placeholder-icon {
   font-size: 48px;
-  color: #1890ff;
-}
-.class-basic {
-  flex: 1;
-  min-width: 300px;
+  color: #91caff;
 }
 
-.class-basic h1 {
-  font-size: 24px;
-  margin-bottom: 12px;
-  color: rgba(0, 0, 0, 0.85);
+.custom-tabs {
+  margin-top: 16px;
 }
 
-.class-meta {
-  display: flex;
-  flex-direction: column;
-  align-items: left;
-  margin-left: 30px;
-  color: rgba(0, 0, 0, 0.45);
+.custom-tabs :deep(.ant-tabs-nav) {
+  margin: 0;
 }
 
-.class-description {
-  color: rgba(0, 0, 0, 0.65);
-  line-height: 1.6;
+.custom-tabs :deep(.ant-tabs-tab) {
+  padding: 12px 24px;
+  font-weight: 500;
 }
 
-.teacher-section {
-  padding-left: 24px;
-  border-left: 1px solid #f0f0f0;
-  min-width: 280px;
-}
-
-.teacher-section h3 {
-  font-size: 16px;
-  margin-bottom: 12px;
-  color: rgba(0, 0, 0, 0.85);
-}
-
-.class-tabs {
-  padding: 0 24px;
+.custom-tabs :deep(.ant-tabs-tab-active) {
+  color: #1677ff;
 }
 
 .tab-content {
-  padding: 24px 0;
+  padding: 16px 0;
 }
 
 .action-bar {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
 }
 
-.course-item,
-.student-item {
-  padding: 12px 0;
-  border-bottom: 1px solid #f0f0f0;
-  display: flex;
-  align-items: center;
-}
-
-.course-item:hover,
-.student-item:hover {
-  background: #fafafa;
-}
-
-.course-title {
+.action-button {
+  border-radius: 6px;
   font-weight: 500;
+  transition: all 0.3s;
 }
 
-.course-description {
-  color: rgba(0, 0, 0, 0.45);
+.action-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
-.edit-btn {
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.course-item:hover .edit-btn {
-  opacity: 1;
-}
-
-.remove-btn {
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.remove-btn:hover {
-  background: #ff4d4f;
-  color: white;
-}
-
-@media (max-width: 768px) {
-  .class-header {
-    flex-direction: column;
-  }
-
-  .teacher-section {
-    border-left: none;
-    padding-left: 0;
-    border-top: 1px solid #f0f0f0;
-    padding-top: 24px;
-  }
-
-  .action-bar {
-    flex-direction: column;
-    gap: 16px;
-  }
-
-  .class-container {
-    padding: 12px;
-  }
-}
-
-/* 面包屑导航样式 */
-.ant-breadcrumb {
-  padding: 16px 24px; /* 上下间距和左间距 */
-  font-size: 16px; /* 字体大小 */
-  line-height: 1.5;
-  margin-bottom: 10px; /* 下间距 */
-}
-
-.ant-breadcrumb a {
-  transition: color 0.3s;
-  color: #1890ff; /* 链接颜色 */
-}
-
-.ant-breadcrumb a:hover {
-  color: #40a9ff !important; /* 鼠标悬停时的颜色 */
-}
-
-.ant-breadcrumb > span:last-child {
-  font-weight: 500;
-  color: rgba(0, 0, 0, 0.85); /* 当前页面颜色 */
-}
-/* 复制图标动画 */
-.anticon-copy {
-  transition: transform 0.2s;
-}
-
-.ant-tag:hover .anticon-copy {
-  transform: translateX(2px);
-}
-
-/* 课程列表样式 */
 .course-list-container {
   margin-top: 16px;
+  max-height: 53vh;
+  overflow-y: auto;
+  padding-right: 8px;
 }
 
-.empty-placeholder {
-  padding: 40px 0;
-  background: #fff;
-  border-radius: 8px;
+/* 课程时间轴容器 */
+.course-timeline-container {
+  position: relative;
+  padding: 0 40px;
 }
 
-/* 调整课程列表布局 */
-.course-grid {
-  grid-template-columns: 1fr;
-  gap: 8px;
+/* 时间轴线 */
+.timeline-line {
+  position: absolute;
+  left: 60px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(to bottom, #1890ff, #91caff);
+  z-index: 0;
 }
 
+/* 课程时间轴列表 */
+.course-timeline-list {
+  position: relative;
+  z-index: 1;
+}
+
+/* 时间轴项 */
+.course-timeline-item {
+  display: flex;
+  margin-bottom: 24px;
+  align-items: flex-start;
+  position: relative;
+}
+
+/* 时间节点 */
+.timeline-node {
+  width: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 8px;
+}
+
+.node-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #1890ff;
+  border: 3px solid white;
+  box-shadow: 0 0 0 2px #1890ff;
+  z-index: 2;
+}
+
+.node-date {
+  font-size: 12px;
+  color: #8c8c8c;
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+/* 课程卡片 */
 .course-card {
-  padding: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
-  background-color: #ffffff;
+  flex: 1;
+  padding: 16px;
+  background: #ffffff;
   border-radius: 8px;
-  margin: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s;
+  cursor: pointer;
+  border: 1px solid #f0f2f5;
+  margin-left: 16px;
 }
 
 .course-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-4px);
+  box-shadow: 0 6px 16px rgba(24, 144, 255, 0.2);
+  border-color: #91caff;
+}
+
+.course-card.selected {
+  background-color: #f0f9ff;
+  border-left: 3px solid #1890ff;
 }
 
 .course-card-header {
-  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.course-title {
+  font-weight: 600;
+  font-size: 16px;
+  color: #1d2129;
+  margin: 0;
 }
 
 .course-description {
+  color: #86909c;
   font-size: 14px;
-  line-height: 1.4;
-  margin-bottom: 12px;
-  -webkit-line-clamp: 2; /* 限制描述显示两行 */
+  line-height: 1.6;
+  margin: 0 0 12px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-/* 调整操作按钮位置 */
-.course-actions {
-  padding-top: 8px;
-  border-top: 1px solid #f0f0f0;
+.course-meta {
+  display: flex;
+  justify-content: flex-end;
 }
 
-/* 学生列表样式 */
+.create-time {
+  font-size: 12px;
+  color: #8c8c8c;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .course-timeline-container {
+    padding: 0 20px;
+  }
+
+  .timeline-line {
+    left: 30px;
+  }
+
+  .timeline-node {
+    width: 50px;
+  }
+}
+
 .student-list-container {
   margin-top: 16px;
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 8px;
+  border-radius: 8px;
+  border: 1px solid #f0f2f5;
 }
 
 .student-table {
-  background: #fff;
+  background: #ffffff;
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
-  border: 1px solid #f0f0f0;
 }
 
 .student-table-header {
   display: flex;
-  background-color: #fafafa;
+  background-color: #f8f9fa;
   padding: 12px 16px;
   font-weight: 500;
-  color: rgba(0, 0, 0, 0.85);
-  border-bottom: 1px solid #f0f0f0;
+  color: #1d2129;
+  border-bottom: 1px solid #f0f2f5;
 }
 
 .student-table-row {
@@ -800,11 +914,11 @@ export default defineComponent({
 }
 
 .student-table-row:hover {
-  background-color: #fafafa;
+  background-color: #f8f9fa;
 }
 
 .student-table-row:not(:last-child) {
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid #f0f2f5;
 }
 
 .student-cell {
@@ -813,143 +927,38 @@ export default defineComponent({
   padding: 0 8px;
 }
 
-.student-icon {
-  color: #1890ff;
-  margin-right: 8px;
-  font-size: 14px;
-}
-
 .student-name {
-  margin-left: 10px;
-  color: rgba(0, 0, 0, 0.85);
+  margin-left: 12px;
+  color: #1d2129;
   font-weight: 500;
 }
 
-.student-id {
-  color: rgba(0, 0, 0, 0.65);
-  font-size: 14px;
-}
-
-/* 响应式调整 */
-@media (max-width: 768px) {
-  .course-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .student-table-header {
-    display: none;
-  }
-
-  .student-table-row {
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 16px;
-  }
-
-  .student-cell {
-    width: 100%;
-    padding: 4px 0;
-    justify-content: space-between;
-    border-bottom: none !important;
-  }
-
-  .student-cell::before {
-    content: attr(data-label);
-    color: rgba(0, 0, 0, 0.45);
-    margin-right: 8px;
-  }
-
-  .student-cell[style*="flex: 2"]::before {
-    content: "学生姓名";
-  }
-
-  .student-cell[style*="flex: 3"]::before {
-    content: "学号";
-  }
-
-  .student-cell[style*="flex: 1"] {
-    justify-content: flex-end;
-    width: 100%;
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px dashed #f0f0f0;
-  }
-
-  .student-cell[style*="flex: 1"]::before {
-    content: none;
-  }
-}
-
-/* 课程列表容器 - 单列布局 */
-.course-list-container {
-  margin-top: 16px;
-  max-height: 53vh;
-  overflow-y: auto;
-  padding-right: 8px;
-}
-
-/* 课程卡片 - 单列布局 */
-.course-card {
-  padding: 16px;
-  margin-bottom: 12px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+.remove-btn {
+  border-radius: 4px;
   transition: all 0.2s;
-  cursor: pointer;
 }
 
-.course-card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+.remove-btn:hover {
+  background: #fff2f0;
 }
 
-.course-card.selected {
-  background-color: #f0f9ff;
-  border-left: 3px solid #1890ff;
-}
-
-/* 学生列表容器 - 单列布局 */
-.student-list-container {
-  margin-top: 16px;
-  max-height: 500px;
-  overflow-y: auto;
-  padding-right: 8px;
-}
-
-/* 学生表格 - 单列布局 */
-.student-table {
-  background: #fff;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-  border: 1px solid #f0f0f0;
-}
-
-.student-table-row {
-  display: flex;
-  padding: 12px 16px;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.student-table-row:last-child {
-  border-bottom: none;
-}
-
-/* 添加报告样式 */
 .report-container {
-  padding: 16px;
-  background: #fbfaef;
-  border: 5px solid #fcf9d3;
+  padding: 24px;
+  background: #ffffff;
   border-radius: 8px;
-  height: 65vh;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  min-height: 400px;
 }
 
 .report-header {
-  margin-bottom: 16px;
+  margin-bottom: 24px;
   display: flex;
   justify-content: flex-end;
+}
+
+.generate-btn {
+  border-radius: 6px;
+  font-weight: 500;
 }
 
 .empty-report {
@@ -957,13 +966,44 @@ export default defineComponent({
   justify-content: center;
   align-items: center;
   height: 300px;
+  background: #f8f9fa;
+  border-radius: 8px;
 }
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .class-container {
+    padding: 16px;
+  }
+
+  .class-header {
+    flex-direction: column;
+  }
+
+  .class-image-container {
+    width: 100%;
+    height: 180px;
+  }
+
+  .action-bar {
+    flex-direction: column;
+  }
+
+  .search-input {
+    width: 100%;
+  }
+
+  .course-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* 解决方案2：弹性布局滚动（推荐） */
 
 .markdown-content {
   flex: 1;
   overflow-y: auto;
-  max-height: 55vh; /* 根据视口高度自动调整 */
+  max-height: 54vh; /* 根据视口高度自动调整 */
   padding: 24px;
   background: white;
   border-radius: 8px;
