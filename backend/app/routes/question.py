@@ -41,12 +41,6 @@ def teachingdesign_create(course_id):
             logger.error("Current user not found")
             return jsonify({'error': 'User not found'}), 404
 
-        # 获取请求数据
-        data = request.json
-        if not data:
-            logger.error("No data provided in request")
-            return jsonify({'error': 'No data provided'}), 400
-
         # 验证课程是否存在
         course = Course.query.get(course_id)
         if not course:
@@ -66,7 +60,7 @@ def teachingdesign_create(course_id):
 
         # 获取课程描述和请求内容
         course_description = course.description if course.description else ""
-        user_content = data.get('content', '')
+        user_content = f"课程目标：{course.objectives}\n\n 课程内容：{course.content}"
         
         # 组合内容用于AI生成题目
         combined_content = f"课程描述: {course_description}\n\n教师补充内容: {user_content}" if course_description else user_content

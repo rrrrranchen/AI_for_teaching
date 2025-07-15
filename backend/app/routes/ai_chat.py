@@ -462,7 +462,7 @@ def update_conversation_name(chat_history_id):
         current_app.logger.error(f"更新会话名称失败: {str(e)}")
         return jsonify({"error": "服务器内部错误"}), 500
 
-@ai_chat_bp.route('/course_class_chat', methods=['POST'])
+@ai_chat_bp.route('/course_class_chat/question', methods=['POST'])
 def course_class_chat():
     """
     基于班级知识库的AI聊天接口
