@@ -16,6 +16,8 @@ import json
 
 from app.models.chat_history import ChatHistory
 from app.models.user import User
+from app.models.question import Question
+from app.models.studentanswer import StudentAnswer
 
 ai_chat_bp = Blueprint('ai_chat', __name__)
 def get_current_user():
@@ -462,8 +464,8 @@ def update_conversation_name(chat_history_id):
         current_app.logger.error(f"更新会话名称失败: {str(e)}")
         return jsonify({"error": "服务器内部错误"}), 500
 
-@ai_chat_bp.route('/course_class_chat/question', methods=['POST'])
-def course_class_chat():
+@ai_chat_bp.route('/course_class_chat/<int: question_id>', methods=['POST'])
+def question_class_chat(question_id):
     """
     基于班级知识库的AI聊天接口
     请求参数 (JSON):
@@ -507,7 +509,45 @@ def course_class_chat():
         # 初始化名称解析器并预加载数据
         name_resolver = NameResolver()
         name_resolver.preload_names(db_names)
+        question = Question.query.get(question_id)
+        if not question:
+            return jsonify({"error": "题目未找到"}), 404
         
+        # 获取当前用户（学生）的作答记录
+        current_user_id = get_current_user().id
+        student_answer = None
+        
+        if current_user_id:
+            student_answer = StudentAnswer.query.filter_by(
+                student_id=current_user_id,
+                question_id=question_id
+            ).first()
+        
+        # 构建题目分析上下文
+        question_context = ""
+        if data.get('include_answer_analysis', False):
+            question_context = f"""
+            ### 题目信息
+            题目ID: {question.id}
+            题目类型: {question.type}
+            题目内容: {question.content}
+            正确答案: {question.correct_answer}
+            题目解析: {question.analysis or "无"}
+            
+            ### 当前用户作答
+            """
+            
+            if student_answer:
+                question_context += f"""
+                学生答案: {student_answer.answer}
+                正确率: {student_answer.correct_percentage}%
+                作答时间: {student_answer.answered_at.strftime('%Y-%m-%d %H:%M')}
+                """
+            else:
+                question_context += "该学生尚未作答此题"
+            
+            # 将题目上下文添加到查询中
+            data['query'] = f"{question_context}\n\n### 用户问题\n{data['query']}"
         # 流式响应生成器
         def generate():
             formatted_sources = None
