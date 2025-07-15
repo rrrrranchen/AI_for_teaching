@@ -1324,11 +1324,6 @@ def batch_remove_categories_from_knowledge_base(kb_id):
             author_id=g.current_user.id
         ).first()
 
-        if not kb:
-            return jsonify({
-                'success': False,
-                'error': 'KNOWLEDGE_BASE_NOT_FOUND'
-            }), 404
 
         removed_categories = []
         not_linked_categories = []

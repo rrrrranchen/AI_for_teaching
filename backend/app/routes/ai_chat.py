@@ -462,147 +462,147 @@ def update_conversation_name(chat_history_id):
         current_app.logger.error(f"更新会话名称失败: {str(e)}")
         return jsonify({"error": "服务器内部错误"}), 500
 
-# @ai_chat_bp.route('/course_class_chat', methods=['POST'])
-# def course_class_chat():
-#     """
-#     基于班级知识库的AI聊天接口
-#     请求参数 (JSON):
-#     {
-#         "class_id": 123,               // 班级ID (必填)
-#         "query": "如何安装Python?",     // 用户问题 (必填)
-#         "thinking_mode": true,         // 是否思考模式 (必填)
-#         "history": [],                 // 对话历史 (可选)
-#         "similarity_threshold": 0.2,   // 相似度阈值 (可选)
-#         "chunk_cnt": 5,                // 返回片段数 (可选)
-#         "api_key": "your-api-key",     // 自定义API密钥 (可选)
-#         "data_type_filter": null       // 数据类型过滤 (可选)
-#     }
-#     响应格式 (SSE):
-#     {
-#         "type": "thinking|answer|sources|error",
-#         "content": "...",
-#         "metadata": {...}  // 可选附加信息
-#     }
-#     """
-#     try:
-#         data = request.get_json()
-#         if not data:
-#             return jsonify({"error": "请求体必须为JSON格式"}), 400
+@ai_chat_bp.route('/course_class_chat', methods=['POST'])
+def course_class_chat():
+    """
+    基于班级知识库的AI聊天接口
+    请求参数 (JSON):
+    {
+        "class_id": 123,               // 班级ID (必填)
+        "query": "如何安装Python?",     // 用户问题 (必填)
+        "thinking_mode": true,         // 是否思考模式 (必填)
+        "history": [],                 // 对话历史 (可选)
+        "similarity_threshold": 0.2,   // 相似度阈值 (可选)
+        "chunk_cnt": 5,                // 返回片段数 (可选)
+        "api_key": "your-api-key",     // 自定义API密钥 (可选)
+        "data_type_filter": null       // 数据类型过滤 (可选)
+    }
+    响应格式 (SSE):
+    {
+        "type": "thinking|answer|sources|error",
+        "content": "...",
+        "metadata": {...}  // 可选附加信息
+    }
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "请求体必须为JSON格式"}), 400
         
-#         # 验证必要参数
-#         required_fields = ['class_id', 'query', 'thinking_mode']
-#         if not all(field in data for field in required_fields):
-#             return jsonify({"error": "缺少必要字段: class_id, query, thinking_mode"}), 400
+        # 验证必要参数
+        required_fields = ['class_id', 'query', 'thinking_mode']
+        if not all(field in data for field in required_fields):
+            return jsonify({"error": "缺少必要字段: class_id, query, thinking_mode"}), 400
         
-#         # 获取班级及关联知识库
-#         course_class = Courseclass.query.get(data['class_id'])
-#         if not course_class:
-#             return jsonify({"error": "班级未找到"}), 404
+        # 获取班级及关联知识库
+        course_class = Courseclass.query.get(data['class_id'])
+        if not course_class:
+            return jsonify({"error": "班级未找到"}), 404
         
-#         # 获取关联知识库的stored_basename列表
-#         db_names = [kb.stored_basename for kb in course_class.knowledge_bases]
-#         if not db_names:
-#             return jsonify({"error": "该班级未关联任何知识库"}), 400
+        # 获取关联知识库的stored_basename列表
+        db_names = [kb.stored_basename for kb in course_class.knowledge_bases]
+        if not db_names:
+            return jsonify({"error": "该班级未关联任何知识库"}), 400
         
-#         # 初始化名称解析器并预加载数据
-#         name_resolver = NameResolver()
-#         name_resolver.preload_names(db_names)
+        # 初始化名称解析器并预加载数据
+        name_resolver = NameResolver()
+        name_resolver.preload_names(db_names)
         
-#         # 流式响应生成器
-#         def generate():
-#             formatted_sources = None
-#             reasoning_content = ""
-#             final_answer = ""
+        # 流式响应生成器
+        def generate():
+            formatted_sources = None
+            reasoning_content = ""
+            final_answer = ""
             
-#             for token, chunks, status, sources in chat_stream(
-#                 query=data['query'],
-#                 db_names=db_names,
-#                 model="deepseek-chat",
-#                 history=data.get('history', []),
-#                 thinking_mode=data['thinking_mode'],
-#                 similarity_threshold=data.get('similarity_threshold', 0.2),
-#                 chunk_cnt=data.get('chunk_cnt', 5),
-#                 api_key=data.get('api_key'),
-#                 data_type_filter=data.get('data_type_filter')
-#             ):
-#                 # 构建响应数据字典
-#                 response_data = {
-#                     'type': '',
-#                     'content': '',
-#                     'metadata': None
-#                 }
+            for token, chunks, status, sources in chat_stream(
+                query=data['query'],
+                db_names=db_names,
+                model="deepseek-chat",
+                history=data.get('history', []),
+                thinking_mode=data['thinking_mode'],
+                similarity_threshold=data.get('similarity_threshold', 0.2),
+                chunk_cnt=data.get('chunk_cnt', 5),
+                api_key=data.get('api_key'),
+                data_type_filter=data.get('data_type_filter')
+            ):
+                # 构建响应数据字典
+                response_data = {
+                    'type': '',
+                    'content': '',
+                    'metadata': None
+                }
 
-#                 if status == "chunks":
-#                     formatted_sources = format_sources(sources, name_resolver) if sources else {
-#                         "message": "未引用特定来源",
-#                         "sources": []
-#                     }
-#                     response_data.update({
-#                         'type': 'sources',
-#                         'content': '检索到相关知识片段',
-#                         'metadata': {
-#                             'chunks': chunks,
-#                             'source_count': len(formatted_sources['sources']) if formatted_sources else 0
-#                         }
-#                     })
-#                 elif status == "reasoning":
-#                     reasoning_content += token
-#                     response_data.update({
-#                         'type': 'reasoning',
-#                         'content': token,
-#                         'metadata': {
-#                             'accumulated': reasoning_content
-#                         }
-#                     })
-#                 elif status in ["content", "tokens"]:
-#                     final_answer += token
-#                     response_data.update({
-#                         'type': 'answer',
-#                         'content': token,
-#                         'metadata': {
-#                             'accumulated': final_answer
-#                         }
-#                     })
-#                 elif status == "end":
-#                     response_data.update({
-#                         'type': 'complete',
-#                         'content': '对话完成',
-#                         'metadata': {
-#                             'reasoning': reasoning_content if data['thinking_mode'] else None,
-#                             'final_answer': final_answer,
-#                             'sources': formatted_sources
-#                         }
-#                     })
-#                 elif status == "error":
-#                     response_data.update({
-#                         'type': 'error',
-#                         'content': token,
-#                         'metadata': None
-#                     })
+                if status == "chunks":
+                    formatted_sources = format_sources(sources, name_resolver) if sources else {
+                        "message": "未引用特定来源",
+                        "sources": []
+                    }
+                    response_data.update({
+                        'type': 'sources',
+                        'content': '检索到相关知识片段',
+                        'metadata': {
+                            'chunks': chunks,
+                            'source_count': len(formatted_sources['sources']) if formatted_sources else 0
+                        }
+                    })
+                elif status == "reasoning":
+                    reasoning_content += token
+                    response_data.update({
+                        'type': 'reasoning',
+                        'content': token,
+                        'metadata': {
+                            'accumulated': reasoning_content
+                        }
+                    })
+                elif status in ["content", "tokens"]:
+                    final_answer += token
+                    response_data.update({
+                        'type': 'answer',
+                        'content': token,
+                        'metadata': {
+                            'accumulated': final_answer
+                        }
+                    })
+                elif status == "end":
+                    response_data.update({
+                        'type': 'complete',
+                        'content': '对话完成',
+                        'metadata': {
+                            'reasoning': reasoning_content if data['thinking_mode'] else None,
+                            'final_answer': final_answer,
+                            'sources': formatted_sources
+                        }
+                    })
+                elif status == "error":
+                    response_data.update({
+                        'type': 'error',
+                        'content': token,
+                        'metadata': None
+                    })
 
-#                 # 统一使用json.dumps生成响应字符串
-#                 yield f"data: {json.dumps(response_data)}\n\n"
+                # 统一使用json.dumps生成响应字符串
+                yield f"data: {json.dumps(response_data)}\n\n"
                 
-#                 # 添加结束事件
-#                 if status == "end":
-#                     yield "event: end\n\n"
-#                 elif status == "error":
-#                     yield "event: error\n\n"
+                # 添加结束事件
+                if status == "end":
+                    yield "event: end\n\n"
+                elif status == "error":
+                    yield "event: error\n\n"
 
-#         return Response(
-#             generate(),
-#             mimetype='text/event-stream',
-#             headers={
-#                 'Cache-Control': 'no-cache',
-#                 'Connection': 'keep-alive',
-#                 'X-Accel-Buffering': 'no'
-#             }
-#         )
+        return Response(
+            generate(),
+            mimetype='text/event-stream',
+            headers={
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive',
+                'X-Accel-Buffering': 'no'
+            }
+        )
     
-#     except Exception as e:
-#         import traceback
-#         traceback.print_exc()
-#         return jsonify({
-#             "error": "服务器内部错误",
-#             "details": str(e)
-#         }), 500
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "error": "服务器内部错误",
+            "details": str(e)
+        }), 500

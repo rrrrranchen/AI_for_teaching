@@ -3,6 +3,7 @@ import os
 import shutil
 from venv import logger
 
+from llama_cloud import MetadataFilter, MetadataFilters
 from openai import OpenAI
 from llama_index.core import StorageContext, load_index_from_storage
 from typing import Generator, List, Tuple, Optional, Dict, Any
@@ -133,11 +134,10 @@ def _retrieve_chunks_from_multiple_dbs(
                 file_groups[file_key] = []
             file_groups[file_key].append(result)
         
-        # 2. 每个文件取前N个片段 (N=2)
+        # 2. 每个文件取前N个片段 (N=5)
         top_results = []
         for file, file_results in file_groups.items():
-            # 按分数排序并取前2个
-            sorted_file_results = sorted(file_results, key=lambda x: x.score, reverse=True)[:2]
+            sorted_file_results = sorted(file_results, key=lambda x: x.score, reverse=True)[:5]
             top_results.extend(sorted_file_results)
         
         # 3. 所有片段按分数排序
@@ -188,6 +188,198 @@ def _retrieve_chunks_from_multiple_dbs(
     except Exception as e:
         logger.exception("知识库检索异常")
         return "", "", {}
+
+
+def _retrieve_chunks_from_multiple_dbs_for_questions(
+    query: str,
+    db_names: List[str],
+    similarity_threshold: float,
+    chunk_cnt: int,
+    data_type_filter: Optional[str] = None
+) -> Tuple[str, str, Dict]:
+    """
+    修复版知识库检索函数：
+    1. 解决元数据过滤API调用问题
+    2. 增强错误处理和日志记录
+    """
+    try:
+        dashscope.api_key = Config.DASHSCOPE_API_KEY
+        all_nodes = []
+        question_bank_nodes = []  # 确保变量初始化
+        
+        # 从所有知识库中检索节点
+        for db_name in db_names:
+            try:
+                storage_context = StorageContext.from_defaults(
+                    persist_dir=os.path.join(BASE_PATH, db_name)
+                )
+                index = load_index_from_storage(storage_context)
+                retriever = index.as_retriever(similarity_top_k=50)
+                
+                # 初始化当前知识库的节点列表
+                current_question_bank_nodes = []
+                current_other_nodes = []
+                
+                # 尝试优先检索题库类型
+                try:
+                    # 修复元数据过滤调用方式
+                    retrieved_nodes = retriever.retrieve(query)
+                    
+                    # 手动筛选题库节点
+                    for node in retrieved_nodes:
+                        if node.metadata.get("data_type") == "question_bank":
+                            current_question_bank_nodes.append(node)
+                        else:
+                            current_other_nodes.append(node)
+                    logger.info(f"找到 {len(current_question_bank_nodes)} 个题库节点")
+                    
+                except Exception as e:
+                    # 元数据过滤失败时的回退方案
+                    logger.warning(f"元数据过滤失败: {str(e)}")
+                    retrieved_nodes = retriever.retrieve(query)
+                    
+                    # 手动筛选题库节点
+                    for node in retrieved_nodes:
+                        if node.metadata.get("data_type") == "question_bank":
+                            current_question_bank_nodes.append(node)
+                        else:
+                            current_other_nodes.append(node)
+                    logger.info(f"回退检索: 找到 {len(current_question_bank_nodes)} 个题库节点")
+                
+                # 添加知识库名称到元数据
+                for node in current_question_bank_nodes:
+                    node.metadata.setdefault("db_name", db_name)
+                for node in current_other_nodes:
+                    node.metadata.setdefault("db_name", db_name)
+                
+                # 将节点添加到总列表
+                all_nodes.extend(current_question_bank_nodes)
+                
+                # 如果题库节点不足，补充其他类型节点
+                if len(current_question_bank_nodes) < 30 and current_other_nodes:
+                    # 按分数排序后取最相关的
+                    current_other_nodes.sort(key=lambda x: x.score, reverse=True)
+                    all_nodes.extend(current_other_nodes[:50 - len(current_question_bank_nodes)])
+                
+                # 更新全局题库节点列表
+                question_bank_nodes.extend(current_question_bank_nodes)
+                
+            except Exception as e:
+                logger.error(f"加载知识库 {db_name} 失败: {str(e)}")
+                continue
+        
+        # 如果没有检索到任何节点
+        if not all_nodes:
+            logger.warning("未检索到任何节点")
+            return "", "", {}
+        
+        # 分离题库节点和其他节点（如果未完成）
+        if not question_bank_nodes:
+            question_bank_nodes = [n for n in all_nodes if n.metadata.get("data_type") == "question_bank"]
+            other_nodes = [n for n in all_nodes if n.metadata.get("data_type") != "question_bank"]
+        else:
+            other_nodes = [n for n in all_nodes if n not in question_bank_nodes]
+        
+        # 优先使用题库节点，不足时补充其他节点
+        if question_bank_nodes:
+            logger.info(f"共找到 {len(question_bank_nodes)} 个题库节点")
+            candidate_nodes = question_bank_nodes
+            if len(question_bank_nodes) < 50 and other_nodes:
+                # 按分数排序后补充其他节点
+                other_nodes.sort(key=lambda x: x.score, reverse=True)
+                candidate_nodes.extend(other_nodes[:50 - len(question_bank_nodes)])
+        else:
+            candidate_nodes = all_nodes
+        
+        # 准备文档用于重排序
+        valid_nodes = candidate_nodes[:500]  # 限制数量
+        documents = [node.text for node in valid_nodes]
+        
+        # 如果没有有效文档
+        if not documents:
+            logger.warning("无有效文档可供重排序")
+            return "", "", {}
+        
+        # 调用gte-rerank-v2模型进行重排序
+        try:
+            resp = dashscope.TextReRank.call(
+                model="gte-rerank-v2",
+                query=query,
+                documents=documents,
+                top_n=min(50, len(documents)),
+                return_documents=True
+            )
+            
+            if resp.status_code == HTTPStatus.OK:
+                reranked_results = resp.output['results']
+                
+                # 创建映射：重排序索引 → 原始节点
+                sorted_nodes = []
+                for result in reranked_results:
+                    orig_index = result['index']
+                    if 0 <= orig_index < len(valid_nodes):
+                        node = valid_nodes[orig_index]
+                        node.score = result['relevance_score']  # 更新分数
+                        sorted_nodes.append(node)
+                
+                results = sorted_nodes
+            else:
+                logger.error(f"重排序API错误: {resp.code} - {resp.message}")
+                logger.info("使用原始排序")
+                valid_nodes.sort(key=lambda x: x.score, reverse=True)
+                results = valid_nodes[:min(50, len(valid_nodes))]
+                
+        except Exception as e:
+            logger.error(f"重排序失败: {str(e)}")
+            valid_nodes.sort(key=lambda x: x.score, reverse=True)
+            results = valid_nodes[:min(50, len(valid_nodes))]
+        
+        # 直接取分数最高的结果
+        final_results = sorted(results, key=lambda x: x.score, reverse=True)[:chunk_cnt]
+        
+        # 构建输出
+        model_context = ""
+        display_context = ""
+        source_dict = {}
+        
+        for i, result in enumerate(final_results):
+            if result.score >= similarity_threshold:
+                metadata = result.metadata
+                db_source = metadata.get("db_name", "未知知识库")
+                category = metadata.get("category", "未知类目")
+                file_name = metadata.get("file_name", "未知文件")
+                data_type = metadata.get("data_type", "未知类型")
+                
+                # 添加到来源字典
+                if db_source not in source_dict:
+                    source_dict[db_source] = {}
+                if category not in source_dict[db_source]:
+                    source_dict[db_source][category] = {}
+                if file_name not in source_dict[db_source][category]:
+                    source_dict[db_source][category][file_name] = []
+                
+                chunk_info = {
+                    "text": result.text,
+                    "score": round(result.score, 2),
+                    "position": i+1
+                }
+                source_dict[db_source][category][file_name].append(chunk_info)
+                
+                # 构建上下文文本
+                model_context += f"## {i+1} (来自: {db_source}/{category}/{file_name}, 类型: {data_type}):\n{result.text}\n\n"
+                
+                # 简化的显示文本
+                display_context += (
+                    f"## 题目 {i+1} [评分: {round(result.score, 2)}]\n"
+                    f"来源: {file_name}\n"
+                    f"内容: {result.text[:200]}...\n\n"
+                )
+        
+        return model_context, display_context, source_dict
+    except Exception as e:
+        logger.exception("知识库检索异常")
+        return "", "", {}
+
 
 def _get_model_config(model: str, thinking_mode: bool) -> Dict[str, Any]:
     """获取模型配置"""
@@ -263,6 +455,87 @@ def _get_model_config(model: str, thinking_mode: bool) -> Dict[str, Any]:
             """,
                 "is_reasoner": False
             }
+
+
+def _get_model_config2(model: str, thinking_mode: bool) -> Dict[str, Any]:
+    """获取模型配置"""
+    if thinking_mode:
+        # 思考模式强制使用DeepSeek-Reasoner
+        return {
+            "model": "deepseek-reasoner",
+            "base_url": "https://api.deepseek.com",
+            "api_key": Config.DEEPSEEK_API_KEY,
+            "system_prompt": """
+            ## 定位
+            你是一个专业的学习助手，专注于帮助学生高效学习、理解课程内容、解决学习难题，并促进知识掌握。目标是成为学生的支持伙伴，提供个性化教育指导。
+
+            ## 能力
+            - 清晰解释复杂概念，使用简单易懂的语言
+            - 解答学科相关问题，提供分步解决方案
+            - 生成定制练习题和复习材料
+            - 建议学习策略、时间管理技巧和考试准备方法
+            - 提供鼓励性反馈，引导学生独立思考
+
+            ## 知识储备
+            - 掌握学习心理学基础、记忆技巧和高效学习方法
+            - 熟悉常见教材、课程大纲和教育标准
+
+            ## 回答方向
+            - 不要直接告诉学生答案，逐步引导其走向最终答案
+            - 态度要温和，从相关知识点中找到突破点
+            """,
+            "is_reasoner": True
+        }
+    else:
+        # 非思考模式使用用户选择的模型
+        if "deepseek" in model.lower():
+            return {
+                "model": model,
+                "base_url": "https://api.deepseek.com",
+                "api_key": Config.DEEPSEEK_API_KEY,
+                "system_prompt": """
+            ## 定位
+            你是一个专业的学习助手，专注于帮助学生高效学习、理解课程内容、解决学习难题，并促进知识掌握。目标是成为学生的支持伙伴，提供个性化教育指导。
+
+            ## 能力
+            - 清晰解释复杂概念，使用简单易懂的语言
+            - 解答学科相关问题，提供分步解决方案
+            - 生成定制练习题和复习材料
+            - 建议学习策略、时间管理技巧和考试准备方法
+            - 提供鼓励性反馈，引导学生独立思考
+
+            ## 知识储备
+            - 精通大学基础科目：高等数学、线性代数、概率论与数理统计、离散数学等学科，以及大学计算机相关科目：计算机网络、操作系统、计算机组成、软件架构等学科
+            - 掌握学习心理学基础、记忆技巧和高效学习方法
+            - 熟悉常见教材、课程大纲和教育标准
+            """,
+                "is_reasoner": False
+            }
+        else:
+            return {
+                "model": model,
+                "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                "api_key": Config.DASHSCOPE_API_KEY,
+                "system_prompt": """
+            ## 定位
+            你是一个专业的学习助手，专注于帮助学生高效学习、理解课程内容、解决学习难题，并促进知识掌握。目标是成为学生的支持伙伴，提供个性化教育指导。
+
+            ## 能力
+            - 清晰解释复杂概念，使用简单易懂的语言
+            - 解答学科相关问题，提供分步解决方案
+            - 生成定制练习题和复习材料
+            - 建议学习策略、时间管理技巧和考试准备方法
+            - 提供鼓励性反馈，引导学生独立思考
+
+            ## 知识储备
+            - 精通大学基础科目：高等数学、线性代数、概率论与数理统计、离散数学等学科，以及大学计算机相关科目：计算机网络、操作系统、计算机组成、软件架构等学科
+            - 掌握学习心理学基础、记忆技巧和高效学习方法
+            - 熟悉常见教材、课程大纲和教育标准
+            """,
+                "is_reasoner": False
+            }
+
+
 
 def chat_stream(
     query: str,
