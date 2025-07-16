@@ -1226,6 +1226,95 @@ def update_question_knowledge_point(question_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+
+
+@question_bp.route('/student/questions/<int:course_id>', methods=['GET'])
+def get_student_questions(course_id):
+    """
+    学生获取课后习题列表（包含作答状态、解析和作答记录）
+    每个题目只返回一条最新答题记录
+    """
+    try:
+        # 1. 身份验证
+        current_user = get_current_user()
+        if not current_user or current_user.role != 'student':
+            return jsonify({'error': 'Unauthorized or invalid role'}), 401
+
+        # 2. 验证课程是否存在
+        course = Course.query.get(course_id)
+        if not course:
+            return jsonify({'error': 'Course not found'}), 404
+
+        # 3. 获取关联的课程班
+        course_class = Courseclass.query.filter(Courseclass.courses.contains(course)).first()
+        if not course_class:
+            return jsonify({'error': 'Course class not found'}), 404
+
+        # 4. 验证学生是否在课程班中
+        if current_user not in course_class.students:
+            return jsonify({'error': 'Student not in this course class'}), 403
+
+        # 5. 获取所有课后习题（学生只能看公开题目）
+        questions = Question.query.filter_by(
+            course_id=course_id,
+            timing='post_class',
+            is_public=True
+        ).options(db.joinedload(Question.knowledge_point)).all()
+
+        # 6. 获取当前学生在这些题目上的最新答题记录
+        question_ids = [q.id for q in questions]
+        answers = StudentAnswer.query.filter(
+            StudentAnswer.student_id == current_user.id,
+            StudentAnswer.question_id.in_(question_ids),
+            StudentAnswer.class_id == course_class.id
+        ).order_by(StudentAnswer.answered_at.desc()).all()
+        
+        # 构建题目ID到答题记录的映射（只保留最新的一条）
+        # 由于默认只能答题一次，每个题目最多一条记录
+        answer_map = {}
+        for ans in answers:
+            # 每个题目只保留第一次遇到的记录（因为按时间倒序，所以是最新的）
+            if ans.question_id not in answer_map:
+                answer_map[ans.question_id] = ans
+
+        # 7. 构建响应数据
+        result = []
+        for question in questions:
+            # 获取该题目的答题记录（可能为空）
+            answer_record = answer_map.get(question.id)
+            
+            question_data = {
+                'id': question.id,
+                'type': question.type,
+                'content': question.content,
+                'difficulty': question.difficulty,
+                'knowledge_point': {
+                    'id': question.knowledge_point_id,
+                    'name': question.knowledge_point.node_name if question.knowledge_point else None,
+                    'content': question.knowledge_point.node_content if question.knowledge_point else None
+                },
+                'analysis': question.analysis,  # 题目解析
+                'has_answered': answer_record is not None,  # 是否已作答标识
+            }
+            
+            # 添加作答记录信息（如果存在）
+            if answer_record:
+                question_data['answer_record'] = {
+                    'id': answer_record.id,
+                    'student_answer': answer_record.answer,
+                    'correct_percentage': answer_record.correct_percentage,
+                    'answered_at': answer_record.answered_at.isoformat(),
+                    'last_modified': answer_record.modified_at.isoformat() if answer_record.modified_at else None
+                }
+                
+            result.append(question_data)
+        
+        return jsonify(result), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @question_bp.route('/question-page')
 def questiontest():
     return render_template('question.html')
