@@ -500,7 +500,7 @@ export default defineComponent({
 .markdown-content {
   flex: 1;
   overflow-y: auto;
-  max-height: 70vh; /* 根据视口高度自动调整 */
+  max-height: 50vh; /* 根据视口高度自动调整 */
   padding: 24px;
   background: white;
   border-radius: 8px;

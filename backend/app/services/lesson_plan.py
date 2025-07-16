@@ -1,15 +1,19 @@
 import json
 import re
+from venv import logger
 from openai import OpenAI
 import time
 from docx import Document
 import markdown
 import pdfkit
+import requests
 from sqlalchemy import and_, false, true
-from typing import Any, List, Dict, Union
+from typing import Any, List, Dict, Optional, Tuple, Union
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 from typing import Dict
+
+from app.utils.ai_chat import _retrieve_chunks_from_multiple_dbs
 # 设置 API Key 和 DeepSeek API 地址
 key = 'sk-b7550aa67ed840ffacb5ca051733802c'
 client = OpenAI(api_key=key, base_url="https://api.deepseek.com")
@@ -295,41 +299,78 @@ def get_default_question(course_content: str) -> Dict:
 
 
 # 生成结构化教案（按六大模块分段）
-def generate_lesson_plans(course_content, student_feedback, student_level):
+def generate_lesson_plans(course_content, student_feedback, db_names, similarity_threshold, chunk_cnt):
     """
-    根据学生反馈和群体水平，生成一个教学方案
+    根据课程内容、学生反馈和知识库检索结果，生成教学方案
     :param course_content: 课程内容
     :param student_feedback: 学生反馈
-    :param student_level: 学生群体水平（如 '良好', '一般', '薄弱'）
-    :return: 教案内容
+    :param db_names: 知识库名称列表
+    :param similarity_threshold: 检索相似度阈值
+    :param chunk_cnt: 检索片段数量
+    :param data_type_filter: 数据类型过滤条件
+    :return: 教案内容（Markdown格式）
     """
+    # 从知识库检索相关内容
+    model_context, display_chunks, source_dict = _retrieve_chunks_from_multiple_dbs(
+        query=course_content, db_names=db_names, similarity_threshold=similarity_threshold, chunk_cnt=chunk_cnt
+    )
+    print("检索内容：")
+    print(model_context)
     response = client.chat.completions.create(
-        model="deepseek-chat",
-        messages=[{
-            "role": "system",
-            "content": (
-                "你是教学设计专家，请根据教师提供的课程内容和学生答题反馈，"
-                f"尽可能详细地设计适用于{student_level}群体的教案。\n\n"
-                "每套教案请严格按照以下六个模块详细展开，并满足以下要求：\n\n"
-                "1. 教学目标：明确列出3-5个可衡量的学习目标。\n"
-                "2. 教学重难点：说明本节课的重点与难点，并简述突破策略。\n"
-                "3. 教学内容：详细展开教学内容的结构，包括知识点的层次划分与逻辑关系。同时，使用 Mermaid 标记语言生成结构化的教学内容结构图表。\n"
-                "4. 教学时间安排：请按总课时45分钟，分配每一阶段的时间（含每个活动的分钟数）。\n"
-                "5. 教学过程：\n"
-                "    - 请按照“导入、讲授、互动、小结”顺序编排。\n"
-                "    - 必须设计不少于三个互动环节，如小组讨论、角色扮演、实时问答、投票、课堂游戏等，同时在生成教学设计方案的时候要明确指出哪部分是互动环节。\n"
-                "    - 每个环节说明教学方法、活动安排、教师与学生的行为、时间分配、使用的工具与材料、预期学习成果。\n"
-                "6. 课后作业：布置有层次的作业任务，至少包含基础题与拓展题。\n\n"
-                "请使用 Markdown 格式输出，便于后续整理归档，但不需要将内容加上markdown注释。每份教案的字数不得少于1000字。"
-            )
-        },
-        {
-            "role": "user",
-            "content": f"课程内容如下：\n{course_content}\n\n学生反馈如下：\n{student_feedback}"
-        }],
+        model="deepseek-reasoner",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "你是教学设计专家，请根据以下三部分信息生成教案：\n"
+                    "1. 教师提供的课程内容\n"
+                    "2. 学生答题反馈\n"
+                    "3. 从知识库检索到的相关教学参考资料（含权威来源）\n\n"
+                    "请严格按照以下六个模块生成教案，并满足要求：\n"
+                    "### 1. 教学目标\n"
+                    "- 列出3-5个可衡量的学习目标，参考知识库中的课程标准。\n\n"
+                    "### 2. 教学重难点\n"
+                    "- 结合学生反馈和知识库内容，说明重点与难点及突破策略。\n\n"
+                    "### 3. 教学内容\n"
+                    "- 使用知识库中的资料补充知识点逻辑关系，并用 Mermaid 生成结构图。\n\n"
+                    "### 4. 教学时间安排\n"
+                    "- 45分钟课时分配，需包含知识库推荐的互动时间比例。\n\n"
+                    "### 5. 教学过程\n"
+                    "- 按“导入-讲授-互动-小结”设计，互动环节必须包含：\n"
+                    "  a) 知识库推荐的活动（如小组讨论/角色扮演）\n"
+                    "  b) 针对学生反馈的薄弱点设计练习\n"
+                    "- 每个环节需说明：方法、师生行为、时间、工具、预期成果。\n\n"
+                    "### 6. 课后作业\n"
+                    "- 基础题（覆盖知识库核心内容）\n"
+                    "- 拓展题（结合检索到的拓展资料）\n\n"
+                    "### 其他要求\n"
+                    "- 使用 Markdown 格式，字数不少于3000字\n"
+                    "- 关键教学策略需标注来源（如：\"根据[知识库]建议...\"）"
+                )
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"### 课程原始内容\n{course_content}\n\n"
+                    f"### 学生反馈\n{student_feedback}\n\n"
+                    f"### 知识库参考资料\n{model_context}\n\n"
+                    "请生成教案，确保整合上述所有信息。"
+                )
+            }
+        ],
+        temperature=1.0,
+        max_tokens=32768,  
+        top_p=0.9,
+        frequency_penalty=0.2,
+        presence_penalty=0.1,
         stream=False
     )
-    return response.choices[0].message.content
+
+    return {
+        "plan": response.choices[0].message.content
+    }
+
+
 
 system_prompt = """你是教学设计专家，请根据知识点内容生成至少一道课后练习题。
 要求：
@@ -517,78 +558,6 @@ def generate_questions_for_batch(batch_leaf_nodes: List[Dict[str, Any]], lesson_
     return batch_questions
     
 
-# 推荐指数
-
-def evaluate_recommendation(student_feedback):
-    """
-    使用AI分析学生反馈，智能评估三套教案的适用性，返回推荐指数。
-    推荐指数采用百分制。
-    """
-    # 构造AI提示
-    system_prompt = """你是一个教学评估专家，请根据学生课前预习的答题反馈，评估三种教学方案的适用性。
-要求：
-1. 分析学生整体掌握情况
-2. 给出三种教学方案(掌握良好/一般/薄弱)的推荐指数(百分制)
-3. 返回格式为JSON，包含:
-   - analysis: 简要分析
-   - recommendation: 三种方案的推荐指数
-"""
-
-    try:
-        response = client.chat.completions.create(
-            model="deepseek-chat",
-            messages=[
-                {
-                    "role": "system",
-                    "content": system_prompt
-                },
-                {
-                    "role": "user",
-                    "content": f"请分析以下学生预习答题反馈:\n{student_feedback}\n\n请返回JSON格式的评估结果。"
-                }
-            ],
-            response_format={"type": "json_object"},
-            stream=False
-        )
-        
-        # 解析AI返回的JSON内容
-        ai_response = json.loads(response.choices[0].message.content)
-        
-        # 提取推荐指数
-        recommendation = ai_response.get('recommendation', {
-            '掌握良好': 33, 
-            '掌握一般': 34, 
-            '掌握薄弱': 33
-        })
-        
-        # 确保所有值都存在且总和约等于100
-        if not isinstance(recommendation, dict):
-            raise ValueError("recommendation 不是字典类型")
-        
-        # 确保所有值都是数字
-        for key, value in recommendation.items():
-            if not isinstance(value, (int, float)):
-                raise ValueError(f"recommendation 中的值 {key} 不是数字类型")
-        
-        total = sum(recommendation.values())
-        if total != 100:
-            for key in recommendation:
-                recommendation[key] = int(recommendation[key] / total * 100)
-        
-        # 添加分析说明
-        recommendation['analysis'] = ai_response.get('analysis', 'AI分析完成')
-        
-        return recommendation
-    
-    except Exception as e:
-        print(f"AI评估出错: {e}")
-        # 出错时返回默认值
-        return {
-            '掌握良好': 33,
-            '掌握一般': 34,
-            '掌握薄弱': 33,
-            'analysis': '自动评估失败，使用默认推荐指数'
-        }
 
 
 # 教案保存
@@ -605,31 +574,7 @@ def save_to_markdown(content, filename="教案.md"):
 
 
 
-# 主程序
-def generate_teaching_plans(course_content, student_feedback):
-    """
-    主函数：生成三份教学设计方案
-    :param course_content: 课程内容
-    :param student_feedback: 学生反馈
-    :return: 包含三份教案和推荐指数的字典列表
-    """
-    student_levels = ['掌握良好', '掌握一般', '掌握薄弱']
-    recommendation_scores = evaluate_recommendation(student_feedback)
-    
-    lesson_plans = []
-    for level in student_levels:
-        content = generate_lesson_plans(course_content, student_feedback, level)
-        lesson_plans.append({
-            'level': level,
-            'content': content,
-            'recommendation': recommendation_scores.get(level, 0),
-            'analysis': recommendation_scores.get('analysis', '')
-        })
-    
-    return {
-        'plans': lesson_plans,
-        'recommendation': recommendation_scores
-    }
+
 
 
 
@@ -819,3 +764,151 @@ if __name__ == "__main__":
     # 打印生成的课后习题
     print("生成的课后习题如下：")
     print(json.dumps(generated_questions, ensure_ascii=False, indent=2))
+
+from app.config import Config
+
+# 题型中文映射
+q_type_dict = {
+    "choice": "选择题",
+    "fill": "填空题",
+    "short_answer": "简答题"
+}
+
+def generate_questions_with_specs(
+    knowledge_point_name: str,
+    knowledge_point_content: str,
+    question_specs: List[Tuple[str, int, Optional[int]]],
+    retrieved_content: str = ""
+) -> List[Dict[str, any]]:
+    """
+    使用DeepSeek-Reasoner模型生成指定类型、数量和难度的题目
+    
+    参数:
+    - knowledge_point_name: 知识点名称
+    - knowledge_point_content: 知识点详细内容
+    - question_specs: 题目规格列表，每个元素为(题型, 数量, 难度)
+        - 题型支持: 'choice', 'fill', 'short_answer'
+        - 难度: 1-5级 (1最简单，5最难)，None表示随机难度
+    - retrieved_content: 从知识库检索到的相关内容（可选）
+    
+    返回:
+    - 题目字典列表，格式为：
+        [{
+            "type": 题目类型,
+            "content": 题目内容,
+            "correct_answer": 正确答案,
+            "difficulty": 难度等级(1-5),
+            "knowledge_point": 关联知识点
+        }]
+    """
+    
+    # 验证输入规格
+    valid_types = {'choice', 'fill', 'short_answer'}
+    for spec in question_specs:
+        if len(spec) != 3:
+            raise ValueError("每个题目规格必须是(题型, 数量, 难度)三元组")
+        if spec[0] not in valid_types:
+            raise ValueError(f"无效题型: {spec[0]}，支持类型: {', '.join(valid_types)}")
+        if spec[1] < 1:
+            raise ValueError("题目数量必须至少为1")
+        if spec[2] is not None and (spec[2] < 1 or spec[2] > 5):
+            raise ValueError("难度必须在1-5之间")
+    
+    # 构建题型要求描述
+    type_requirements = []
+    for i, (q_type, count, difficulty) in enumerate(question_specs):
+        diff_desc = f"难度{difficulty}" if difficulty else "随机难度"
+        type_requirements.append(f"{i+1}. {count}道{q_type_dict[q_type]} ({diff_desc})")
+    
+    # 构建系统提示词
+    system_prompt = f"""
+    你是一位资深教师，需要根据知识点和参考资料生成课后习题。请严格遵守以下要求：
+    1. 严格按以下规格生成题目：
+        {chr(10).join(type_requirements)}
+    2. 所有题目必须关联知识点：{knowledge_point_name}
+    3. 选择题需提供4个选项和正确答案字母
+    4. 使用以下JSON格式返回：
+        {{"questions": [
+            {{
+                "type": "题型标识",(题型仅支持: 'choice', 'fill', 'short_answer')
+                "content": "题目内容",
+                "correct_answer": "正确答案",
+                "difficulty": 难度等级,
+                "analysis": "题目解析"
+            }}
+        ]}}
+    5. 确保题目清晰、答案准确、难度符合要求
+    6. 题目内容严格按照markdown格式输出
+    7.  其中的content字段的内容必须严格按照markdown格式进行输出，如果引用参考资源，则保持参考资料中的markdown格式，同时保留图片
+    """
+    
+    # 构建用户输入
+    user_input = f"""
+    ## 核心知识点
+    名称：{knowledge_point_name}
+    内容：{knowledge_point_content}
+    
+    ## 参考资料
+    {retrieved_content if retrieved_content else "无相关参考资料"}
+    
+    ## 生成要求
+    请严格按照上述规格生成题目，确保题型、数量和难度要求准确无误。
+    """
+    
+    try:
+        # 调用DeepSeek-Reasoner API
+        response = requests.post(
+            "https://api.deepseek.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {Config.DEEPSEEK_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "deepseek-reasoner",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_input}
+                ],
+                "response_format": {"type": "json_object"},
+                "temperature": 0.7,
+                "max_tokens": 3000
+            }
+        )
+        
+        # 检查响应状态
+        if response.status_code != 200:
+            logger.error(f"DeepSeek API请求失败: {response.status_code} - {response.text}")
+            return []
+        
+        # 解析API响应
+        response_data = response.json()
+        ai_content = response_data["choices"][0]["message"]["content"]
+        print(ai_content)
+        # 尝试解析JSON
+        try:
+            questions_data = json.loads(ai_content)["questions"]
+        except (json.JSONDecodeError, KeyError) as e:
+            logger.error(f"响应解析失败: {str(e)}")
+            logger.debug(f"原始响应内容: {ai_content[:500]}...")
+            return []
+        print(questions_data)
+        # 格式化题目内容
+        formatted_questions = []
+        for q in questions_data:
+
+            # 确保难度在1-5范围内
+            if "difficulty" in q:
+                q["difficulty"] = max(1, min(5, int(q["difficulty"])))
+            else:
+                q["difficulty"] = 3  # 默认难度
+            
+            formatted_questions.append(q)
+        
+        return formatted_questions
+    
+    except requests.Timeout:
+        logger.error("DeepSeek API请求超时")
+        return []
+    except Exception as e:
+        logger.error(f"题目生成失败: {str(e)}")
+        return []

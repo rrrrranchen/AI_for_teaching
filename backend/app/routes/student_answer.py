@@ -408,6 +408,19 @@ def add_answers():
                 })
                 continue
 
+            # 检查是否已经存在该学生的答题记录
+            existing_answer = StudentAnswer.query.filter_by(
+                student_id=current_user.id,
+                question_id=question_id
+            ).first()
+
+            if existing_answer:
+                results.append({
+                    'question_id': question_id,
+                    'error': '该题目已作答，不能重复作答'
+                })
+                continue
+
             # 获取题目信息
             question = Question.query.get(question_id)
             if not question:
@@ -457,34 +470,22 @@ def add_answers():
                 })
                 continue
 
-            # 检查是否已经存在该学生的答题记录
-            existing_answer = StudentAnswer.query.filter_by(
+            # 创建新的答题记录
+            new_answer = StudentAnswer(
                 student_id=current_user.id,
-                question_id=question_id
-            ).first()
-
-            if existing_answer:
-                existing_answer.answer = answer
-                existing_answer.correct_percentage = correct_percentage
-                existing_answer.answered_at = datetime.utcnow()
-                existing_answer.class_id = courseclass_id  # 更新 courseclass_id
-            else:
-                new_answer = StudentAnswer(
-                    student_id=current_user.id,
-                    question_id=question_id,
-                    course_id=question.course_id,
-                    class_id=courseclass_id,  # 添加 courseclass_id
-                    answer=answer,
-                    correct_percentage=correct_percentage
-                )
-                db.session.add(new_answer)
-
+                question_id=question_id,
+                course_id=question.course_id,
+                class_id=courseclass_id,
+                answer=answer,
+                correct_percentage=correct_percentage
+            )
+            db.session.add(new_answer)
             db.session.commit()
 
             results.append({
                 'question_id': question_id,
-                'message': '答题记录处理成功',
-                'answer_id': existing_answer.id if existing_answer else new_answer.id,
+                'message': '答题记录添加成功',
+                'answer_id': new_answer.id,
                 'correct_percentage': correct_percentage
             })
 
@@ -1080,3 +1081,6 @@ def update_student_in_course_answerreport(student_id, course_id):
         # 如果发生错误，回滚数据库会话并返回错误信息
         session.rollback()
         return jsonify({"error": str(e)}), 500
+    
+
+

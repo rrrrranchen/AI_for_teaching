@@ -1,7 +1,7 @@
 <template>
   <a-modal
     :visible="internalVisible"
-    title="DeepSeek AI助手"
+    title="小智AI助手"
     :width="1350"
     :footer="null"
     :bodyStyle="{ padding: '0' }"
@@ -11,8 +11,9 @@
     class="ai-chat-modal"
   >
     <div class="ai-chat-container">
-      <!-- 班级选择和思考模式切换 -->
+      <!-- 班级选择和会话管理 -->
       <div class="chat-header">
+        <!-- 班级选择 -->
         <a-select
           v-model:value="selectedClassId"
           placeholder="选择班级"
@@ -20,16 +21,47 @@
           :options="classOptions"
           :loading="loadingClasses"
           @focus="loadClasses"
+          @change="handleClassChange"
         />
-        <a-checkbox v-model:checked="thinkingMode" class="thinking-checkbox">
-          深度思考模式
-        </a-checkbox>
+
+        <!-- 会话选择/创建 -->
+        <a-select
+          v-model:value="currentConversationId"
+          placeholder="选择或创建会话"
+          style="width: 250px; margin-left: 10px"
+          :options="conversationOptions"
+          :loading="loadingConversations"
+          @focus="loadConversations"
+          @change="handleConversationChange"
+        >
+        </a-select>
+
+        <!-- 会话操作按钮 -->
+        <div class="conversation-actions" v-if="currentConversationId">
+          <!-- 3. 添加新建会话按钮 -->
+          <a-button type="text" size="small" @click="createNewConversation">
+            <template #icon><plus-outlined /></template> 新建会话
+          </a-button>
+          <a-button
+            type="text"
+            size="small"
+            @click="showRenameModal"
+            :disabled="!currentConversationId"
+          >
+            <template #icon><edit-outlined /></template>
+            重命名
+          </a-button>
+        </div>
       </div>
 
       <!-- 消息列表 -->
-      <div class="chat-messages" ref="messagesContainer">
+      <div
+        class="chat-messages"
+        ref="messagesContainer"
+        v-if="currentConversationId"
+      >
         <!-- AI欢迎消息 -->
-        <div class="message assistant">
+        <div class="message assistant" v-if="messages.length === 0">
           <div class="message-content">
             <div class="ai-avatar">
               <RobotOutlined />
@@ -41,7 +73,7 @@
         </div>
 
         <!-- 历史消息 -->
-        <template v-for="(msg, index) in messages" :key="index">
+        <template v-for="(msg, index) in messages" :key="msg.id">
           <!-- 用户消息 -->
           <div v-if="msg.role === 'user'" class="message user">
             <div class="message-content">
@@ -65,24 +97,12 @@
 
           <!-- AI消息 -->
           <div v-else class="message assistant">
-            <!-- 正常回复内容 -->
             <div class="message-content">
               <div class="ai-avatar">
                 <RobotOutlined />
               </div>
               <div class="text-content">
-                <!-- 思考过程（深度思考模式且存在思考内容） -->
-                <!-- <div
-                  v-if="msg.thinkingMode && msg.thinkingContent"
-                  class="thinking-bubble"
-                >
-                  <div class="thinking-header">
-                    <span class="thinking-title">思考过程</span>
-                  </div>
-                  <div class="thinking-text">
-                    {{ msg.thinkingContent }}
-                  </div>
-                </div> -->
+                <!-- 思考过程 -->
                 <div
                   v-if="msg.thinkingMode && msg.thinkingContent"
                   class="thinking-container"
@@ -167,7 +187,6 @@
 
         <!-- 流式输出中的消息 -->
         <div v-if="isStreaming" class="message assistant">
-          <!-- 流式回复内容 -->
           <div class="message-content">
             <div class="ai-avatar">
               <RobotOutlined />
@@ -250,7 +269,7 @@
       </div>
 
       <!-- 输入区域 -->
-      <div class="chat-input">
+      <div class="chat-input" v-if="currentConversationId">
         <a-textarea
           v-model:value="inputMessage"
           placeholder="输入您的问题..."
@@ -261,16 +280,38 @@
         />
         <div class="input-actions">
           <span class="char-count">{{ inputMessage.length }}/2000</span>
+          <!-- 思考模式切换 -->
+          <a-button
+            class="thinking-btn"
+            :type="thinkingMode ? 'primary' : 'default'"
+            @click="thinkingMode = !thinkingMode"
+          >
+            <template #icon><TrademarkCircleOutlined /></template>
+            深度思考
+          </a-button>
           <a-button
             type="primary"
             @click="handleSend"
             :loading="isLoading"
-            :disabled="!inputMessage.trim() || !selectedClassId"
+            :disabled="!inputMessage.trim() || !currentConversationId"
           >
             发送
           </a-button>
         </div>
       </div>
+
+      <!-- 重命名会话模态框 -->
+      <a-modal
+        v-model:visible="renameModalVisible"
+        title="重命名会话"
+        @ok="handleRenameConversation"
+        @cancel="renameModalVisible = false"
+      >
+        <a-input
+          v-model:value="newConversationName"
+          placeholder="输入新的会话名称"
+        />
+      </a-modal>
     </div>
   </a-modal>
 </template>
@@ -283,11 +324,24 @@ import {
   defineProps,
   defineEmits,
   onUnmounted,
+  computed,
 } from "vue";
-import { RobotOutlined, UserOutlined } from "@ant-design/icons-vue";
+import {
+  RobotOutlined,
+  UserOutlined,
+  PlusOutlined,
+  EditOutlined,
+  TrademarkCircleOutlined,
+} from "@ant-design/icons-vue";
 import Markdown from "vue3-markdown-it";
 import "highlight.js/styles/github.css";
-import { courseClassChat } from "@/api/aichat";
+import {
+  courseClassChat,
+  createConversation,
+  getCourseClassConversations,
+  getConversationDetail,
+  updateConversationName,
+} from "@/api/aichat";
 import { getAllCourseclasses } from "@/api/courseclass";
 import { useAuthStore } from "@/stores/auth";
 
@@ -313,26 +367,35 @@ const streamingContent = ref("");
 const streamingThinkingContent = ref("");
 const streamingSources = ref(null);
 const selectedClassId = ref(null);
+const currentConversationId = ref(null);
 const thinkingMode = ref(false);
 const classOptions = ref([]);
+const conversations = ref([]);
 const loadingClasses = ref(false);
+const loadingConversations = ref(false);
+const renameModalVisible = ref(false);
+const newConversationName = ref("");
 
-// 用于管理展开/收起状态
-const expandedChunks = ref({});
-const expandedStreamingChunks = ref({});
+// 计算属性 - 会话选项
+const conversationOptions = computed(() => {
+  return conversations.value.map((conv) => ({
+    value: conv.id,
+    label: conv.name,
+    created_at: conv.created_at,
+  }));
+});
 
+// 欢迎消息
 const welcomeMessage = ref(`
 # 欢迎使用 DeepSeek AI 助手
 
 我是您的智能助手，基于班级知识库为您提供帮助：
 
-1. **选择班级**：从下拉菜单中选择您的班级
+1. **选择班级和会话**：从下拉菜单中选择您的班级和会话
 2. **提问方式**：
    - 普通模式：快速回答
    - 深度思考模式：额外展示思考过程
 3. **知识参考**：所有回答都会显示参考的知识片段
-
-请选择班级后开始提问！
 `);
 
 // 监听visible变化
@@ -359,13 +422,124 @@ const loadClasses = async () => {
       value: c.id,
       label: c.name,
     }));
-    if (classes.length > 0 && !selectedClassId.value) {
-      selectedClassId.value = classes[0].id;
-    }
   } finally {
     loadingClasses.value = false;
   }
 };
+
+// 班级变更处理
+const handleClassChange = async () => {
+  currentConversationId.value = null;
+  messages.value = [];
+  await loadConversations();
+};
+
+// 加载会话列表
+const loadConversations = async () => {
+  if (!selectedClassId.value) return;
+
+  try {
+    loadingConversations.value = true;
+    conversations.value = await getCourseClassConversations(
+      selectedClassId.value
+    );
+    console.log("conversations:", conversations.value);
+    if (conversations.value.length > 0) {
+      // 默认选择最新的会话
+      currentConversationId.value = conversations.value[0].id;
+      await loadConversationMessages(currentConversationId.value);
+    }
+  } finally {
+    loadingConversations.value = false;
+  }
+};
+
+// 加载会话消息
+const loadConversationMessages = async (conversationId) => {
+  try {
+    const conversation = await getConversationDetail(conversationId);
+    messages.value = conversation.messages || [];
+
+    // 初始化 messageIdCounter 为最后一条消息的 ID + 1
+    if (messages.value.length > 0) {
+      const lastMessage = messages.value[messages.value.length - 1];
+      messageIdCounter = lastMessage.id + 1;
+    } else {
+      messageIdCounter = 0;
+    }
+
+    scrollToBottom();
+  } catch (error) {
+    console.error("加载会话消息失败:", error);
+  }
+};
+
+// 会话变更处理
+const handleConversationChange = async () => {
+  if (currentConversationId.value) {
+    console.log("currentConversationId changed:", currentConversationId.value);
+    await loadConversationMessages(currentConversationId.value);
+  } else {
+    messages.value = [];
+  }
+};
+
+// 创建新会话
+const createNewConversation = async () => {
+  if (!selectedClassId.value) return;
+
+  try {
+    const response = await createConversation(selectedClassId.value);
+    currentConversationId.value = response.chat_id;
+    conversations.value.unshift({
+      id: response.chat_id,
+      name: response.name,
+      created_at: response.created_at,
+    });
+
+    // 重置消息和计数器
+    messages.value = [];
+    messageIdCounter = 0;
+  } catch (error) {
+    console.error("创建会话失败:", error);
+  }
+};
+
+// 显示重命名模态框
+const showRenameModal = () => {
+  const conversation = conversations.value.find(
+    (c) => c.id === currentConversationId.value
+  );
+  if (conversation) {
+    newConversationName.value = conversation.name;
+    renameModalVisible.value = true;
+  }
+};
+
+// 处理重命名会话
+const handleRenameConversation = async () => {
+  if (!currentConversationId.value || !newConversationName.value.trim()) return;
+
+  try {
+    await updateConversationName(
+      currentConversationId.value,
+      newConversationName.value
+    );
+    const conversation = conversations.value.find(
+      (c) => c.id === currentConversationId.value
+    );
+    if (conversation) {
+      conversation.name = newConversationName.value;
+    }
+    renameModalVisible.value = false;
+  } catch (error) {
+    console.error("重命名会话失败:", error);
+  }
+};
+
+// 用于管理展开/收起状态
+const expandedChunks = ref({});
+const expandedStreamingChunks = ref({});
 
 // 检查片段是否展开
 const isChunkExpanded = (msgIndex, sourceIndex, chunkIndex) => {
@@ -407,11 +581,18 @@ const handleSend = (e) => {
   sendMessage();
 };
 
+let messageIdCounter = 0;
 const sendMessage = async () => {
-  if (!inputMessage.value.trim() || !selectedClassId.value || isLoading.value)
+  if (
+    !inputMessage.value.trim() ||
+    !currentConversationId.value ||
+    isLoading.value
+  )
     return;
 
+  const msgId = messageIdCounter++;
   const userMsg = {
+    id: msgId,
     role: "user",
     content: inputMessage.value,
   };
@@ -431,10 +612,16 @@ const sendMessage = async () => {
 
   try {
     cancelFunction = courseClassChat(
+      currentConversationId.value,
       {
         query: userMsg.content,
-        class_id: selectedClassId.value,
         thinking_mode: thinkingMode.value,
+        history: messages.value
+          .filter((m) => m.role === "user" || m.role === "assistant")
+          .map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
       },
       (response) => {
         switch (response.status) {
@@ -506,8 +693,7 @@ const toggleThinking = (msgId) => {
   };
 };
 
-// 修改addAssistantMessage方法，为每条消息添加唯一ID
-let messageIdCounter = 0;
+// 添加助手消息
 const addAssistantMessage = (
   content,
   thinkingMode,
@@ -570,11 +756,16 @@ const scrollToBottom = () => {
   border-bottom: 1px solid #e2e8f0;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 10px;
   background: white;
 
-  .thinking-checkbox {
+  .conversation-actions {
     margin-left: auto;
+    margin-right: 10px;
+  }
+
+  .thinking-checkbox {
+    margin-left: 0;
   }
 }
 
@@ -630,9 +821,10 @@ const scrollToBottom = () => {
 .ai-avatar,
 .user-avatar {
   flex-shrink: 0;
-  width: 40px;
-  height: 40px;
+  width: 50px;
+  height: 50px;
   border-radius: 50%;
+  border: 4px solid rgb(198, 217, 254);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -643,7 +835,7 @@ const scrollToBottom = () => {
 .ai-avatar {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-  box-shadow: 0 3px 12px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 3px 12px rgba(35, 35, 36, 0.3);
 }
 
 .user-avatar {
@@ -653,6 +845,7 @@ const scrollToBottom = () => {
 }
 
 .text-content {
+  width: 80%;
   flex: 1;
   padding: 16px 20px;
   border-radius: 12px;
@@ -752,16 +945,51 @@ const scrollToBottom = () => {
 
 .input-actions {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end; // 改为右对齐
   align-items: center;
   margin-top: 12px;
+  gap: 8px;
 
   .char-count {
     font-size: 14px;
     color: #718096;
+    margin-right: auto; // 字符计数靠左
   }
 
-  .ant-btn {
+  // 深度思考按钮样式
+  .thinking-btn {
+    height: 40px;
+    padding: 0 15px;
+    font-size: 16px;
+    border-radius: 20px;
+
+    // 未激活状态 (灰色)
+    &:not(.ant-btn-primary) {
+      background: #f0f0f0;
+      color: rgba(0, 0, 0, 0.45);
+      border-color: #d9d9d9;
+
+      &:hover {
+        color: #667eea;
+        border-color: #667eea;
+      }
+    }
+
+    // 激活状态 (紫色渐变)
+    &.ant-btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      color: white;
+
+      &:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      }
+    }
+  }
+
+  // 发送按钮样式保持不变
+  .ant-btn-primary {
     height: 40px;
     padding: 0 24px;
     font-size: 16px;

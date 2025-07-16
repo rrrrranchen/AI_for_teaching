@@ -1,7 +1,7 @@
 <template>
   <div class="class-container">
     <div class="class-card">
-      <!-- 面包屑导航 -->
+      <!-- 面包屑导航保持不变 -->
       <div class="breadcrumb-section">
         <a-breadcrumb separator=">">
           <a-breadcrumb-item>
@@ -13,23 +13,8 @@
         </a-breadcrumb>
       </div>
 
-      <!-- 加载状态 -->
-      <a-spin
-        v-if="loading"
-        class="w-full flex justify-center py-8"
-        size="large"
-      />
-
-      <!-- 错误状态 -->
-      <a-result
-        v-else-if="error"
-        status="error"
-        :title="error"
-        sub-title="请刷新页面或稍后再试"
-      />
-
       <!-- 内容区域 -->
-      <div v-else class="class-content">
+      <div v-if="!loading && !error" class="class-content">
         <!-- 头部信息区 -->
         <div class="class-header">
           <div class="class-image-container">
@@ -43,61 +28,68 @@
               <book-outlined class="placeholder-icon" />
             </div>
           </div>
-          <div class="class-basic">
-            <div style="font-weight: bold; font-size: 36px; margin-left: 10px">
-              {{ courseclassDetail?.name || "加载中..." }}
+
+          <div class="class-info-section">
+            <div class="class-basic">
+              <h1 class="class-title">
+                {{ courseclassDetail?.name || "加载中..." }}
+              </h1>
+              <div class="class-meta">
+                <a-tag
+                  color="geekblue"
+                  class="cursor-pointer invite-code"
+                  @click="copyInviteCode"
+                >
+                  <template #icon><copy-outlined /></template>
+                  邀请码：{{ courseclassDetail?.invite_code }}
+                </a-tag>
+                <div class="class-description-item">
+                  <calendar-outlined class="meta-icon" />
+                  <span
+                    >创建时间：{{
+                      formatCreatedAt(courseclassDetail?.created_at)
+                    }}</span
+                  >
+                </div>
+                <div class="class-description-item">
+                  <book-outlined class="meta-icon" />
+                  <span>{{
+                    courseclassDetail?.description || "暂无班级描述"
+                  }}</span>
+                </div>
+              </div>
             </div>
-            <div class="class-meta">
-              <a-tag
-                color="blue"
-                class="cursor-pointer invite-code"
-                @click="copyInviteCode"
-              >
-                <template #icon><copy-outlined /></template>
-                邀请码：{{ courseclassDetail?.invite_code }}
-              </a-tag>
-              <p class="class-description">
-                <calendar-outlined /> 创建时间：{{
-                  formatCreatedAt(courseclassDetail?.created_at)
-                }}
-              </p>
-              <p class="class-description">
-                <BookOutlined />
-                {{ courseclassDetail?.description || "暂无班级描述" }}
-              </p>
+
+            <!-- 任课教师 -->
+            <div class="teacher-section">
+              <h3 class="section-title">任课教师</h3>
+              <a-space wrap>
+                <div class="teacher-card">
+                  <a-avatar
+                    v-if="
+                      courseclassDetail?.teachers &&
+                      courseclassDetail?.teachers.length > 0
+                    "
+                    size="large"
+                    :src="
+                      'http://localhost:5000/' +
+                        courseclassDetail.teachers[0].avatar ||
+                      '/default-avatar.png'
+                    "
+                  />
+                  <p
+                    v-if="
+                      courseclassDetail?.teachers &&
+                      courseclassDetail?.teachers.length > 0
+                    "
+                  >
+                    {{ courseclassDetail?.teachers[0]?.username }}
+                  </p>
+                </div>
+              </a-space>
             </div>
           </div>
 
-          <!-- 任课教师 -->
-          <div class="teacher-section">
-            <h3>任课教师</h3>
-            <a-space wrap>
-              <div class="flex flex-row items-center">
-                <a-avatar
-                  v-if="
-                    courseclassDetail?.teachers &&
-                    courseclassDetail?.teachers.length > 0
-                  "
-                  size="large"
-                  :src="
-                    'http://localhost:5000/' +
-                      courseclassDetail.teachers[0].avatar ||
-                    '/default-avatar.png'
-                  "
-                  class="text-lg bg-blue-100 p-2 rounded-full"
-                />
-                <p
-                  v-if="
-                    courseclassDetail?.teachers &&
-                    courseclassDetail?.teachers.length > 0
-                  "
-                  style="font-size: large"
-                >
-                  {{ courseclassDetail?.teachers[0]?.username }}
-                </p>
-              </div>
-            </a-space>
-          </div>
           <div
             class="teacher-actions"
             v-if="
@@ -134,37 +126,24 @@
               </template>
             </a-dropdown>
           </div>
-          <!-- 编辑课程班模态框 -->
-          <a-modal
-            v-model:visible="editVisible"
-            title="编辑课程"
-            @ok="handleEditSubmit"
-            :confirm-loading="editing"
-          >
-            <a-form layout="vertical" :model="editForm">
-              <a-form-item label="课程名称" required>
-                <a-input v-model:value="editForm.name" />
-              </a-form-item>
-              <a-form-item label="课程描述">
-                <a-textarea v-model:value="editForm.description" :rows="4" />
-              </a-form-item>
-            </a-form>
-          </a-modal>
         </div>
 
         <!-- 标签页区域 -->
         <div class="class-tabs">
-          <a-tabs v-model:activeKey="activeTab">
+          <a-tabs v-model:activeKey="activeTab" class="custom-tabs">
             <a-tab-pane key="courses" tab="课程章节管理">
-              <!-- 课程管理内容 -->
               <div class="tab-content">
                 <div class="action-bar">
                   <a-space>
-                    <a-button type="primary" @click="showCreateModal">
+                    <a-button
+                      type="primary"
+                      @click="showCreateModal"
+                      class="action-button"
+                    >
                       <plus-outlined />
                       新建章节
                     </a-button>
-                    <a-button @click="toggleMultiSelect">
+                    <a-button @click="toggleMultiSelect" class="action-button">
                       <select-outlined />
                       {{ multiSelecting ? "退出多选" : "批量操作" }}
                     </a-button>
@@ -172,6 +151,7 @@
                       danger
                       :disabled="selectedCourseIds.length === 0"
                       @click="deleteSelectedCourses"
+                      class="action-button"
                     >
                       删除选中（{{ selectedCourseIds.length }}）
                     </a-button>
@@ -179,11 +159,19 @@
                   <a-input-search
                     v-model:value="searchCourseKey"
                     placeholder="搜索课程"
-                    style="width: 200px"
-                  />
+                    class="custom-search-input"
+                  >
+                    <template #enterButton>
+                      <a-button type="primary" class="search-button">
+                        <template #icon><search-outlined /></template>
+                        搜索
+                      </a-button>
+                    </template>
+                  </a-input-search>
                 </div>
 
-                <!-- 改进后的课程列表 -->
+                <!-- 课程列表 -->
+                <!-- 课程列表容器 -->
                 <div class="course-list-container">
                   <a-empty
                     v-if="filteredCourses.length === 0"
@@ -191,29 +179,54 @@
                     class="empty-placeholder"
                   />
 
-                  <div v-else class="course-grid">
-                    <div
-                      v-for="course in filteredCourses"
-                      :key="course.id"
-                      class="course-card"
-                      :class="{
-                        selected: selectedCourseIds.includes(course.id),
-                      }"
-                      @click="handleCourseClick(course.id, course.name)"
-                    >
-                      <div class="course-card-header">
-                        <a-checkbox
-                          v-if="multiSelecting"
-                          :checked="selectedCourseIds.includes(course.id)"
-                          @click.stop="() => toggleCourseSelection(course.id)"
-                          class="course-checkbox"
-                        />
-                        <h3 class="course-title">{{ course.name }}</h3>
-                      </div>
+                  <div v-else class="course-timeline-container">
+                    <!-- 时间轴 -->
+                    <div class="timeline-line"></div>
 
-                      <p class="course-description">
-                        {{ course.description || "暂无课程描述" }}
-                      </p>
+                    <!-- 课程时间轴列表 -->
+                    <div class="course-timeline-list">
+                      <div
+                        v-for="(course, index) in filteredCourses"
+                        :key="course.id"
+                        class="course-timeline-item"
+                        :style="{ '--index': index }"
+                      >
+                        <!-- 时间节点 -->
+                        <div class="timeline-node">
+                          <div class="node-dot"></div>
+                          <div class="node-date"></div>
+                        </div>
+
+                        <!-- 课程卡片 -->
+                        <div
+                          class="course-card"
+                          :class="{
+                            selected: selectedCourseIds.includes(course.id),
+                          }"
+                          @click="handleCourseClick(course.id, course.name)"
+                        >
+                          <div class="course-card-header">
+                            <a-checkbox
+                              v-if="multiSelecting"
+                              :checked="selectedCourseIds.includes(course.id)"
+                              @click.stop="
+                                () => toggleCourseSelection(course.id)
+                              "
+                              class="course-checkbox"
+                            />
+                            <h3 class="course-title">{{ course.name }}</h3>
+                          </div>
+                          <p class="course-description">
+                            {{ course.description || "暂无课程描述" }}
+                          </p>
+                          <div class="course-meta">
+                            <span class="create-time">
+                              <calendar-outlined />
+                              {{ formatCreatedAt(course.created_at) }}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -221,17 +234,23 @@
             </a-tab-pane>
 
             <a-tab-pane key="students" tab="学生管理">
-              <!-- 学生管理内容 -->
               <div class="tab-content">
                 <div class="action-bar">
                   <a-input-search
                     v-model:value="searchStudentKey"
                     placeholder="搜索学生"
-                    style="width: 200px"
-                  />
+                    class="custom-search-input"
+                  >
+                    <template #enterButton>
+                      <a-button type="primary" class="search-button">
+                        <template #icon><search-outlined /></template>
+                        搜索
+                      </a-button>
+                    </template>
+                  </a-input-search>
                 </div>
 
-                <!-- 改进后的学生列表 -->
+                <!-- 学生列表 -->
                 <div class="student-list-container">
                   <a-empty
                     v-if="filteredStudents.length === 0"
@@ -254,8 +273,7 @@
                         <a-avatar
                           v-if="student?.avatar"
                           :src="'http://localhost:5000/' + student?.avatar"
-                        >
-                        </a-avatar>
+                        />
                         <a-avatar v-else>
                           <UserOutlined />
                         </a-avatar>
@@ -263,7 +281,12 @@
                       </div>
                       <div class="student-cell" style="flex: 1">
                         <a-popconfirm title="确定要移除此学生吗？">
-                          <a-button type="text" danger size="small">
+                          <a-button
+                            type="text"
+                            danger
+                            size="small"
+                            class="remove-btn"
+                          >
                             <template #icon><delete-outlined /></template>
                             移除
                           </a-button>
@@ -274,8 +297,7 @@
                 </div>
               </div>
             </a-tab-pane>
-            <!-- 在template的a-tabs中添加新的标签页 -->
-            <!-- 修改后的报告标签页 -->
+
             <a-tab-pane key="report" tab="分析报告">
               <div class="report-container">
                 <div class="report-header">
@@ -283,6 +305,7 @@
                     type="primary"
                     @click="handleUpdateReport"
                     :loading="updatingReport"
+                    class="generate-btn"
                   >
                     <sync-outlined />
                     {{ classReport ? "更新报告" : "生成报告" }}
@@ -291,7 +314,11 @@
 
                 <div v-if="!classReport" class="empty-report">
                   <a-empty description="暂无分析报告">
-                    <a-button type="primary" @click="handleUpdateReport">
+                    <a-button
+                      type="primary"
+                      @click="handleUpdateReport"
+                      class="generate-btn"
+                    >
                       立即生成
                     </a-button>
                   </a-empty>
@@ -526,10 +553,17 @@ export default defineComponent({
       });
     };
 
+    // 修改filteredCourses计算属性，按创建时间倒序排列
     const filteredCourses = computed(() => {
-      return courses.value.filter((c) =>
-        c.name.toLowerCase().includes(searchCourseKey.value.toLowerCase())
-      );
+      return courses.value
+        .filter((c) =>
+          c.name.toLowerCase().includes(searchCourseKey.value.toLowerCase())
+        )
+        .sort((a, b) => {
+          const dateA = new Date(a.created_at).getTime();
+          const dateB = new Date(b.created_at).getTime();
+          return dateB - dateA; // 最新在上
+        });
     });
 
     const filteredStudents = computed(() => {
@@ -804,6 +838,14 @@ export default defineComponent({
       }
     };
 
+    // 在setup()中添加formatTimelineDate方法
+    const formatTimelineDate = (dateString: string): string => {
+      console.log("时间", dateString);
+      if (!dateString) return "";
+      const date = new Date(dateString);
+      return `${date.getMonth() + 1}/${date.getDate()}`;
+    };
+
     return {
       handleCourseClick,
       courseclassId,
@@ -850,6 +892,7 @@ export default defineComponent({
       handleMenuClick,
       handleKnowledgeMenuClick,
       handleApplicationsMenuClick,
+      formatTimelineDate,
     };
   },
 });
@@ -861,195 +904,6 @@ export default defineComponent({
   display: flex;
   justify-content: center;
 }
-
-.class-card {
-  background: inherit;
-  width: 100%;
-  overflow: hidden;
-}
-
-.class-header {
-  padding: 0px 24px;
-  display: flex;
-  gap: 24px;
-  flex-wrap: wrap;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.class-image-container {
-  width: 250px;
-  height: 200px;
-  flex-shrink: 0;
-  border-radius: 12px;
-  overflow: hidden;
-  background-color: #f5f5f5;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.class-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.class-image-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: #e6f7ff;
-}
-
-.placeholder-icon {
-  font-size: 48px;
-  color: #1890ff;
-}
-
-/* Adjust the class-basic to take remaining space */
-.class-basic {
-  flex: 1;
-  min-width: 300px;
-}
-
-/* For responsive design */
-@media (max-width: 768px) {
-  .class-image-container {
-    width: 80px;
-    height: 80px;
-    margin-bottom: 16px;
-  }
-
-  .class-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-}
-.class-basic {
-  flex: 1;
-  min-width: 300px;
-}
-
-.class-basic h1 {
-  font-size: 24px;
-  margin-bottom: 12px;
-  color: rgba(0, 0, 0, 0.85);
-}
-
-.class-meta {
-  display: flex;
-  flex-direction: column;
-  align-items: left;
-  margin-left: 30px;
-  color: rgba(0, 0, 0, 0.45);
-}
-
-.class-description {
-  color: rgba(0, 0, 0, 0.65);
-  line-height: 1.6;
-}
-
-.teacher-section {
-  padding-left: 24px;
-  border-left: 1px solid #f0f0f0;
-  min-width: 280px;
-}
-
-.teacher-section h3 {
-  font-size: 16px;
-  margin-bottom: 12px;
-  color: rgba(0, 0, 0, 0.85);
-}
-
-.class-tabs {
-  padding: 0 24px;
-}
-
-.tab-content {
-  padding: 24px 0;
-}
-
-.action-bar {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.course-item,
-.student-item {
-  padding: 12px 0;
-  border-bottom: 1px solid #f0f0f0;
-  display: flex;
-  align-items: center;
-}
-
-.course-item:hover,
-.student-item:hover {
-  background: #fafafa;
-}
-
-.course-title {
-  font-weight: 500;
-}
-
-.course-description {
-  color: rgba(0, 0, 0, 0.45);
-}
-
-.edit-btn {
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.course-item:hover .edit-btn {
-  opacity: 1;
-}
-
-.remove-btn {
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.remove-btn:hover {
-  background: #ff4d4f;
-  color: white;
-}
-
-.invite-code {
-  display: flex;
-  max-width: 250px;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  margin-top: 20px;
-  margin-bottom: 15px;
-}
-
-@media (max-width: 768px) {
-  .class-header {
-    flex-direction: column;
-  }
-
-  .teacher-section {
-    border-left: none;
-    padding-left: 0;
-    border-top: 1px solid #f0f0f0;
-    padding-top: 24px;
-  }
-
-  .action-bar {
-    flex-direction: column;
-    gap: 16px;
-  }
-
-  .class-container {
-    padding: 12px;
-  }
-}
-
 /* 面包屑导航样式 */
 .ant-breadcrumb {
   padding: 16px 24px; /* 上下间距和左间距 */
@@ -1071,83 +925,347 @@ export default defineComponent({
   font-weight: 500;
   color: rgba(0, 0, 0, 0.85); /* 当前页面颜色 */
 }
-/* 复制图标动画 */
-.anticon-copy {
-  transition: transform 0.2s;
+
+.class-card {
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  overflow: hidden;
 }
 
-.ant-tag:hover .anticon-copy {
-  transform: translateX(2px);
+.class-content {
+  width: 80%;
+  margin: 0 auto;
 }
 
-/* 课程列表样式 */
-.course-list-container {
+.class-header {
+  padding: 12px 0;
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.class-info-section {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+.class-basic {
+  flex: 1;
+  min-width: 300px;
+}
+
+.class-title {
+  font-weight: 600;
+  font-size: 28px;
+  color: #1d2129;
+  margin-bottom: 16px;
+}
+
+.class-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.invite-code {
+  margin-top: 8px;
+  max-width: 300px;
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: 500;
+  transition: all 0.3s;
+}
+
+.invite-code:hover {
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.class-description-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #4e5969;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.meta-icon {
+  color: #86909c;
+}
+
+.teacher-section {
+  min-width: 200px;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: #1d2129;
+  margin-bottom: 12px;
+}
+
+.teacher-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  transition: all 0.3s;
+}
+
+.teacher-card:hover {
+  background: #e6f4ff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.teacher-actions {
+  align-self: flex-start;
+}
+
+.class-image-container {
+  width: 250px;
+  height: 175px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #f0f7ff, #e6f4ff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+}
+
+.class-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.class-image-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f0f7ff, #e6f4ff);
+}
+
+.placeholder-icon {
+  font-size: 48px;
+  color: #91caff;
+}
+
+.custom-tabs {
   margin-top: 16px;
 }
 
-.empty-placeholder {
-  padding: 40px 0;
-  background: #fff;
-  border-radius: 8px;
+.custom-tabs :deep(.ant-tabs-nav) {
+  margin: 0;
 }
 
-/* 调整课程列表布局 */
-.course-grid {
-  grid-template-columns: 1fr;
-  gap: 8px;
+.custom-tabs :deep(.ant-tabs-tab) {
+  padding: 12px 24px;
+  font-weight: 500;
 }
 
+.custom-tabs :deep(.ant-tabs-tab-active) {
+  color: #1677ff;
+}
+
+.tab-content {
+  padding: 16px 0;
+}
+
+.action-bar {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.action-button {
+  border-radius: 6px;
+  font-weight: 500;
+  transition: all 0.3s;
+}
+
+.action-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.course-list-container {
+  margin-top: 16px;
+  max-height: 53vh;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+/* 课程时间轴容器 */
+.course-timeline-container {
+  position: relative;
+  padding: 0 40px;
+}
+
+/* 时间轴线 */
+.timeline-line {
+  position: absolute;
+  left: 60px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(to bottom, #1890ff, #91caff);
+  z-index: 0;
+}
+
+/* 课程时间轴列表 */
+.course-timeline-list {
+  position: relative;
+  z-index: 1;
+}
+
+/* 时间轴项 */
+.course-timeline-item {
+  display: flex;
+  margin-bottom: 24px;
+  align-items: flex-start;
+  position: relative;
+}
+
+/* 时间节点 */
+.timeline-node {
+  width: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 8px;
+}
+
+.node-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #1890ff;
+  border: 3px solid white;
+  box-shadow: 0 0 0 2px #1890ff;
+  z-index: 2;
+}
+
+.node-date {
+  font-size: 12px;
+  color: #8c8c8c;
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+/* 课程卡片 */
 .course-card {
-  padding: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
-  background-color: #ffffff;
+  flex: 1;
+  padding: 16px;
+  background: #ffffff;
   border-radius: 8px;
-  margin: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s;
+  cursor: pointer;
+  border: 1px solid #f0f2f5;
+  margin-left: 16px;
 }
 
 .course-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-4px);
+  box-shadow: 0 6px 16px rgba(24, 144, 255, 0.2);
+  border-color: #91caff;
+}
+
+.course-card.selected {
+  background-color: #f0f9ff;
+  border-left: 3px solid #1890ff;
 }
 
 .course-card-header {
-  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.course-title {
+  font-weight: 600;
+  font-size: 16px;
+  color: #1d2129;
+  margin: 0;
 }
 
 .course-description {
+  color: #86909c;
   font-size: 14px;
-  line-height: 1.4;
-  margin-bottom: 12px;
-  -webkit-line-clamp: 2; /* 限制描述显示两行 */
+  line-height: 1.6;
+  margin: 0 0 12px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-/* 调整操作按钮位置 */
-.course-actions {
-  padding-top: 8px;
-  border-top: 1px solid #f0f0f0;
+.course-meta {
+  display: flex;
+  justify-content: flex-end;
 }
 
-/* 学生列表样式 */
+.create-time {
+  font-size: 12px;
+  color: #8c8c8c;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .course-timeline-container {
+    padding: 0 20px;
+  }
+
+  .timeline-line {
+    left: 30px;
+  }
+
+  .timeline-node {
+    width: 50px;
+  }
+}
+
 .student-list-container {
   margin-top: 16px;
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 8px;
+  border-radius: 8px;
+  border: 1px solid #f0f2f5;
 }
 
 .student-table {
-  background: #fff;
+  background: #ffffff;
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
-  border: 1px solid #f0f0f0;
 }
 
 .student-table-header {
   display: flex;
-  background-color: #fafafa;
+  background-color: #f8f9fa;
   padding: 12px 16px;
   font-weight: 500;
-  color: rgba(0, 0, 0, 0.85);
-  border-bottom: 1px solid #f0f0f0;
+  color: #1d2129;
+  border-bottom: 1px solid #f0f2f5;
 }
 
 .student-table-row {
@@ -1158,11 +1276,11 @@ export default defineComponent({
 }
 
 .student-table-row:hover {
-  background-color: #fafafa;
+  background-color: #f8f9fa;
 }
 
 .student-table-row:not(:last-child) {
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid #f0f2f5;
 }
 
 .student-cell {
@@ -1171,141 +1289,38 @@ export default defineComponent({
   padding: 0 8px;
 }
 
-.student-icon {
-  color: #1890ff;
-  margin-right: 8px;
-  font-size: 14px;
-}
-
 .student-name {
-  margin-left: 10px;
-  color: rgba(0, 0, 0, 0.85);
+  margin-left: 12px;
+  color: #1d2129;
   font-weight: 500;
 }
 
-.student-id {
-  color: rgba(0, 0, 0, 0.65);
-  font-size: 14px;
-}
-
-/* 响应式调整 */
-@media (max-width: 768px) {
-  .course-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .student-table-header {
-    display: none;
-  }
-
-  .student-table-row {
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 16px;
-  }
-
-  .student-cell {
-    width: 100%;
-    padding: 4px 0;
-    justify-content: space-between;
-    border-bottom: none !important;
-  }
-
-  .student-cell::before {
-    content: attr(data-label);
-    color: rgba(0, 0, 0, 0.45);
-    margin-right: 8px;
-  }
-
-  .student-cell[style*="flex: 2"]::before {
-    content: "学生姓名";
-  }
-
-  .student-cell[style*="flex: 3"]::before {
-    content: "学号";
-  }
-
-  .student-cell[style*="flex: 1"] {
-    justify-content: flex-end;
-    width: 100%;
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px dashed #f0f0f0;
-  }
-
-  .student-cell[style*="flex: 1"]::before {
-    content: none;
-  }
-}
-
-/* 课程列表容器 - 单列布局 */
-.course-list-container {
-  margin-top: 16px;
-  max-height: 53vh;
-  overflow-y: auto;
-  padding-right: 8px;
-}
-
-/* 课程卡片 - 单列布局 */
-.course-card {
-  padding: 16px;
-  margin-bottom: 12px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+.remove-btn {
+  border-radius: 4px;
   transition: all 0.2s;
-  cursor: pointer;
 }
 
-.course-card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+.remove-btn:hover {
+  background: #fff2f0;
 }
 
-.course-card.selected {
-  background-color: #f0f9ff;
-  border-left: 3px solid #1890ff;
-}
-
-/* 学生列表容器 - 单列布局 */
-.student-list-container {
-  margin-top: 16px;
-  max-height: 500px;
-  overflow-y: auto;
-  padding-right: 8px;
-}
-
-/* 学生表格 - 单列布局 */
-.student-table {
-  background: #fff;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-  border: 1px solid #f0f0f0;
-}
-
-.student-table-row {
-  display: flex;
-  padding: 12px 16px;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.student-table-row:last-child {
-  border-bottom: none;
-}
-
-/* 添加报告样式 */
 .report-container {
-  padding: 16px;
+  padding: 24px;
+  background: #ffffff;
   border-radius: 8px;
-  min-height: 500px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  min-height: 400px;
 }
 
 .report-header {
-  margin-bottom: 16px;
+  margin-bottom: 24px;
   display: flex;
   justify-content: flex-end;
+}
+
+.generate-btn {
+  border-radius: 6px;
+  font-weight: 500;
 }
 
 .empty-report {
@@ -1313,6 +1328,36 @@ export default defineComponent({
   justify-content: center;
   align-items: center;
   height: 300px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .class-container {
+    padding: 16px;
+  }
+
+  .class-header {
+    flex-direction: column;
+  }
+
+  .class-image-container {
+    width: 100%;
+    height: 180px;
+  }
+
+  .action-bar {
+    flex-direction: column;
+  }
+
+  .search-input {
+    width: 100%;
+  }
+
+  .course-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* 解决方案2：弹性布局滚动（推荐） */
@@ -1354,5 +1399,48 @@ export default defineComponent({
 
 .ant-dropdown-menu-item-danger:hover {
   background-color: #fff2f0;
+}
+
+/* 搜索框样式 */
+.custom-search-input {
+  width: 350px;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.custom-search-input:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.custom-search-input :deep(.ant-input) {
+  height: 40px;
+  padding: 0 16px;
+  border: none;
+  background-color: #f8f9fa;
+}
+
+.custom-search-input :deep(.ant-input:focus) {
+  box-shadow: none;
+  background-color: #fff;
+}
+
+.custom-search-input :deep(.ant-input-group-addon) {
+  background: transparent;
+}
+
+.search-button {
+  height: 40px;
+  border-radius: 0 20px 20px 0 !important;
+  padding: 0 20px;
+  background: linear-gradient(135deg, #1890ff, #096dd9);
+  border: none;
+  transition: all 0.3s ease;
+}
+
+.search-button:hover {
+  background: linear-gradient(135deg, #40a9ff, #1890ff);
+  transform: translateY(-1px);
 }
 </style>

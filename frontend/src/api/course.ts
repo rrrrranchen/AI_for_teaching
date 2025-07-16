@@ -108,6 +108,39 @@ export const setPostClassDeadline = async (
     });
   return response.data;
 };
+
+// 获取课程内容与目标
+export interface CourseContent {
+  id: number;
+  name: string;
+  content: string;
+  objectives: string;
+}
+
+export const getCourseContent = async (
+  courseId: number
+): Promise<CourseContent> => {
+  const response: AxiosResponse<CourseContent> = await api.get(
+    `/courses/${courseId}/content`
+  );
+  return response.data;
+};
+
+// 更新课程内容与目标参数
+interface UpdateCourseContentParams {
+  content?: string;
+  objectives?: string;
+}
+
+// 更新课程内容与目标 (老师权限)
+export const updateCourseContent = async (
+  courseId: number,
+  data: UpdateCourseContentParams
+): Promise<CourseContent & { message: string }> => {
+  const response: AxiosResponse<CourseContent & { message: string }> =
+    await api.put(`/courses/${courseId}/content`, data);
+  return response.data;
+};
 // // 创建课程参数
 // interface CreateCourseParams {
 //   name: string;

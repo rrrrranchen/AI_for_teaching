@@ -15,7 +15,7 @@ from app.models.course import Course
 from app.models.teaching_design import TeachingDesign
 from app.models.teachingdesignversion import TeachingDesignVersion
 from app.models.question import Question
-from app.services.lesson_plan import generate_knowledge_mind_map, generate_post_class_questions, generate_teaching_plans
+from app.services.lesson_plan import generate_knowledge_mind_map, generate_lesson_plans
 from app.models.MindMapNode import MindMapNode
 from app.models.studentanswer import StudentAnswer
 from app.models.teachingDesignTime import TeachingDesignTime
@@ -202,31 +202,28 @@ def is_teacher_of_course(course_id):
     return association > 0
 
 
-async def generate_teaching_plans_async(course_content, student_feedback):
-    """异步生成教学方案"""
-    # 模拟异步生成教学方案的过程
-    await asyncio.sleep(1)  # 模拟耗时操作
-    # 假设 generate_teaching_plans 是同步函数，我们在这里调用它
-    return generate_teaching_plans(course_content=course_content, student_feedback=student_feedback)
+async def generate_teaching_plans_async(course_content, student_feedback,db_names,similarity_threshold,chunk_cnt):
+    """异步生成单个教学方案"""
+    await asyncio.sleep(1)  
+    
+    return generate_lesson_plans(course_content=course_content, student_feedback=student_feedback,db_names=db_names,similarity_threshold=similarity_threshold,chunk_cnt=chunk_cnt)
 
-async def save_teaching_design_versions_async(new_design, teaching_plans):
-    """异步保存教学设计版本"""
-    versions = []
-    for i, plan in enumerate(teaching_plans['plans'], 1):
-        version = TeachingDesignVersion(
-            design_id=new_design.id,
-            version=f'{i}',
-            content=json.dumps({
-                'plan_content': plan['content'],
-                'analysis': plan.get('analysis', '')
-            }),
-            recommendation_score=plan['recommendation'],
-            level=plan['level'],
-            author_id=new_design.creator_id
-        )
-        versions.append(version)
-    await asyncio.gather(*[asyncio.to_thread(db.session.add, version) for version in versions])
-    return versions
+async def save_teaching_design_version_async(new_design, plan_content):
+    """异步保存单个教学设计版本"""
+    version = TeachingDesignVersion(
+        design_id=new_design.id,
+        version='1',  # 固定为版本1
+        content=json.dumps({
+            'plan_content': plan_content,
+            'analysis': ''
+        }),
+        recommendation_score=5,  # 默认推荐指数为5（最高）
+        level='优秀',  # 默认等级为优秀
+        author_id=new_design.creator_id
+    )
+    db.session.add(version)
+    await asyncio.to_thread(db.session.commit)
+    return version
 
 async def set_current_version_async(new_design, versions):
     """异步设置当前版本"""
@@ -234,61 +231,110 @@ async def set_current_version_async(new_design, versions):
     new_design.current_version_id = best_version.id
     await asyncio.to_thread(db.session.commit)
 
+
+
+
 @teaching_design_bp.route('/createteachingdesign', methods=['POST'])
 async def create_teaching_design():
-    """异步创建教学设计"""
+    """异步创建教学设计（基于课程目标和内容）"""
     try:
         # 1. 身份验证和基础校验
         current_user = get_current_user()
         if not current_user or current_user.role != 'teacher':
+            logger.warning(f"无操作权限尝试: 用户ID={getattr(current_user, 'id', 'None')}")
             return jsonify(code=403, message="无操作权限"), 403
 
         data = request.get_json()
         if not data or 'course_id' not in data:
+            logger.warning("缺少必要参数: course_id")
             return jsonify(code=400, message="缺少必要参数"), 400
 
-        # 2. 自动获取课前预习题目作为学生反馈
+        # 2. 获取课程信息（包含课程目标和内容）
+        course = Course.query.get(data['course_id'])
+        if not course:
+            logger.warning(f"课程不存在: course_id={data['course_id']}")
+            return jsonify(code=404, message="课程不存在"), 404
+            
+        if not course.courseclasses:
+            logger.warning(f"课程未关联课程班: course_id={data['course_id']}")
+            return jsonify(code=400, message="课程未关联任何课程班"), 400
+            
+        courseclass = course.courseclasses[0]
+
+        # 3. 检查课程目标和内容是否已设置
+        if not course.objectives or not course.content:
+            logger.warning(f"课程目标或内容未设置: course_id={data['course_id']}")
+            return jsonify(code=400, message="请先设置课程目标和内容"), 400
+
+        # 4. 获取知识库
+        knowledge_bases = courseclass.knowledge_bases
+        if not knowledge_bases:
+            logger.warning(f"课程班未关联知识库: courseclass_id={courseclass.id}")
+            return jsonify(code=400, message="课程班未关联任何知识库"), 400
+            
+        db_names = [kb.stored_basename for kb in knowledge_bases]
+        logger.info(f"使用知识库: {db_names}")
+
+        # 5. 获取课前预习题目
         student_feedback = get_pre_class_questions_as_feedback(data['course_id'])
+        logger.debug(f"获取到学生反馈: {student_feedback[:100]}...")
 
-        # 3. 异步生成教学方案
-        teaching_plans = await generate_teaching_plans_async(
-            course_content=data.get('course_content', ''),
-            student_feedback=student_feedback
+        # 6. 构建生成参数（使用课程目标和内容）
+        generation_input = f"""
+        # 课程目标:
+        {course.objectives}
+        
+        # 课程内容:
+        {course.content}
+        """
+
+        # 7. 异步生成教学方案
+        plan_content = await generate_teaching_plans_async(
+            course_content=generation_input,  # 使用课程目标和内容作为输入
+            student_feedback=student_feedback,
+            db_names=db_names,
+            similarity_threshold=0.7,
+            chunk_cnt=5
         )
+        logger.info("教学方案生成成功")
 
-        # 4. 创建数据库记录
+        # 8. 创建数据库记录
         new_design = TeachingDesign(
             course_id=data['course_id'],
             creator_id=current_user.id,
-            title=data.get('title', '未命名设计'),
-            input=data.get('course_content', '')  # 将 course_content 记录到 input 字段
+            title=data.get('title', f"{course.name}教学设计"),
+            input=generation_input  # 记录使用的原始输入
         )
         db.session.add(new_design)
         db.session.flush()
 
-        # 5. 异步保存生成的版本
-        versions = await save_teaching_design_versions_async(new_design, teaching_plans)
+        # 9. 保存版本
+        version = await save_teaching_design_version_async(new_design, plan_content)
+        logger.info(f"创建教学设计版本: version_id={version.id}")
+        
+        # 10. 设置当前版本
+        new_design.current_version_id = version.id
+        db.session.commit()
+        logger.info(f"教学设计创建成功: design_id={new_design.id}")
 
-        # 6. 异步设置当前版本
-        await set_current_version_async(new_design, versions)
-
-        # 7. 返回响应
+        # 11. 返回响应
         return jsonify({
             "code": 200,
             "data": {
                 "design_id": new_design.id,
-                "feedback_used": student_feedback[:200] + "..." if len(student_feedback) > 200 else student_feedback,
-                "versions": [ {
-                    "id": v.id,
-                    "level": v.level,
-                    "recommendation": v.recommendation_score
-                } for v in versions ]
+                "version_id": version.id,
+                "title": new_design.title,
+                "course_name": course.name,
+                "objectives_used": course.objectives[:200] + "..." if len(course.objectives) > 200 else course.objectives,
+                "content_used": course.content[:200] + "..." if len(course.content) > 200 else course.content,
+                "courseclass": courseclass.name,
+                "knowledge_bases_used": [kb.name for kb in knowledge_bases]
             }
         })
 
     except Exception as e:
         db.session.rollback()
-        logger.error(f"创建教学设计失败: {str(e)}")
+        logger.exception("创建教学设计失败")
         return jsonify(code=500, message="服务器内部错误"), 500
 
 @teaching_design_bp.route('/<int:design_id>/versions', methods=['GET'])

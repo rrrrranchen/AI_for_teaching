@@ -7,7 +7,7 @@ from app.utils.database import db
 from app.models.user import User
 from app.models.KnowledgeBase import KnowledgeBase
 from app.models.Category import Category
-from app.utils.create_kb import BASE_PATH, CATEGORY_PATH, create_structured_db, create_unstructured_db
+from app.utils.create_kb import BASE_PATH, CATEGORY_PATH, create_structured_db, create_unstructured_db, create_unstructured_db_for_questions
 from app.routes.knowledge_for_teachers import delete_file_resources, update_single_knowledge_base
 from app.models.CategoryFile import CategoryFile
 from app.models.CategoryFileImage import CategoryFileImage
@@ -270,6 +270,107 @@ def admin_create_knowledge_base():
     except Exception as e:
         current_app.logger.error(f"知识库创建失败: {str(e)}", exc_info=True)
         return jsonify({'error': 'SERVER_ERROR', 'message': '知识库创建失败'}), 500
+
+
+@knowledge_management_bp.route('/admin/knowledge_bases/create/questions', methods=['POST'])
+def admin_create_knowledge_base_questions():
+    """管理员创建知识库（作者固定为当前管理员）"""
+    data = request.get_json()
+    
+    # 基本参数验证
+    required_fields = ['name', 'category_ids', 'base_type']
+    if not data or any(field not in data for field in required_fields):
+        return jsonify({
+            'error': 'MISSING_REQUIRED_FIELDS',
+            'message': f'缺少必要参数: {", ".join(required_fields)}'
+        }), 400
+    
+    try:
+        # 获取当前管理员ID
+        admin_id = session.get('user_id')
+        
+        # 验证当前用户是否为管理员
+        current_user = User.query.get(admin_id)
+        # 获取类目信息
+        categories = Category.query.filter(Category.id.in_(data['category_ids'])).all()
+        if not categories:
+            return jsonify({'error': 'INVALID_CATEGORY', 'message': '未找到指定类目'}), 400
+        
+        # 按类型分组类目
+        unstructured_categories = []
+        structured_categories = []
+        
+        for category in categories:
+            if category.category_type == 'non_structural':
+                unstructured_categories.append(category.stored_categoryname)
+            elif category.category_type == 'structural':
+                structured_categories.append(category.stored_categoryname)
+        
+        # 检查知识库类型是否与类目类型一致
+        if data['base_type'] == 'non_structural' and structured_categories:
+            return jsonify({'error': 'TYPE_MISMATCH', 'message': '知识库类型为非结构化，但存在结构化类目'}), 400
+        elif data['base_type'] == 'structural' and unstructured_categories:
+            return jsonify({'error': 'TYPE_MISMATCH', 'message': '知识库类型为结构化，但存在非结构化类目'}), 400
+        
+        # 生成唯一知识库名称
+        db_name = data['name']
+        unique_name = f"{uuid.uuid4()}_{db_name}"
+        
+        # 根据类目类型调用不同的创建函数
+        if unstructured_categories:
+            create_unstructured_db_for_questions(unique_name, unstructured_categories)
+        elif structured_categories:
+            create_structured_db(unique_name, structured_categories)
+        
+        # 创建知识库数据库记录（作者固定为当前管理员）
+        knowledge_base = KnowledgeBase(
+            name=data['name'],
+            stored_basename=unique_name,
+            description=data.get('description', ''),
+            author_id=admin_id,  # 固定为当前管理员ID
+            is_public=data.get('is_public', False),
+            is_system=True,
+            file_path=os.path.join(BASE_PATH, unique_name),
+            base_type=data['base_type'],
+            need_update=data.get('need_update', False)
+        )
+        
+        # 关联类目
+        for category in categories:
+            knowledge_base.categories.append(category)
+        
+        db.session.add(knowledge_base)
+        db.session.commit()
+        
+        # 构造响应
+        response_data = {
+            'id': knowledge_base.id,
+            'name': knowledge_base.name,
+            'description': knowledge_base.description,
+            'is_public': knowledge_base.is_public,
+            'is_system': knowledge_base.is_system,
+            'author_id': knowledge_base.author_id,
+            'author_name': current_user.username,
+            'created_at': knowledge_base.created_at.isoformat(),
+            'file_path': knowledge_base.file_path,
+            'categories': [{
+                'id': cat.id,
+                'name': cat.name,
+                'type': cat.category_type
+            } for cat in knowledge_base.categories],
+            'message': '知识库创建成功'
+        }
+        
+        return jsonify(response_data), 201
+    
+    except ValueError as e:
+        return jsonify({'error': 'INVALID_REQUEST', 'message': str(e)}), 400
+    except Exception as e:
+        current_app.logger.error(f"知识库创建失败: {str(e)}", exc_info=True)
+        return jsonify({'error': 'SERVER_ERROR', 'message': '知识库创建失败'}), 500
+
+
+
 
 @knowledge_management_bp.route('/admin/knowledge_bases/batch', methods=['DELETE'])
 def admin_batch_delete_knowledge_bases():

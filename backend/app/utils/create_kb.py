@@ -1,6 +1,8 @@
 from http import HTTPStatus
 import os
+import re
 import shutil
+from typing import List
 from fastapi import logger
 from flask import current_app
 from llama_index.core import VectorStoreIndex, Settings, SimpleDirectoryReader
@@ -320,6 +322,145 @@ def create_unstructured_db(db_name: str, label_name: list):
     else:
         print("没有可处理的文档内容")
 
+
+MAX_CHUNK_SIZE = 3000  # 最大块大小
+MIN_QUESTIONS_TO_TRIGGER = 1  # 触发题目分块模式的最小题目数量
+def create_unstructured_db_for_questions(db_name: str, label_name: List[str]) -> None:
+    """创建专门针对题库类MD文件的知识库索引
+    
+    Args:
+        db_name: 知识库名称
+        label_name: 类目名称列表
+    """
+    print(f"知识库名称为：{db_name}，类目名称为：{label_name}")
+    
+    # 验证输入
+    if not label_name:
+        print("没有选择类目")
+        return
+    if not db_name:
+        print("没有命名知识库")
+        return
+    if os.path.exists(BASE_PATH) and db_name in os.listdir(BASE_PATH):
+        print("知识库已存在，请换个名字或删除原来知识库再创建")
+        return
+    
+    # 针对题库类MD文件的专用分块逻辑
+    def split_question_bank(content: str) -> List[str]:
+        """仅按“数字+点”切分题目"""
+        question_start = re.compile(r'^\s*\d+\．\s*')   # 只匹配“数字+中文点”
+        chunks, current = [], []
+        for line in content.splitlines():
+            if question_start.match(line.strip()):
+                if current:                      # 上一题结束
+                    chunks.append('\n'.join(current))
+                    current = []
+            current.append(line)
+        if current:                              # 最后一题
+            chunks.append('\n'.join(current))
+        return chunks
+
+    documents = []
+    for label in label_name:
+        label_path = os.path.join(CATEGORY_PATH, label)
+        if not os.path.exists(label_path):
+            print(f"类目路径不存在: {label_path}")
+            continue
+            
+        # 获取目录下所有MD文件
+        for root, _, files in os.walk(label_path):
+            for file in files:
+                if not file.lower().endswith('.md'):
+                    continue
+                    
+                file_path = os.path.join(root, file)
+                try:
+                    # 读取文件内容
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    
+                    if not content.strip():
+                        print(f"文件 {file_path} 内容为空，跳过处理")
+                        continue
+                    
+                    # 创建基础元数据
+                    base_metadata = {
+                        'file_name': os.path.basename(file_path),
+                        'file_path': file_path,
+                        'db_name': db_name,
+                        'category': label,
+                        'data_type': 'question_bank'
+                    }
+                    
+                    # 使用专用分块逻辑
+                    chunks = split_question_bank(content)
+                    
+                    # 创建文档块
+                    for i, chunk in enumerate(chunks):
+                        # 跳过空块
+                        if not chunk.strip():
+                            continue
+                        
+                        # 检测题目类型
+                        question_type = "unknown"
+                        if re.search(r'【答案】|答案：', chunk):
+                            question_type = "with_answer"
+                        elif re.search(r'[A-D][．.)]', chunk):
+                            question_type = "choice_question"
+                        else:
+                            question_type = "text_question"
+                        
+                        # 估计题目难度
+                        difficulty = "medium"
+                        if len(chunk) < 200:
+                            difficulty = "easy"
+                        elif '解析' in chunk or '分析' in chunk or len(chunk) > 500:
+                            difficulty = "hard"
+                            
+                        chunk_metadata = base_metadata.copy()
+                        chunk_metadata.update({
+                            'chunk_id': f"{i+1}/{len(chunks)}",
+                            'has_image': any(tag in chunk for tag in ['![', '<img']),
+                            'has_math': '$' in chunk or '\\[' in chunk,
+                            'question_type': question_type,
+                            'difficulty': difficulty,
+                            'is_question': True
+                        })
+                        
+                        document = Document(
+                            text=chunk,
+                            metadata=chunk_metadata,
+                            id_=f"{os.path.basename(file_path)}_{i}"
+                        )
+                        documents.append(document)
+                        
+                    print(f"文件 {file_path} 分割为 {len(chunks)} 个题目块")
+                        
+                except Exception as e:
+                    print(f"处理文件 {file_path} 时出错: {str(e)}")
+                    continue
+    
+    # 创建索引
+    if not documents:
+        print("没有可处理的文档内容")
+        return
+    
+    # 分批创建索引
+    index = None
+    batch_size = 100
+    for i in range(0, len(documents), batch_size):
+        batch = documents[i:i + batch_size]
+        if index is None:
+            index = VectorStoreIndex(batch)
+        else:
+            for document in batch:
+                index.insert(document)
+    
+    # 保存索引
+    db_path = os.path.join(BASE_PATH, db_name)
+    os.makedirs(db_path, exist_ok=True)
+    index.storage_context.persist(db_path)
+    print(f"知识库 {db_name} 创建成功，包含 {len(documents)} 个题目块")
 
 
 def create_structured_db(db_name: str, data_table: list):

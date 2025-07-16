@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Dict, List, Optional, Tuple
 from venv import logger
 from flask import Blueprint, json, render_template, request, jsonify, session
 from sqlalchemy import and_, desc, func
@@ -8,11 +9,12 @@ from app.models.question import Question
 from app.models.course import Course
 from app.models.user import User
 from app.models.courseclass import Courseclass
-from app.services.lesson_plan import generate_ai_analysis, generate_post_class_questions, generate_pre_class_questions
+from app.services.lesson_plan import generate_ai_analysis, generate_post_class_questions, generate_pre_class_questions, generate_questions_with_specs
 from app.models.studentanswer import StudentAnswer
 from app.models.teaching_design import TeachingDesign
 from app.models.teachingdesignversion import TeachingDesignVersion
 from app.models.MindMapNode import MindMapNode
+from app.utils.ai_chat import _retrieve_chunks_from_multiple_dbs, _retrieve_chunks_from_multiple_dbs_for_questions
 question_bp=Blueprint('question',__name__)
 
 def is_logged_in():
@@ -39,12 +41,6 @@ def teachingdesign_create(course_id):
             logger.error("Current user not found")
             return jsonify({'error': 'User not found'}), 404
 
-        # 获取请求数据
-        data = request.json
-        if not data:
-            logger.error("No data provided in request")
-            return jsonify({'error': 'No data provided'}), 400
-
         # 验证课程是否存在
         course = Course.query.get(course_id)
         if not course:
@@ -64,7 +60,7 @@ def teachingdesign_create(course_id):
 
         # 获取课程描述和请求内容
         course_description = course.description if course.description else ""
-        user_content = data.get('content', '')
+        user_content = f"课程目标：{course.objectives}\n\n 课程内容：{course.content}"
         
         # 组合内容用于AI生成题目
         combined_content = f"课程描述: {course_description}\n\n教师补充内容: {user_content}" if course_description else user_content
@@ -445,6 +441,190 @@ def generate_post_class_questions_for_version(design_id, version_id):
         db.session.rollback()
         logger.error(f"生成课后习题失败: {str(e)}")
         return jsonify(code=500, message="服务器内部错误"), 500
+def validate_question_specs(specs: List[Dict]) -> List[Tuple[str, int, Optional[int]]]:
+    """
+    验证并转换前端传来的题目规格
+    """
+    valid_types = {'choice', 'fill', 'short_answer'}
+    validated_specs = []
+    
+    for spec in specs:
+        if not isinstance(spec, dict):
+            raise ValueError("每个题目规格必须是字典")
+        
+        q_type = spec.get('type')
+        count = spec.get('count')
+        difficulty = spec.get('difficulty')
+        
+        # 验证题型
+        if q_type not in valid_types:
+            raise ValueError(f"无效题型: {q_type}，支持类型: {', '.join(valid_types)}")
+        
+        # 验证数量
+        if not isinstance(count, int) or count < 1:
+            raise ValueError("题目数量必须为正整数")
+        
+        # 验证难度
+        if difficulty is not None and (not isinstance(difficulty, int) or difficulty < 1 or difficulty > 5):
+            raise ValueError("难度必须在1-5之间或为null")
+        
+        validated_specs.append((q_type, count, difficulty))
+    
+    return validated_specs
+
+
+@question_bp.route('/mind_map_node/<int:node_id>/generate_questions', methods=['POST'])
+def generate_questions_for_mind_map_node(node_id):
+    """
+    为单个思维导图节点（知识点）生成课后习题
+    - 支持从前端接收题目类型与数量的配置
+    - 优先从知识库检索相关题目
+    - 检索失败时使用AI生成题目
+    
+    请求体示例：
+    {
+        "question_specs": [
+            {"type": "choice", "count": 2, "difficulty": 3},
+            {"type": "short_answer", "count": 1, "difficulty": null}
+        ]
+    }
+    """
+    try:
+        # 1. 基础验证
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify(code=401, message="请先登录"), 401
+
+        # 2. 获取请求参数
+        request_data = request.get_json()
+        if not request_data:
+            return jsonify(code=400, message="请求体不能为空"), 400
+        
+        # 3. 验证并转换题目规格
+        try:
+            question_specs = validate_question_specs(request_data.get('question_specs', []))
+        except ValueError as e:
+            return jsonify(code=400, message=str(e)), 400
+        
+        # 如果没有传规格，使用默认配置
+        if not question_specs:
+            question_specs = [
+                ('choice', 1, 3),      # 1道中等难度选择题
+                ('short_answer', 1, 4), # 1道较难简答题
+                ('fill', 1, 2) # 1道简单填空题
+            ]
+            logger.info("使用默认题目规格配置")
+
+        # 4. 查询思维导图节点（知识点）
+        node = MindMapNode.query.get(node_id)
+        if not node:
+            return jsonify(code=404, message="知识点不存在"), 404
+        
+        # 5. 获取关联的教学设计
+        design = TeachingDesign.query.get(node.teachingdesignid)
+        if not design:
+            return jsonify(code=404, message="关联的教学设计不存在"), 404
+        
+        # 6. 权限验证（教师只能操作自己创建的知识点）
+        if current_user.role == 'teacher' and design.creator_id != current_user.id:
+            return jsonify(code=403, message="无操作权限"), 403
+        
+        # 7. 获取当前教学设计所属课程的课程班知识库
+        course = Course.query.get(design.course_id)
+        if not course:
+            logger.warning(f"课程不存在: course_id={design.course_id}")
+            return jsonify(code=404, message="课程不存在"), 404
+            
+        if not course.courseclasses:
+            logger.warning(f"课程未关联课程班: course_id={design.course_id}")
+            return jsonify(code=400, message="课程未关联任何课程班"), 400
+            
+        courseclass = course.courseclasses[0]
+
+        knowledge_bases = courseclass.knowledge_bases
+        if not knowledge_bases:
+            logger.warning(f"课程班未关联知识库: courseclass_id={courseclass.id}")
+            return jsonify(code=400, message="课程班未关联任何知识库"), 400
+            
+        db_names = [kb.stored_basename for kb in knowledge_bases]
+        logger.info(f"使用知识库: {db_names}")
+        
+        # 8. 构建查询字符串（使用知识点名称和内容）
+        query_str = f"{node.node_name}: {node.node_content[:200]}" if node.node_content else node.node_name
+        
+        # 9. 从知识库检索相关题目
+        model_context, _, source_dict = _retrieve_chunks_from_multiple_dbs(
+            query=query_str,
+            db_names=db_names,
+            similarity_threshold=0,
+            chunk_cnt=40,
+            data_type_filter="question_bank"
+        )
+        print("检索结果")
+        print(model_context)
+        
+        # 10. 生成题目
+        questions = generate_questions_with_specs(
+            knowledge_point_name=node.node_name,
+            knowledge_point_content=node.node_content or "",
+            question_specs=question_specs,
+            retrieved_content=model_context
+        )
+        
+        # 11. 将生成的课后习题存储到数据库
+        saved_questions = []
+        for question_data in questions:
+            new_question = Question(
+                course_id=design.course_id,
+                type=question_data['type'],
+                content=question_data['content'],
+                correct_answer=question_data['correct_answer'],
+                difficulty=question_data['difficulty'],
+                analysis=question_data['analysis'],
+                timing='post_class',
+                is_public=False,
+                knowledge_point_id=node_id
+            )
+            db.session.add(new_question)
+            db.session.flush()  # 获取生成的ID
+            
+            # 保存用于返回的数据
+            saved_questions.append({
+                "id": new_question.id,
+                "type": new_question.type,
+                "content": new_question.content,
+                "correct_answer": new_question.correct_answer,
+                "difficulty": new_question.difficulty
+            })
+        
+        db.session.commit()
+        
+        # 12. 返回响应
+        return jsonify(
+            code=200, 
+            message=f"已为知识点 '{node.node_name}' 生成课后习题",
+            data={
+                "knowledge_point": {
+                    "id": node_id,
+                    "name": node.node_name
+                },
+                "questions": saved_questions,
+                "source": "knowledge_base" if model_context else "ai_generated",
+                "specs_used": [
+                    {
+                        "type": spec[0],
+                        "count": spec[1],
+                        "difficulty": spec[2]
+                    } for spec in question_specs
+                ]
+            }
+        ), 200
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"为知识点生成习题失败: {str(e)}", exc_info=True)
+        return jsonify(code=500, message="服务器内部错误"), 500
+
 
 
 #根据单个课程查询所有课后习题功能
@@ -1045,6 +1225,95 @@ def update_question_knowledge_point(question_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+
+
+@question_bp.route('/student/questions/<int:course_id>', methods=['GET'])
+def get_student_questions(course_id):
+    """
+    学生获取课后习题列表（包含作答状态、解析和作答记录）
+    每个题目只返回一条最新答题记录
+    """
+    try:
+        # 1. 身份验证
+        current_user = get_current_user()
+        if not current_user or current_user.role != 'student':
+            return jsonify({'error': 'Unauthorized or invalid role'}), 401
+
+        # 2. 验证课程是否存在
+        course = Course.query.get(course_id)
+        if not course:
+            return jsonify({'error': 'Course not found'}), 404
+
+        # 3. 获取关联的课程班
+        course_class = Courseclass.query.filter(Courseclass.courses.contains(course)).first()
+        if not course_class:
+            return jsonify({'error': 'Course class not found'}), 404
+
+        # 4. 验证学生是否在课程班中
+        if current_user not in course_class.students:
+            return jsonify({'error': 'Student not in this course class'}), 403
+
+        # 5. 获取所有课后习题（学生只能看公开题目）
+        questions = Question.query.filter_by(
+            course_id=course_id,
+            timing='post_class',
+            is_public=True
+        ).options(db.joinedload(Question.knowledge_point)).all()
+
+        # 6. 获取当前学生在这些题目上的最新答题记录
+        question_ids = [q.id for q in questions]
+        answers = StudentAnswer.query.filter(
+            StudentAnswer.student_id == current_user.id,
+            StudentAnswer.question_id.in_(question_ids),
+            StudentAnswer.class_id == course_class.id
+        ).order_by(StudentAnswer.answered_at.desc()).all()
+        
+        # 构建题目ID到答题记录的映射（只保留最新的一条）
+        # 由于默认只能答题一次，每个题目最多一条记录
+        answer_map = {}
+        for ans in answers:
+            # 每个题目只保留第一次遇到的记录（因为按时间倒序，所以是最新的）
+            if ans.question_id not in answer_map:
+                answer_map[ans.question_id] = ans
+
+        # 7. 构建响应数据
+        result = []
+        for question in questions:
+            # 获取该题目的答题记录（可能为空）
+            answer_record = answer_map.get(question.id)
+            
+            question_data = {
+                'id': question.id,
+                'type': question.type,
+                'content': question.content,
+                'difficulty': question.difficulty,
+                'knowledge_point': {
+                    'id': question.knowledge_point_id,
+                    'name': question.knowledge_point.node_name if question.knowledge_point else None,
+                    'content': question.knowledge_point.node_content if question.knowledge_point else None
+                },
+                'analysis': question.analysis,  # 题目解析
+                'has_answered': answer_record is not None,  # 是否已作答标识
+            }
+            
+            # 添加作答记录信息（如果存在）
+            if answer_record:
+                question_data['answer_record'] = {
+                    'id': answer_record.id,
+                    'student_answer': answer_record.answer,
+                    'correct_percentage': answer_record.correct_percentage,
+                    'answered_at': answer_record.answered_at.isoformat(),
+                    'last_modified': answer_record.modified_at.isoformat() if answer_record.modified_at else None
+                }
+                
+            result.append(question_data)
+        
+        return jsonify(result), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 @question_bp.route('/question-page')
 def questiontest():

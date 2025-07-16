@@ -7,9 +7,7 @@ import pandas as pd
 from datetime import datetime
 import time
 from werkzeug.utils import secure_filename
-from llama_index.core import VectorStoreIndex, StorageContext, load_index_from_storage, Settings
-from llama_index.core.schema import TextNode
-from llama_index.core import SimpleDirectoryReader
+from llama_index.core import Settings
 from app.models.relationship import category_knowledge_base
 from llama_index.embeddings.dashscope import (
     DashScopeEmbedding,
@@ -17,7 +15,6 @@ from llama_index.embeddings.dashscope import (
     DashScopeTextEmbeddingType,
 )
 from app.config import Config
-from llama_index.core.node_parser import SentenceSplitter
 from typing import List, Optional
 # 配置常量
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -357,7 +354,11 @@ def upload_file_to_folder_non_structural(file, folder_path: str) -> Tuple[str, L
             
             # 步骤4: 下载并解压结果，获取Markdown文件和图片
             md_file_path, image_paths = download_and_extract(zip_url, folder_path)
-            
+            processed_image_paths = []
+            for img_path in image_paths:
+                # 调整图片尺寸
+                resized_img_path = resize_image_if_needed(img_path, max_width=800)
+                processed_image_paths.append(os.path.basename(resized_img_path))
             # 读取并转换Markdown文件中的图片路径
             with open(md_file_path, 'r', encoding='utf-8') as f:
                 md_content = f.read()
@@ -379,7 +380,7 @@ def upload_file_to_folder_non_structural(file, folder_path: str) -> Tuple[str, L
             
             # 图片文件相对路径（也确保唯一性）
             image_relative_paths = []
-            for img_path in image_paths:
+            for img_path in processed_image_paths:
                 rel_path = os.path.join('static', 'knowledge', 'fileimages', img_path)
                 image_relative_paths.append(rel_path)
             
@@ -396,7 +397,25 @@ def upload_file_to_folder_non_structural(file, folder_path: str) -> Tuple[str, L
             os.remove(md_file_path)
         raise RuntimeError(f"文件处理失败: {str(e)}")
 
-
+def resize_image_if_needed(image_path: str, max_width: int = 800) -> str:
+    """调整图片大小（如果宽度超过max_width则等比缩放）"""
+    try:
+        from PIL import Image
+        img = Image.open(image_path)
+        if img.width > max_width:
+            # 计算新高度（保持宽高比）
+            ratio = max_width / float(img.width)
+            new_height = int(float(img.height) * ratio)
+            # 调整大小
+            img = img.resize((max_width, new_height), Image.Resampling.LANCZOS)
+            # 保存调整后的图片（覆盖原文件）
+            img.save(image_path)
+            print(f"Resized image: {image_path} to {max_width}px width")
+        return image_path
+    except Exception as e:
+        print(f"Error resizing image {image_path}: {str(e)}")
+        return image_path  # 如果出错返回原路径
+    
 def convert_md_image_paths(md_content: str, base_url: str = "http://localhost:5000") -> str:
     """
     将Markdown内容中的图片相对路径转换为完整URL路径

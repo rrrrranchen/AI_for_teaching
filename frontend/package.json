@@ -8,8 +8,11 @@
     "lint": "vue-cli-service lint"
   },
   "dependencies": {
+    "@monaco-editor/loader": "^1.5.0",
     "ant-design-vue": "^4.2.6",
     "axios": "^1.8.4",
+    "codemirror": "^5.65.19",
+    "codemirror-editor-vue3": "^2.8.0",
     "core-js": "^3.8.3",
     "dayjs": "^1.11.13",
     "dayjs-plugin-utc": "^0.1.2",
@@ -26,11 +29,14 @@
     "v-md-editor": "^1.0.6",
     "vditor": "^3.10.9",
     "vue": "^3.2.13",
+    "vue-codemirror": "^6.1.1",
     "vue-echarts": "^7.0.3",
     "vue-router": "^4.0.3",
     "vue3-markdown-it": "^1.0.10"
   },
   "devDependencies": {
+    "@babel/plugin-transform-class-static-block": "^7.27.1",
+    "@types/node": "^24.0.13",
     "@typescript-eslint/eslint-plugin": "^5.4.0",
     "@typescript-eslint/parser": "^5.4.0",
     "@vue/cli-plugin-babel": "~5.0.0",
@@ -46,6 +52,8 @@
     "eslint-plugin-vue": "^8.0.3",
     "less": "^4.3.0",
     "less-loader": "^12.3.0",
+    "monaco-editor": "^0.52.2",
+    "monaco-editor-webpack-plugin": "^7.1.0",
     "postcss": "^8.5.3",
     "prettier": "^2.4.1",
     "sass": "^1.89.2",
