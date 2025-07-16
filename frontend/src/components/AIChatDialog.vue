@@ -35,21 +35,21 @@
           @change="handleConversationChange"
         >
         </a-select>
-
         <!-- 会话操作按钮 -->
-        <div class="conversation-actions" v-if="currentConversationId">
+        <div class="conversation-actions">
           <!-- 3. 添加新建会话按钮 -->
-          <a-button type="text" size="small" @click="createNewConversation">
-            <template #icon><plus-outlined /></template> 新建会话
-          </a-button>
           <a-button
             type="text"
             size="small"
             @click="showRenameModal"
             :disabled="!currentConversationId"
+            v-if="currentConversationId"
           >
             <template #icon><edit-outlined /></template>
             重命名
+          </a-button>
+          <a-button type="text" size="small" @click="createNewConversation">
+            <template #icon><plus-outlined /></template> 新建会话
           </a-button>
         </div>
       </div>
@@ -771,7 +771,6 @@ const scrollToBottom = () => {
 
   .conversation-actions {
     margin-left: auto;
-    margin-right: 10px;
   }
 
   .thinking-checkbox {

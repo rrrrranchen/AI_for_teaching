@@ -190,7 +190,7 @@
           </div>
           <a-list
             item-layout="horizontal"
-            :data-source="courseClasses.slice(0, 5)"
+            :data-source="courseClasses"
             :loading="loading"
             class="my-classes-list"
           >
@@ -354,7 +354,7 @@ export default defineComponent({
       try {
         loading.value = true;
         const data = await getAllCourseclasses();
-        courseClasses.value = data;
+        courseClasses.value = data.slice(0, 3);
       } catch (error) {
         console.error("获取课程班失败:", error);
       } finally {
@@ -387,22 +387,18 @@ export default defineComponent({
 <style scoped lang="less">
 .home {
   padding: 16px;
-  background-color: #91bbfa;
+  // background-color: #91bbfa;
   height: 100%;
 }
 
 .main-content {
-  height: calc(90vh - 48px);
+  height: calc(95vh - 48px);
 }
 
 .data-dashboard {
-  background-color: #fff;
+  // background-color: #fff;
   border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
-  padding: 24px;
-  height: 96%;
-  overflow-y: auto;
-
+  height: 100%;
   .dashboard-row {
     margin-bottom: 24px;
   }
@@ -567,7 +563,7 @@ export default defineComponent({
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     padding: 16px;
-    overflow-y: auto;
+    height: 200px !important;
   }
 }
 
