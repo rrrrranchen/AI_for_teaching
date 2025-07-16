@@ -12,6 +12,7 @@ class TeachingDesign(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
     mindmap = db.Column(db.Text,nullable=True)
+    total_second=db.Column(db.DateTime)
     mindmap_updated_at = db.Column(db.DateTime, nullable=True)  # 添加此字段
     is_public = db.Column(db.Boolean, default=False)  # 是否公开
     is_recommended = db.Column(db.Boolean, default=False)  # 是否推荐
