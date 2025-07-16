@@ -22,7 +22,8 @@
     </div>
   </div>
   <div class="teaching-design-edit">
-    <a-tabs v-model:activeKey="activeTab">
+    <a-tabs v-model:activeKey="activeTab" class="custom-tabs">
+      >
       <a-tab-pane key="edit" tab="教学设计">
         <!-- 主要内容区域 -->
         <div class="content-container">
@@ -699,6 +700,19 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   height: 100vh;
+}
+
+.custom-tabs :deep(.ant-tabs-nav) {
+  margin-bottom: 8px;
+}
+
+.custom-tabs :deep(.ant-tabs-tab) {
+  padding: 12px 24px;
+  font-weight: 500;
+}
+
+.custom-tabs :deep(.ant-tabs-tab-active) {
+  color: #1677ff;
 }
 
 .content-container {

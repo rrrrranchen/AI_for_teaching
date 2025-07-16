@@ -746,6 +746,7 @@ export default defineComponent({
   max-height: 53vh;
   overflow-y: auto;
   padding-right: 8px;
+  padding-top: 8px;
 }
 
 /* 课程时间轴容器 */

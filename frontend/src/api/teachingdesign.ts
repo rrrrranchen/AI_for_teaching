@@ -31,8 +31,6 @@ export interface TeachingDesignVersion {
 // 创建教学设计参数
 export interface CreateTeachingDesignParams {
   course_id: number;
-  title?: string;
-  course_content?: string;
 }
 
 // 更新教学设计参数

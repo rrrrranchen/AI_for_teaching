@@ -18,100 +18,54 @@
       v-model:visible="showStepModal"
       title="创建教学设计"
       :width="800"
-      :ok-text="currentStep === 1 ? '下一步' : '提交'"
-      :cancel-text="currentStep === 2 ? '上一步' : '取消'"
       @ok="handleModalOk"
       @cancel="handleModalCancel"
       :confirm-loading="submitting"
     >
-      <a-steps :current="currentStep - 1" class="steps">
-        <a-step title="选择课程和章节" />
-        <a-step title="填写信息" />
-      </a-steps>
-
       <div class="step-content">
         <!-- 第一步：选择课程 -->
-        <div v-show="currentStep === 1" class="step-1">
-          <a-form layout="vertical">
-            <a-form-item
-              label="课程"
-              required
-              :validate-status="courseclassError ? 'error' : ''"
-              :help="courseclassError"
+        <a-form layout="vertical">
+          <a-form-item
+            label="课程"
+            required
+            :validate-status="courseclassError ? 'error' : ''"
+            :help="courseclassError"
+          >
+            <a-select
+              v-model:value="selectedCourseclass"
+              @change="handleCourseclassChange"
+              placeholder="请选择课程"
             >
-              <a-select
-                v-model:value="selectedCourseclass"
-                @change="handleCourseclassChange"
-                placeholder="请选择课程"
+              <a-select-option
+                v-for="courseclass in courseclasses"
+                :key="courseclass.id"
+                :value="courseclass.id"
               >
-                <a-select-option
-                  v-for="courseclass in courseclasses"
-                  :key="courseclass.id"
-                  :value="courseclass.id"
-                >
-                  {{ courseclass.name }}
-                </a-select-option>
-              </a-select>
-            </a-form-item>
+                {{ courseclass.name }}
+              </a-select-option>
+            </a-select>
+          </a-form-item>
 
-            <a-form-item
-              label="课程章节"
-              required
-              :validate-status="courseError ? 'error' : ''"
-              :help="courseError"
+          <a-form-item
+            label="课程章节"
+            required
+            :validate-status="courseError ? 'error' : ''"
+            :help="courseError"
+          >
+            <a-select
+              v-model:value="selectedCourse"
+              placeholder="请选择课程章节"
             >
-              <a-select
-                v-model:value="selectedCourse"
-                placeholder="请选择课程章节"
+              <a-select-option
+                v-for="course in courses"
+                :key="course.id"
+                :value="course.id"
               >
-                <a-select-option
-                  v-for="course in courses"
-                  :key="course.id"
-                  :value="course.id"
-                >
-                  {{ course.name }}
-                </a-select-option>
-              </a-select>
-            </a-form-item>
-          </a-form>
-        </div>
-
-        <!-- 第二步：输入课程信息 -->
-        <div v-show="currentStep === 2" class="step-2">
-          <a-form layout="vertical" :model="formState" ref="formRef">
-            <a-form-item
-              label="章节标题"
-              name="title"
-              :rules="[{ required: true, message: '请输入章节标题' }]"
-            >
-              <a-input v-model:value="formState.title" />
-            </a-form-item>
-
-            <a-form-item
-              label="教学内容"
-              name="content"
-              :rules="[{ required: true, message: '请输入教学内容' }]"
-            >
-              <a-textarea
-                v-model:value="formState.content"
-                :rows="4"
-                placeholder="请输入本节课的主要教学内容..."
-              />
-            </a-form-item>
-
-            <a-form-item
-              label="教学目标"
-              name="objective"
-              :rules="[{ required: true, message: '请输入教学目标' }]"
-            >
-              <a-textarea
-                v-model:value="formState.objective"
-                :rows="4"
-                placeholder="请明确描述学生需要达成的学习目标..."
-              />
-            </a-form-item>
-          </a-form>
-        </div>
+                {{ course.name }}
+              </a-select-option>
+            </a-select>
+          </a-form-item>
+        </a-form>
       </div>
     </a-modal>
   </a-col>
@@ -128,12 +82,6 @@ import { createTeachingDesign } from "@/api/teachingdesign";
 import type { CreateTeachingDesignParams } from "@/api/teachingdesign";
 import type { FormInstance } from "ant-design-vue";
 
-interface FormState {
-  title: string;
-  content: string;
-  objective: string;
-}
-
 export default defineComponent({
   name: "TeachingDesignCard",
   setup() {
@@ -149,13 +97,6 @@ export default defineComponent({
     const selectedCourseclass = ref<number>();
     const selectedCourse = ref<number>();
 
-    // 表单数据
-    const formState = reactive<FormState>({
-      title: "",
-      content: "",
-      objective: "",
-    });
-
     // 错误提示
     const courseclassError = ref("");
     const courseError = ref("");
@@ -163,7 +104,6 @@ export default defineComponent({
     // 处理卡片按钮点击
     const handleCardAction = () => {
       showStepModal.value = true;
-      currentStep.value = 1;
       loadCourseclasses();
     };
 
@@ -203,7 +143,6 @@ export default defineComponent({
           submitting.value = true;
           await handleCreateTeachingDesign();
           showStepModal.value = false;
-          resetForm();
         } catch (error) {
           console.log("表单验证失败", error);
         } finally {
@@ -218,7 +157,6 @@ export default defineComponent({
         currentStep.value = 1;
       } else {
         showStepModal.value = false;
-        resetForm();
       }
     };
 
@@ -228,8 +166,6 @@ export default defineComponent({
       try {
         const params: CreateTeachingDesignParams = {
           course_id: selectedCourse.value!,
-          title: formState.title,
-          course_content: `教学内容：${formState.content}\n教学目标：${formState.objective}`,
         };
 
         const response = await createTeachingDesign(params);
@@ -244,20 +180,6 @@ export default defineComponent({
       }
     };
 
-    // 重置表单
-    const resetForm = () => {
-      currentStep.value = 1;
-      Object.assign(formState, {
-        title: "",
-        content: "",
-        objective: "",
-      });
-      selectedCourseclass.value = undefined;
-      selectedCourse.value = undefined;
-      courseclassError.value = "";
-      courseError.value = "";
-    };
-
     return {
       showStepModal,
       currentStep,
@@ -267,7 +189,6 @@ export default defineComponent({
       courses,
       selectedCourseclass,
       selectedCourse,
-      formState,
       courseclassError,
       courseError,
       handleCardAction,

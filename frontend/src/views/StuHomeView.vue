@@ -150,7 +150,7 @@
       <a-col :span="8">
         <div class="right-section">
           <div class="section-title">
-            <h2>我教的课程</h2>
+            <h2>我的课程</h2>
             <p>最近参与的课程</p>
           </div>
           <a-list

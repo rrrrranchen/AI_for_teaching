@@ -3,7 +3,7 @@ import api from "@/request";
 import type { AxiosResponse } from "axios";
 
 // 问题类型枚举
-export type QuestionType = "choice" | "fill" | "short_answer";
+export type QuestionType = "choice" | "fill" | "short_answer" | "practice";
 
 // 难度枚举
 export type QuestionDifficulty = "1" | "2" | "3" | "4" | "5";
@@ -84,18 +84,50 @@ export interface ErrorRankingItem {
   common_errors: string[]; // 常见错误答案
 }
 
+/**
+ * 题目规格类型
+ */
+export interface QuestionSpec {
+  type: QuestionType;
+  count: number;
+  difficulty?: number | null; // 难度等级(1-5)，可选
+}
+
+/**
+ * 生成课后习题响应类型
+ */
+export interface GenerateNodeQuestionsResponse {
+  data: {
+    knowledge_point: {
+      id: number;
+      name: string;
+    };
+    questions: Array<{
+      id: number;
+      type: QuestionType;
+      content: string;
+      correct_answer: string;
+      difficulty: QuestionDifficulty;
+    }>;
+    source: "knowledge_base" | "ai_generated";
+    specs_used: Array<{
+      type: QuestionType;
+      count: number;
+      difficulty?: number | null;
+    }>;
+  };
+}
+
 // ======================== 问题API ========================
 export const questionApi = {
   /**
    * 创建课前预习题目
    */
   async createPreQuestions(
-    courseId: number,
-    params: CreatePreQuestionsParams
+    courseId: number
   ): Promise<{ question_ids: number[] }> {
     const response: AxiosResponse<{ question_ids: number[] }> = await api.post(
-      `/createprequestion/${courseId}`,
-      params
+      `/createprequestion/${courseId}`
     );
     return response.data;
   },
@@ -172,6 +204,22 @@ export const questionApi = {
     const response: AxiosResponse<Question[]> = await api.post(
       `/design/${design_id}/version/${version_id}/generate_post_class_questions`
     );
+    return response.data;
+  },
+  /**
+   * 为思维导图节点生成课后习题
+   * @param nodeId 思维导图节点ID
+   * @param specs 题目规格配置
+   */
+  async generateQuestionsForMindMapNode(
+    nodeId: number,
+    specs?: QuestionSpec[]
+  ): Promise<GenerateNodeQuestionsResponse> {
+    const response: AxiosResponse<GenerateNodeQuestionsResponse> =
+      await api.post(
+        `/mind_map_node/${nodeId}/generate_questions`,
+        specs ? { question_specs: specs } : {}
+      );
     return response.data;
   },
 

@@ -1,155 +1,192 @@
 <template>
   <div class="home">
-    <!-- 顶部搜索栏 -->
-    <div class="search-bar">
-      <a-input-search
-        v-model:value="searchQuery"
-        placeholder="搜索课程..."
-        size="large"
-        @search="handleSearch"
-        class="custom-search-input"
-      >
-        <template #enterButton>
-          <a-button type="primary" class="search-button">
-            <template #icon><search-outlined /></template>
-            搜索
-          </a-button>
-        </template>
-      </a-input-search>
-    </div>
-
     <a-row :gutter="24" class="main-content">
-      <!-- 左边区域 (2/3宽度) - 可滚动 -->
+      <!-- 左边数据统计大屏 (2/3宽度) -->
       <a-col :span="16">
-        <div class="left-section scrollable-content">
-          <!-- 轮播图 - 包含功能入口图片 -->
-          <div class="carousel-section">
-            <a-carousel autoplay>
-              <div v-for="(image, index) in carouselImages" :key="index">
-                <img
-                  :src="image.src"
-                  class="carousel-image"
-                  alt="轮播图"
-                  @click="handleCarouselClick(image.action)"
-                />
+        <div class="data-dashboard">
+          <!-- 第一行统计卡片 -->
+          <a-row :gutter="24" class="dashboard-row">
+            <a-col :span="8">
+              <a-card class="stat-card">
+                <div class="stat-header">
+                  <rocket-two-tone
+                    :style="{ fontSize: '24px', color: '#1890ff' }"
+                  />
+                  <h3>智能备课平均耗时</h3>
+                </div>
+                <div class="stat-value">42分钟</div>
+                <div class="stat-trend">
+                  相对传统备课，平均减少 <span class="positive">38%</span>
+                </div>
+              </a-card>
+            </a-col>
+            <a-col :span="8">
+              <a-card class="stat-card">
+                <div class="stat-header">
+                  <check-circle-two-tone
+                    :style="{ fontSize: '24px', color: '#52c41a' }"
+                  />
+                  <h3>作业正确率</h3>
+                </div>
+                <div class="stat-value">78.5%</div>
+                <div class="stat-trend">最近一次布置的作业</div>
+              </a-card>
+            </a-col>
+            <a-col :span="8">
+              <a-card class="stat-card">
+                <div class="stat-header">
+                  <clock-circle-two-tone
+                    :style="{ fontSize: '24px', color: '#722ed1' }"
+                  />
+                  <h3>系统使用时长</h3>
+                </div>
+                <div class="stat-value">12.4小时/周</div>
+                <div class="stat-trend">
+                  较上月增加 <span class="positive">8%</span>
+                </div>
+              </a-card>
+            </a-col>
+          </a-row>
+
+          <!-- AI资源使用统计 -->
+          <a-card title="AI资源使用统计" class="chart-card">
+            <div class="chart-container">
+              <div class="ai-resource-chart">
+                <div
+                  class="resource-bar"
+                  v-for="(item, index) in aiUsageData"
+                  :key="index"
+                >
+                  <div class="resource-label">{{ item.name }}</div>
+                  <div class="bar-container">
+                    <div
+                      class="bar-fill"
+                      :style="{
+                        width: item.percentage + '%',
+                        background: item.color,
+                      }"
+                    ></div>
+                    <div class="bar-value">{{ item.count }}次</div>
+                  </div>
+                </div>
               </div>
-            </a-carousel>
-          </div>
-
-          <!-- 在推荐课程区域上方添加搜索结果展示区域 -->
-          <div v-if="showSearchResults" class="search-results-section">
-            <div class="section-title">
-              <h2>搜索结果</h2>
-              <a-button type="link" @click="clearSearch">返回推荐课程</a-button>
             </div>
-            <a-row :gutter="16">
-              <a-col
-                :span="8"
-                v-for="courseclass in searchResults"
-                :key="courseclass.id"
-              >
-                <a-card
-                  hoverable
-                  class="course-card"
-                  @click="goToCourseDetail(courseclass.id)"
-                >
-                  <template #cover>
-                    <img
-                      :src="
-                        courseclass.image_path
-                          ? 'http://localhost:5000/' + courseclass.image_path
-                          : '/default-course.png'
-                      "
-                      alt="课程班封面"
-                      class="course-cover"
-                    />
-                  </template>
-                  <a-card-meta :title="courseclass.name">
-                    <template #description>
-                      <div class="course-meta">
-                        <div class="description">
-                          {{ courseclass.description || "暂无描述" }}
-                        </div>
-                        <div class="stats">
-                          <span
-                            ><user-outlined />
-                            {{ courseclass.teacher_count || 0 }}位教师</span
-                          >
-                          <span
-                            ><team-outlined />
-                            {{ courseclass.student_count || 0 }}位学生</span
-                          >
-                        </div>
-                      </div>
-                    </template>
-                  </a-card-meta>
-                </a-card>
-              </a-col>
-            </a-row>
-            <a-empty
-              v-if="searchResults.length === 0"
-              description="没有找到相关课程"
-            />
-          </div>
+          </a-card>
 
-          <!-- 推荐课程班区域 - 使用卡片布局 -->
-          <div class="section-title">
-            <h2>推荐课程</h2>
-          </div>
-          <div class="recommend-courses">
-            <a-row :gutter="16">
-              <a-col
-                :span="8"
-                v-for="courseclass in recommendedClasses"
-                :key="courseclass.id"
-              >
-                <a-card
-                  hoverable
-                  class="course-card"
-                  @click="goToCourseDetail(courseclass.id)"
-                >
-                  <template #cover>
-                    <img
-                      :src="'http://localhost:5000/' + courseclass.image_path"
-                      alt="课程班封面"
-                      class="course-cover"
-                    />
-                  </template>
-                  <a-card-meta :title="courseclass.name">
-                    <template #description>
-                      <div class="course-meta">
-                        <div class="description">
-                          {{ courseclass.description }}
-                        </div>
-                        <div class="stats">
-                          <span
-                            ><user-outlined />
-                            {{ courseclass.student_count || 0 }}人</span
-                          >
-                          <span
-                            ><book-outlined />
-                            {{ courseclass.course_count || 0 }}课</span
-                          >
-                        </div>
-                        <div class="reason">
-                          推荐理由: {{ courseclass.reason }}
-                        </div>
+          <!-- 学生数据图表 -->
+          <a-row :gutter="24" class="dashboard-row">
+            <a-col :span="12">
+              <a-card title="学生活跃度分布" class="chart-card">
+                <div class="chart-container">
+                  <div class="activity-chart">
+                    <div
+                      v-for="(item, index) in activityData"
+                      :key="index"
+                      class="activity-item"
+                    >
+                      <div class="activity-label">{{ item.label }}</div>
+                      <div class="activity-bar">
+                        <div
+                          class="activity-fill"
+                          :style="{
+                            width: item.percentage + '%',
+                            background: item.color,
+                          }"
+                        ></div>
                       </div>
-                    </template>
-                  </a-card-meta>
-                </a-card>
-              </a-col>
-            </a-row>
-          </div>
+                      <div class="activity-value">{{ item.value }}人</div>
+                    </div>
+                  </div>
+                </div>
+              </a-card>
+            </a-col>
+            <a-col :span="12">
+              <a-card title="学习进度分布" class="chart-card">
+                <div class="chart-container">
+                  <div class="progress-chart">
+                    <div
+                      v-for="(item, index) in progressData"
+                      :key="index"
+                      class="progress-item"
+                    >
+                      <div class="progress-label">{{ item.label }}</div>
+                      <div class="progress-bar">
+                        <div
+                          class="progress-fill"
+                          :style="{
+                            width: item.percentage + '%',
+                            background: item.color,
+                          }"
+                        ></div>
+                      </div>
+                      <div class="progress-value">{{ item.percentage }}%</div>
+                    </div>
+                  </div>
+                </div>
+              </a-card>
+            </a-col>
+          </a-row>
         </div>
       </a-col>
 
       <!-- 右边区域 (1/3宽度) -->
       <a-col :span="8">
         <div class="right-section">
+          <!-- 日历热力图 -->
+          <a-card class="calendar-card">
+            <div class="calendar-container">
+              <div class="calendar-header">
+                <div class="month-selector">
+                  <a-button @click="prevMonth" icon="<" size="small"></a-button>
+                  <div class="current-month">{{ currentMonth }}</div>
+                  <a-button @click="nextMonth" icon=">" size="small"></a-button>
+                </div>
+              </div>
+              <div class="calendar-grid">
+                <div class="weekdays">
+                  <div
+                    v-for="day in ['日', '一', '二', '三', '四', '五', '六']"
+                    :key="day"
+                    class="weekday"
+                  >
+                    {{ day }}
+                  </div>
+                </div>
+                <div class="days-grid">
+                  <div
+                    v-for="(day, index) in calendarDays"
+                    :key="index"
+                    class="calendar-day"
+                    :class="{
+                      'current-month': day.inMonth,
+                      today: day.isToday,
+                    }"
+                    :style="{ backgroundColor: getHeatColor(day.activity) }"
+                  >
+                    <div class="day-number">{{ day.date }}</div>
+                    <div class="activity-level">{{ day.activity }}%</div>
+                  </div>
+                </div>
+              </div>
+              <div class="calendar-legend">
+                <div
+                  class="legend-item"
+                  v-for="(item, index) in heatLevels"
+                  :key="index"
+                >
+                  <div
+                    class="legend-color"
+                    :style="{ backgroundColor: item.color }"
+                  ></div>
+                  <div class="legend-label">{{ item.label }}</div>
+                </div>
+              </div>
+            </div>
+          </a-card>
+
+          <!-- 课程班列表 -->
           <div class="section-title">
-            <h2>我教的课程</h2>
-            <p>最近参与的课程</p>
+            <h2>我的课程班</h2>
           </div>
           <a-list
             item-layout="horizontal"
@@ -176,7 +213,6 @@
                 </template>
               </a-list-item>
             </template>
-
             <template #loadMore>
               <div class="view-more">
                 <a @click="$router.push('/home/my-class')">查看全部课程 →</a>
@@ -190,95 +226,127 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref } from "vue";
-import { message } from "ant-design-vue";
-import { useRouter } from "vue-router";
+import { defineComponent, ref, computed } from "vue";
 import {
-  UserOutlined,
   BookOutlined,
-  SearchOutlined,
+  RocketTwoTone,
+  CheckCircleTwoTone,
+  ClockCircleTwoTone,
 } from "@ant-design/icons-vue";
 import { useAuthStore } from "@/stores/auth";
-import {
-  getAllCourseclasses,
-  getRecommendedCourseclasses,
-  type Courseclass,
-  searchPublicCourseclasses,
-} from "@/api/courseclass";
-import { getMyDesigns } from "@/api/teachingdesign";
+import { getAllCourseclasses } from "@/api/courseclass";
+import dayjs from "dayjs";
 
 export default defineComponent({
   name: "HomeView",
   components: {
-    UserOutlined,
     BookOutlined,
-    SearchOutlined,
+    RocketTwoTone,
+    CheckCircleTwoTone,
+    ClockCircleTwoTone,
   },
   setup() {
     const authStore = useAuthStore();
     const courseClasses = ref<any[]>([]);
-    const recommendedClasses = ref<any[]>([]);
-    const teachingDesigns = ref<any[]>([]);
     const loading = ref<boolean>(false);
-    const showMoreContent = ref<boolean>(true); // 控制是否显示更多内容
 
-    const router = useRouter();
-    const searchQuery = ref<string>("");
-    const searchResults = ref<Courseclass[]>([]);
-    const showSearchResults = ref<boolean>(false);
-    const searchLoading = ref<boolean>(false);
-
-    // 处理搜索
-    const handleSearch = async () => {
-      if (!searchQuery.value.trim()) {
-        message.warning("请输入搜索关键词");
-        return;
-      }
-
-      try {
-        searchLoading.value = true;
-        const results = await searchPublicCourseclasses(searchQuery.value);
-        searchResults.value = results;
-        showSearchResults.value = true;
-      } catch (error) {
-        message.error("搜索失败，请稍后重试");
-        console.error("搜索错误:", error);
-      } finally {
-        searchLoading.value = false;
-      }
-    };
-
-    // 清除搜索
-    const clearSearch = () => {
-      searchQuery.value = "";
-      searchResults.value = [];
-      showSearchResults.value = false;
-    };
-
-    // 跳转到课程详情
-    const goToCourseDetail = (id: number) => {
-      router.push(`/home/public-courseclass/${id}`);
-    };
-
-    // 轮播图片配置
-    const carouselImages = ref([
-      {
-        src: require("@/assets/carousel1.png"),
-        action: () => (window.location.href = "/home"),
-      },
-      {
-        src: require("@/assets/aiforedu.png"),
-        action: () => (window.location.href = "/home/smart-preparation"),
-      },
-      {
-        src: require("@/assets/community.png"),
-        action: () => (window.location.href = "/home/community"),
-      },
+    // 伪造的AI资源使用数据
+    const aiUsageData = ref([
+      { name: "AI问答", count: 245, percentage: 75, color: "#1890ff" },
+      { name: "教学设计生成", count: 128, percentage: 40, color: "#52c41a" },
+      { name: "教学资源生成", count: 96, percentage: 30, color: "#722ed1" },
+      { name: "题目生成", count: 82, percentage: 25, color: "#faad14" },
     ]);
 
-    // 处理轮播图点击
-    const handleCarouselClick = (action: () => void) => {
-      action();
+    // 伪造的学生活跃度数据
+    const activityData = ref([
+      { label: "高活跃度", value: 42, percentage: 35, color: "#237804" },
+      { label: "中等活跃度", value: 68, percentage: 57, color: "#52c41a" },
+      { label: "低活跃度", value: 10, percentage: 8, color: "#a0d911" },
+    ]);
+
+    // 伪造的学习进度数据
+    const progressData = ref([
+      { label: "超前学习", value: 18, percentage: 18, color: "#237804" },
+      { label: "正常进度", value: 65, percentage: 65, color: "#52c41a" },
+      { label: "进度落后", value: 17, percentage: 17, color: "#faad14" },
+    ]);
+
+    // 日历热力图相关数据
+    const currentDate = ref(dayjs());
+    const currentMonth = computed(() => currentDate.value.format("YYYY年MM月"));
+
+    // 热力等级配置
+    const heatLevels = ref([
+      { level: 0, label: "无活动", color: "#ebedf0" },
+      { level: 1, label: "低活跃度", color: "#c6e48b" },
+      { level: 2, label: "中等活跃", color: "#7bc96f" },
+      { level: 3, label: "高活跃度", color: "#239a3b" },
+      { level: 4, label: "非常高", color: "#196127" },
+    ]);
+
+    // 生成日历数据
+    const calendarDays = computed(() => {
+      const startOfMonth = currentDate.value.startOf("month");
+      const endOfMonth = currentDate.value.endOf("month");
+      const startDay = startOfMonth.day();
+      const daysInMonth = endOfMonth.date();
+      const today = dayjs();
+
+      // 生成当月的日期数组
+      const days = [];
+      for (let i = 1; i <= daysInMonth; i++) {
+        const date = startOfMonth.date(i);
+        days.push({
+          date: i,
+          inMonth: true,
+          isToday: date.isSame(today, "day"),
+          activity: Math.floor(Math.random() * 100), // 随机生成活跃度数据
+        });
+      }
+
+      // 填充上个月的空白
+      const prevMonthDays = startDay;
+      for (let i = 0; i < prevMonthDays; i++) {
+        days.unshift({
+          date: startOfMonth.subtract(prevMonthDays - i, "day").date(),
+          inMonth: false,
+          isToday: false,
+          activity: 0,
+        });
+      }
+
+      // 填充下个月的空白
+      const totalCells = 42; // 6行*7天
+      const nextMonthDays = totalCells - days.length;
+      for (let i = 1; i <= nextMonthDays; i++) {
+        days.push({
+          date: i,
+          inMonth: false,
+          isToday: false,
+          activity: 0,
+        });
+      }
+
+      return days;
+    });
+
+    // 根据活跃度获取热力颜色
+    const getHeatColor = (activity: number) => {
+      if (activity === 0) return heatLevels.value[0].color;
+      if (activity < 20) return heatLevels.value[1].color;
+      if (activity < 50) return heatLevels.value[2].color;
+      if (activity < 80) return heatLevels.value[3].color;
+      return heatLevels.value[4].color;
+    };
+
+    // 月份切换
+    const prevMonth = () => {
+      currentDate.value = currentDate.value.subtract(1, "month");
+    };
+
+    const nextMonth = () => {
+      currentDate.value = currentDate.value.add(1, "month");
     };
 
     // 获取课程班数据
@@ -294,54 +362,22 @@ export default defineComponent({
       }
     };
 
-    // 获取推荐课程班
-    const loadRecommendedClasses = async () => {
-      try {
-        loading.value = true;
-        const data = await getRecommendedCourseclasses();
-        recommendedClasses.value = data;
-        console.log(data);
-      } catch (error) {
-        console.error("获取推荐课程班失败:", error);
-      } finally {
-        loading.value = false;
-      }
-    };
-
-    // 获取教学设计数据
-    const loadTeachingDesigns = async () => {
-      try {
-        loading.value = true;
-        const data = await getMyDesigns();
-        teachingDesigns.value = data;
-      } catch (error) {
-        console.error("获取教学设计失败:", error);
-      } finally {
-        loading.value = false;
-      }
-    };
-
     // 初始化加载数据
     if (authStore.isAuthenticated) {
       loadCourseClasses();
-      loadTeachingDesigns();
-      loadRecommendedClasses();
     }
 
     return {
       courseClasses,
-      recommendedClasses,
-      teachingDesigns,
-      carouselImages,
-      searchQuery,
-      searchResults,
-      showSearchResults,
-      searchLoading,
-      handleSearch,
-      clearSearch,
-      goToCourseDetail,
-      showMoreContent,
-      handleCarouselClick,
+      aiUsageData,
+      activityData,
+      progressData,
+      currentMonth,
+      calendarDays,
+      heatLevels,
+      getHeatColor,
+      prevMonth,
+      nextMonth,
       loading,
     };
   },
@@ -350,208 +386,305 @@ export default defineComponent({
 
 <style scoped lang="less">
 .home {
-  padding: 0 24px 24px;
-  background-color: #edf6fbcc;
-  height: 100vh;
-}
-.search-bar {
-  padding: 16px 0;
-  margin-bottom: 16px;
-  :deep(.ant-input-search) {
-    max-width: 800px;
-    margin: 0 auto;
-    display: block;
-  }
-}
-
-/* 搜索框样式 */
-.custom-search-input {
-  width: 500px;
-  border-radius: 20px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
-}
-
-.custom-search-input:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.custom-search-input :deep(.ant-input) {
-  height: 40px;
-  padding: 0 16px;
-  border: none;
-  background-color: #f8f9fa;
-}
-
-.custom-search-input :deep(.ant-input:focus) {
-  box-shadow: none;
-  background-color: #fff;
-}
-
-.custom-search-input :deep(.ant-input-group-addon) {
-  background: transparent;
-}
-
-.search-button {
-  height: 40px;
-  border-radius: 0 20px 20px 0 !important;
-  padding: 0 20px;
-  background: linear-gradient(135deg, #1890ff, #096dd9);
-  border: none;
-  transition: all 0.3s ease;
-}
-
-.search-button:hover {
-  background: linear-gradient(135deg, #40a9ff, #1890ff);
-  transform: translateY(-1px);
+  padding: 16px;
+  background-color: #91bbfa;
+  height: 100%;
 }
 
 .main-content {
-  margin-top: 16px;
-  height: calc(100vh - 120px); /* 根据实际情况调整 */
+  height: calc(90vh - 48px);
 }
 
-.left-section {
-  padding: 24px;
+.data-dashboard {
   background-color: #fff;
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  height: auto;
-  max-height: calc(100vh - 120px); /* 根据实际情况调整 */
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+  padding: 24px;
+  height: 96%;
   overflow-y: auto;
 
-  &.scrollable-content {
-    overflow-y: auto;
-    height: 100%;
+  .dashboard-row {
+    margin-bottom: 24px;
+  }
+}
 
-    /* 自定义滚动条样式 */
-    &::-webkit-scrollbar {
-      width: 6px;
+.stat-card {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  height: 140px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+
+  .stat-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+
+    h3 {
+      margin: 0 0 0 12px;
+      font-size: 16px;
+      color: #595959;
+    }
+  }
+
+  .stat-value {
+    font-size: 28px;
+    font-weight: 600;
+    color: #1f1f1f;
+    margin-bottom: 8px;
+  }
+
+  .stat-trend {
+    font-size: 14px;
+    color: #8c8c8c;
+
+    .positive {
+      color: #52c41a;
     }
 
-    &::-webkit-scrollbar-track {
-      background: #f1f1f1;
-      border-radius: 3px;
+    .negative {
+      color: #f5222d;
+    }
+  }
+}
+
+.chart-card {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  margin-bottom: 24px;
+
+  :deep(.ant-card-head) {
+    border-bottom: none;
+  }
+}
+
+.chart-container {
+  padding: 16px 0;
+  height: 250px;
+}
+
+.ai-resource-chart {
+  .resource-bar {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+
+    .resource-label {
+      width: 150px;
+      font-size: 14px;
+      color: #595959;
     }
 
-    &::-webkit-scrollbar-thumb {
-      background: #c1c1c1;
-      border-radius: 3px;
+    .bar-container {
+      flex: 1;
+      height: 30px;
+      background: #f5f5f5;
+      border-radius: 4px;
+      position: relative;
+      overflow: hidden;
+
+      .bar-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.5s ease;
+      }
+
+      .bar-value {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #fff;
+        font-size: 12px;
+        font-weight: 500;
+      }
+    }
+  }
+}
+
+.activity-chart,
+.progress-chart {
+  .activity-item,
+  .progress-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+
+    .activity-label,
+    .progress-label {
+      width: 100px;
+      font-size: 14px;
+      color: #595959;
     }
 
-    &::-webkit-scrollbar-thumb:hover {
-      background: #a8a8a8;
+    .activity-bar,
+    .progress-bar {
+      flex: 1;
+      height: 20px;
+      background: #f5f5f5;
+      border-radius: 4px;
+      position: relative;
+      overflow: hidden;
+
+      .activity-fill,
+      .progress-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.5s ease;
+      }
+    }
+
+    .activity-value,
+    .progress-value {
+      width: 60px;
+      text-align: right;
+      font-size: 14px;
+      color: #8c8c8c;
     }
   }
 }
 
 .right-section {
-  padding: 24px;
-  background-color: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  height: 800px;
-}
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 
-.section-title {
-  margin-bottom: 24px;
-
-  h2 {
-    font-size: 20px;
-    font-weight: 600;
-    margin-bottom: 4px;
-    color: #1a1a1a;
-  }
-
-  p {
-    font-size: 14px;
-    color: #8c8c8c;
-    margin: 0;
-  }
-}
-
-.carousel-section {
-  margin-bottom: 32px;
-
-  .carousel-image {
-    width: 100%;
-    height: 300px;
-    object-fit: cover;
-    cursor: pointer;
+  .calendar-card {
     border-radius: 8px;
-    transition: transform 0.3s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    margin-bottom: 24px;
+    flex: 1;
 
-    &:hover {
-      transform: scale(1.01);
+    :deep(.ant-card-body) {
+      padding: 16px;
+    }
+  }
+
+  .my-classes-list {
+    flex: 1;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    padding: 16px;
+    overflow-y: auto;
+  }
+}
+
+.calendar-container {
+  .calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+
+    .month-selector {
+      display: flex;
+      align-items: center;
+
+      .current-month {
+        font-size: 16px;
+        font-weight: 500;
+        margin: 0 12px;
+      }
+    }
+  }
+
+  .calendar-grid {
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+
+    .weekdays {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      background: #fafafa;
+      border-bottom: 1px solid #f0f0f0;
+
+      .weekday {
+        text-align: center;
+        padding: 8px;
+        font-size: 14px;
+        color: #595959;
+      }
+    }
+
+    .days-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 1px;
+      background: #f0f0f0;
+
+      .calendar-day {
+        aspect-ratio: 1/1;
+        background: #fff;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s;
+
+        &:not(.current-month) {
+          background: #fafafa;
+
+          .day-number,
+          .activity-level {
+            color: #bfbfbf;
+          }
+        }
+
+        &.today {
+          border: 2px solid #1890ff;
+        }
+
+        .day-number {
+          font-size: 14px;
+          font-weight: 500;
+          margin-bottom: 4px;
+        }
+
+        .activity-level {
+          font-size: 10px;
+          color: #8c8c8c;
+        }
+      }
+    }
+  }
+
+  .calendar-legend {
+    display: flex;
+    justify-content: center;
+    margin-top: 16px;
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      margin: 0 8px;
+
+      .legend-color {
+        width: 16px;
+        height: 16px;
+        border-radius: 3px;
+        margin-right: 4px;
+      }
+
+      .legend-label {
+        font-size: 12px;
+        color: #8c8c8c;
+      }
     }
   }
 }
 
-.recommend-courses {
-  margin-top: 16px;
-  margin-bottom: 32px;
-}
-
-.additional-section {
-  margin-top: 32px;
-}
-
-.course-card {
+.section-title {
   margin-bottom: 16px;
-  border-radius: 8px;
-  overflow: hidden;
-  transition: all 0.3s;
-  border: 1px solid #f0f0f0;
 
-  &:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    transform: translateY(-4px);
-  }
-
-  :deep(.ant-card-meta-title) {
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-}
-
-.course-cover {
-  height: 150px;
-  object-fit: cover;
-}
-
-.course-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-
-  .description {
-    color: #666;
-    font-size: 13px;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-height: 40px;
-  }
-
-  .reason {
-    color: #8c8c8c;
-    font-size: 12px;
-    font-style: italic;
-    background: #fafafa;
-    padding: 4px 8px;
-    border-radius: 4px;
-  }
-
-  .stats {
-    display: flex;
-    justify-content: space-between;
-    color: #8c8c8c;
-    font-size: 12px;
+  h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+    color: #1f1f1f;
   }
 }
 
@@ -559,11 +692,6 @@ export default defineComponent({
   .class-item {
     padding: 12px 0;
     border-bottom: 1px solid #f0f0f0;
-    transition: all 0.3s;
-
-    &:hover {
-      background-color: #fafafa;
-    }
 
     :deep(.ant-list-item-meta-title) {
       font-weight: 500;
@@ -581,59 +709,14 @@ export default defineComponent({
   }
 }
 
-.view-more {
-  text-align: center;
-  padding: 12px;
-  margin-top: 8px;
-
-  a {
-    color: #1890ff;
-    font-size: 14px;
-
-    &:hover {
-      color: #40a9ff;
-    }
-  }
-}
-
-/* 响应式处理 */
 @media (max-width: 992px) {
-  .course-card {
-    margin-bottom: 16px;
-  }
-
-  .ant-col-8 {
-    width: 50%;
-  }
-}
-
-@media (max-width: 768px) {
+  .ant-col-16,
   .ant-col-8 {
     width: 100%;
   }
 
-  .carousel-image {
-    height: 200px;
-  }
-
-  .home {
-    padding: 0 12px 12px;
-    height: auto;
-    overflow: auto;
-  }
-
-  .main-content {
-    height: auto;
-  }
-
-  .left-section,
   .right-section {
-    padding: 16px;
-    height: auto;
-  }
-
-  .left-section.scrollable-content {
-    overflow-y: visible;
+    margin-top: 24px;
   }
 }
 </style>

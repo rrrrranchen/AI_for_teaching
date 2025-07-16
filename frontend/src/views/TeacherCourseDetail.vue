@@ -22,9 +22,11 @@
   <div class="course-container">
     <!-- 新增报告标签页 -->
     <a-tabs v-model:activeKey="activeTab" class="custom-tabs">
-      <a-tab-pane key="smartpreparation" tab="智能备课"> </a-tab-pane>
+      <a-tab-pane key="smartpreparation" tab="智能备课">
+        <SmartPreparation />
+      </a-tab-pane>
       <!-- 原有标签页保持不变 -->
-      <a-tab-pane key="questions" tab="资源管理">
+      <a-tab-pane key="questions" tab="题目管理">
         <!-- 题目列表 -->
         <a-card
           :title="`课前预习题目 (${preQuestions.length})`"
@@ -107,18 +109,6 @@
           </a-table>
         </a-card>
 
-        <!-- 教学设计列表 -->
-        <a-card :title="`教学设计`" style="margin-bottom: 20px">
-          <div class="teaching-design-cards" v-if="teachingDesigns.length > 0">
-            <TeachingDesignItem
-              v-for="design in teachingDesigns"
-              :key="design.design_id"
-              :design="design"
-              class="teaching-design-item"
-            />
-          </div>
-        </a-card>
-
         <!-- 课后练习题目 -->
         <a-card
           :title="`课后练习题目 (${postQuestions.length})`"
@@ -157,9 +147,8 @@
               <!-- 复用相同的内容解析逻辑 -->
               <template v-if="column.key === 'content'">
                 <div v-if="record.type === 'choice'">
-                  <div class="question-text">
-                    {{ parsedContent(record.content).question }}
-                  </div>
+                  <p>{{ parsedContent(record.content).question }}</p>
+
                   <div
                     v-for="(option, index) in parsedContent(record.content)
                       .options"
@@ -309,8 +298,7 @@ import {
   type QuestionType,
   type QuestionDifficulty,
 } from "@/api/questions";
-import { getCourseDesigns, type TeachingDesign } from "@/api/teachingdesign";
-import TeachingDesignItem from "@/components/TeachingDesignItem.vue";
+import { getCourseDesigns } from "@/api/teachingdesign";
 import {
   getCourseAnalysisReport,
   updateCourseReport,
@@ -320,6 +308,8 @@ import hljs from "highlight.js";
 import "highlight.js/styles/github.css";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
+import SmartPreparation from "@/components/teachercourse/SmartPreparation.vue";
+
 dayjs.extend(utc);
 
 export default defineComponent({
@@ -330,8 +320,8 @@ export default defineComponent({
     UpOutlined,
     DownOutlined,
     SyncOutlined,
-    TeachingDesignItem,
     CalendarOutlined,
+    SmartPreparation,
   },
   setup() {
     const route = useRoute();
@@ -342,7 +332,6 @@ export default defineComponent({
     const loading = ref(false);
     const preQuestions = ref<Question[]>([]);
     const postQuestions = ref<Question[]>([]);
-    const teachingDesigns = ref<TeachingDesign[]>([]);
     const currentQuestion = ref<Question | null>(null);
     const isCollapsed = ref(true);
     const isCollapsedPost = ref(true);
@@ -363,19 +352,6 @@ export default defineComponent({
       } catch (error) {
         message.error("获取课后题目失败");
         console.error("获取课后题目错误:", error);
-      } finally {
-        loading.value = false;
-      }
-    };
-
-    // 获取教学设计列表
-    const fetchTeachingDesigns = async () => {
-      try {
-        loading.value = true;
-        teachingDesigns.value = await getCourseDesigns(courseId.value);
-      } catch (error) {
-        message.error("获取教学设计失败");
-        console.error("获取教学设计错误:", error);
       } finally {
         loading.value = false;
       }
@@ -469,7 +445,6 @@ export default defineComponent({
           fetchPreQuestions(),
           fetchPostQuestions(),
           fetchDeadlines(),
-          fetchTeachingDesigns(),
         ]);
         await loadCourseReport();
       } catch (err) {
@@ -500,9 +475,7 @@ export default defineComponent({
           return;
         }
 
-        await questionApi.createPreQuestions(courseId.value, {
-          content: addFormState.content,
-        });
+        await questionApi.createPreQuestions(courseId.value);
 
         message.success("添加成功");
         resetAddForm();
@@ -594,14 +567,13 @@ export default defineComponent({
         return JSON.parse(content);
       } catch (e) {
         return {
-          question: "内容格式错误",
-          options: ["无效的题目数据"],
+          question: content,
         };
       }
     };
 
     // 新增报告相关状态
-    const activeTab = ref("questions");
+    const activeTab = ref("smartpreparation");
     const courseReport = ref<string | null>(null);
     const updatingReport = ref(false);
 
@@ -737,7 +709,6 @@ export default defineComponent({
       loading,
       preQuestions,
       postQuestions,
-      teachingDesigns,
       currentQuestion,
       questionColumns,
       postquestionColumns,
@@ -780,7 +751,7 @@ export default defineComponent({
 
 <style scoped>
 .course-container {
-  height: 88vh;
+  height: 90vh;
   overflow-y: auto;
   padding-left: 20px;
   padding-right: 20px;
@@ -789,12 +760,8 @@ export default defineComponent({
   gap: 20px;
 }
 
-.custom-tabs {
-  margin-top: 16px;
-}
-
 .custom-tabs :deep(.ant-tabs-nav) {
-  margin: 0;
+  margin-bottom: 16px;
 }
 
 .custom-tabs :deep(.ant-tabs-tab) {
@@ -886,8 +853,8 @@ export default defineComponent({
 /* 新增报告样式 */
 .report-container {
   padding: 16px;
-  background: #fbfaef;
-  border: 5px solid #fcf9d3;
+  background: #edf6fbcc;
+  border: 5px solid #c8e5fb;
   border-radius: 8px;
   min-height: 500px;
 }

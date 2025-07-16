@@ -64,7 +64,8 @@
         <div class="message assistant" v-if="messages.length === 0">
           <div class="message-content">
             <div class="ai-avatar">
-              <RobotOutlined />
+              <a-avatar size="large" :src="AIavatar" class="nav-avatar">
+              </a-avatar>
             </div>
             <div class="text-content">
               <Markdown :source="welcomeMessage" />
@@ -99,7 +100,11 @@
           <div v-else class="message assistant">
             <div class="message-content">
               <div class="ai-avatar">
-                <RobotOutlined />
+                <a-avatar
+                  size="large"
+                  :src="AIavatar"
+                  class="nav-avatar"
+                ></a-avatar>
               </div>
               <div class="text-content">
                 <!-- 思考过程 -->
@@ -189,7 +194,11 @@
         <div v-if="isStreaming" class="message assistant">
           <div class="message-content">
             <div class="ai-avatar">
-              <RobotOutlined />
+              <a-avatar
+                size="large"
+                :src="AIavatar"
+                class="nav-avatar"
+              ></a-avatar>
             </div>
             <div class="text-content">
               <!-- 流式思考过程 -->
@@ -344,6 +353,7 @@ import {
 } from "@/api/aichat";
 import { getAllCourseclasses } from "@/api/courseclass";
 import { useAuthStore } from "@/stores/auth";
+import AIavatar from "@/assets/xiaozhi_avatar.png";
 
 const auth = useAuthStore();
 
@@ -833,7 +843,6 @@ const scrollToBottom = () => {
 }
 
 .ai-avatar {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   box-shadow: 0 3px 12px rgba(35, 35, 36, 0.3);
 }

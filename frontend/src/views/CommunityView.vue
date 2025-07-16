@@ -192,7 +192,7 @@ const handleSearch = () => {
 
 .content {
   padding: 8px;
-  background-color: #ffffff;
+  background-color: #f9fbff;
   min-height: calc(100vh - 64px);
 }
 

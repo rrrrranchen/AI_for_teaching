@@ -31,87 +31,48 @@
 
       <div class="step-content">
         <!-- 第一步：选择课程 -->
-        <div v-show="currentStep === 1" class="step-1">
-          <a-form layout="vertical">
-            <a-form-item
-              label="课程"
-              required
-              :validate-status="courseclassError ? 'error' : ''"
-              :help="courseclassError"
+        <a-form layout="vertical">
+          <a-form-item
+            label="课程"
+            required
+            :validate-status="courseclassError ? 'error' : ''"
+            :help="courseclassError"
+          >
+            <a-select
+              v-model:value="selectedCourseclass"
+              @change="handleCourseclassChange"
+              placeholder="请选择课程"
             >
-              <a-select
-                v-model:value="selectedCourseclass"
-                @change="handleCourseclassChange"
-                placeholder="请选择课程"
+              <a-select-option
+                v-for="courseclass in courseclasses"
+                :key="courseclass.id"
+                :value="courseclass.id"
               >
-                <a-select-option
-                  v-for="courseclass in courseclasses"
-                  :key="courseclass.id"
-                  :value="courseclass.id"
-                >
-                  {{ courseclass.name }}
-                </a-select-option>
-              </a-select>
-            </a-form-item>
+                {{ courseclass.name }}
+              </a-select-option>
+            </a-select>
+          </a-form-item>
 
-            <a-form-item
-              label="课程章节"
-              required
-              :validate-status="courseError ? 'error' : ''"
-              :help="courseError"
+          <a-form-item
+            label="课程章节"
+            required
+            :validate-status="courseError ? 'error' : ''"
+            :help="courseError"
+          >
+            <a-select
+              v-model:value="selectedCourse"
+              placeholder="请选择课程章节"
             >
-              <a-select
-                v-model:value="selectedCourse"
-                placeholder="请选择课程章节"
+              <a-select-option
+                v-for="course in courses"
+                :key="course.id"
+                :value="course.id"
               >
-                <a-select-option
-                  v-for="course in courses"
-                  :key="course.id"
-                  :value="course.id"
-                >
-                  {{ course.name }}
-                </a-select-option>
-              </a-select>
-            </a-form-item>
-          </a-form>
-        </div>
-
-        <!-- 第二步：输入课程信息 -->
-        <div v-show="currentStep === 2" class="step-2">
-          <a-form layout="vertical" :model="formState" ref="formRef">
-            <a-form-item
-              label="章节标题"
-              name="title"
-              :rules="[{ required: true, message: '请输入章节标题' }]"
-            >
-              <a-input v-model:value="formState.title" />
-            </a-form-item>
-
-            <a-form-item
-              label="教学内容"
-              name="content"
-              :rules="[{ required: true, message: '请输入教学内容' }]"
-            >
-              <a-textarea
-                v-model:value="formState.content"
-                :rows="4"
-                placeholder="请输入本节课的主要教学内容..."
-              />
-            </a-form-item>
-
-            <a-form-item
-              label="教学目标"
-              name="objective"
-              :rules="[{ required: true, message: '请输入教学目标' }]"
-            >
-              <a-textarea
-                v-model:value="formState.objective"
-                :rows="4"
-                placeholder="请明确描述学生需要达成的学习目标..."
-              />
-            </a-form-item>
-          </a-form>
-        </div>
+                {{ course.name }}
+              </a-select-option>
+            </a-select>
+          </a-form-item>
+        </a-form>
       </div>
     </a-modal>
   </a-col>
@@ -125,7 +86,6 @@ import type { Courseclass } from "@/api/courseclass";
 import { getCoursesByCourseclass } from "@/api/course";
 import type { Course } from "@/api/course";
 import { questionApi } from "@/api/questions";
-import type { CreatePreQuestionsParams } from "@/api/questions";
 import type { FormInstance } from "ant-design-vue";
 
 interface FormState {
@@ -238,11 +198,7 @@ export default defineComponent({
       const hide = message.loading("正在生成课前习题，请稍候...", 0);
 
       try {
-        const params: CreatePreQuestionsParams = {
-          content: `课程标题：${formState.title}\n教学内容：${formState.content}\n教学目标：${formState.objective}`,
-        };
-
-        await questionApi.createPreQuestions(selectedCourse.value!, params);
+        await questionApi.createPreQuestions(selectedCourse.value!);
         message.success("课前习题生成成功！");
       } catch (error) {
         message.error("请求发送失败");
