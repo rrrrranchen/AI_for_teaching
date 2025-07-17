@@ -3,7 +3,12 @@ import api from "@/request";
 import type { AxiosResponse } from "axios";
 
 // 问题类型枚举
-export type QuestionType = "choice" | "fill" | "short_answer" | "practice";
+export type QuestionType =
+  | "choice"
+  | "fill"
+  | "short_answer"
+  | "practice"
+  | "programming";
 
 // 难度枚举
 export type QuestionDifficulty = "1" | "2" | "3" | "4" | "5";
@@ -13,6 +18,8 @@ export type QuestionTiming = "pre_class" | "post_class";
 /**
  * 问题基础类型
  */
+
+// 首先在Question接口中添加新字段
 export interface Question {
   id: number;
   course_id: number;
@@ -23,9 +30,21 @@ export interface Question {
   timing: QuestionTiming;
   is_public?: boolean;
   studentAnswer?: StudentAnswer;
-  knowledge_point_id?: number;
-  knowledge_point_name?: string;
-  knowledge_point_content?: string;
+  knowledge_point: {
+    id?: number;
+    name?: string;
+    content?: string;
+  };
+  analysis?: string; // 新增解析字段
+  has_answered?: boolean; // 新增是否已作答字段
+  answer_record?: {
+    // 新增答题记录字段
+    id: number;
+    student_answer: string;
+    correct_percentage: number;
+    answered_at: string;
+    last_modified?: string;
+  };
 }
 
 /**
@@ -229,6 +248,16 @@ export const questionApi = {
   async getPostQuestions(courseId: number): Promise<Question[]> {
     const response: AxiosResponse<Question[]> = await api.get(
       `/postquestions/${courseId}`
+    );
+    return response.data;
+  },
+
+  /**
+   * 获取课程课后习题列表（学生视角，包含答题状态和解析）
+   */
+  async StugetPostQuestions(courseId: number): Promise<Question[]> {
+    const response: AxiosResponse<Question[]> = await api.get(
+      `/student/questions/${courseId}`
     );
     return response.data;
   },

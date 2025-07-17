@@ -43,6 +43,7 @@
                   <a-select-option value="fill">填空题</a-select-option>
                   <a-select-option value="short_answer">简答题</a-select-option>
                   <a-select-option value="practice">实践题</a-select-option>
+                  <a-select-option value="programming">编程题</a-select-option>
                 </a-select>
 
                 <a-input-number
@@ -303,6 +304,8 @@ const getQuestionTypeName = (type: string) => {
     choice: "选择题",
     fill: "填空题",
     short_answer: "简答题",
+    practice: "实践题",
+    programming: "编程题",
   };
   return typeMap[type] || type;
 };

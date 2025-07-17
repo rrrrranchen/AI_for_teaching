@@ -330,7 +330,7 @@ export default {
             },
             data: [
               { value: 1048, name: "智能备课" },
-              { value: 735, name: "作业批改" },
+              { value: 735, name: "题目生成" },
               { value: 580, name: "学情分析" },
               { value: 484, name: "智能问答" },
               { value: 300, name: "其他功能" },

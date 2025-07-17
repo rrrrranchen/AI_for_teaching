@@ -115,6 +115,8 @@ const runCode = async () => {
   outputError.value = false;
 
   try {
+    console.log("代码内容：", code.value);
+
     const response = await fetch(`${PISTON_API_URL}/execute`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

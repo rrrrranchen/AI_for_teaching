@@ -1,48 +1,61 @@
 <template>
-  <a-space direction="vertical" :size="16" style="width: 100%">
-    <a-space v-if="showLanguageSelector || showThemeSelector" :size="16">
-      <a-space v-if="showLanguageSelector" :size="8" align="center">
-        <span>语言：</span>
-        <a-select
-          v-model:value="internalLanguage"
-          style="width: 120px"
-          size="small"
-        >
-          <a-select-option value="python">Python</a-select-option>
-          <a-select-option value="javascript">JavaScript</a-select-option>
-          <a-select-option value="java">Java</a-select-option>
-          <a-select-option value="c">C</a-select-option>
-          <a-select-option value="cpp">C++</a-select-option>
-        </a-select>
+  <a-card
+    :bordered="false"
+    :bodyStyle="{ padding: '16px' }"
+    class="editor-card"
+  >
+    <a-space direction="vertical" :size="16" style="width: 100%">
+      <a-space
+        v-if="showLanguageSelector || showThemeSelector"
+        :size="24"
+        align="center"
+        class="selector-container"
+      >
+        <a-space v-if="showLanguageSelector" :size="8" align="center">
+          <span class="selector-label">语言：</span>
+          <a-select
+            v-model:value="internalLanguage"
+            class="styled-selector"
+            size="small"
+          >
+            <a-select-option value="python">Python</a-select-option>
+            <a-select-option value="javascript">JavaScript</a-select-option>
+            <a-select-option value="java">Java</a-select-option>
+            <a-select-option value="c">C</a-select-option>
+            <a-select-option value="cpp">C++</a-select-option>
+          </a-select>
+        </a-space>
+
+        <a-space v-if="showThemeSelector" :size="8" align="center">
+          <span class="selector-label">主题：</span>
+          <a-select
+            v-model:value="internalTheme"
+            class="styled-selector"
+            size="small"
+          >
+            <a-select-option value="dracula">Dracula</a-select-option>
+            <a-select-option value="default">Default</a-select-option>
+            <a-select-option value="monokai">Monokai</a-select-option>
+          </a-select>
+        </a-space>
       </a-space>
 
-      <a-space v-if="showThemeSelector" :size="8" align="center">
-        <span>主题：</span>
-        <a-select
-          v-model:value="internalTheme"
-          style="width: 120px"
-          size="small"
-        >
-          <a-select-option value="dracula">Dracula</a-select-option>
-          <a-select-option value="default">Default</a-select-option>
-          <a-select-option value="monokai">Monokai</a-select-option>
-        </a-select>
-      </a-space>
+      <div class="editor-wrapper">
+        <Codemirror
+          ref="cmRef"
+          v-model:value="internalCode"
+          :options="cmOptions"
+          border
+          :height="height"
+          :width="width"
+          :tabSize="2"
+          @change="handleChange"
+          @input="handleInput"
+          @ready="handleReady"
+        />
+      </div>
     </a-space>
-
-    <Codemirror
-      ref="cmRef"
-      v-model:value="internalCode"
-      :options="cmOptions"
-      border
-      :height="height"
-      :width="width"
-      :tabSize="2"
-      @change="handleChange"
-      @input="handleInput"
-      @ready="handleReady"
-    />
-  </a-space>
+  </a-card>
 </template>
 
 <script setup lang="ts">
@@ -116,7 +129,7 @@ const emit = defineEmits([
 const { modelValue, language: propLanguage, theme: propTheme } = toRefs(props);
 
 const cmRef = ref<CmComponentRef>();
-const internalCode = ref(propLanguage.value);
+const internalCode = ref();
 const internalLanguage = ref(propLanguage.value);
 const internalTheme = ref(propTheme.value);
 
@@ -198,5 +211,43 @@ defineExpose({
 </script>
 
 <style scoped>
-/* 可以添加自定义样式 */
+.editor-card {
+  border-radius: 8px;
+}
+
+.selector-container {
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 4px;
+}
+
+.selector-label {
+  font-weight: 500;
+  color: #1f1f1f;
+}
+
+.styled-selector {
+  border-radius: 4px;
+  transition: all 0.3s;
+}
+
+.styled-selector:hover {
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+.editor-wrapper {
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #f0f0f0;
+}
+
+:deep(.cm-editor) {
+  border-radius: 6px;
+  font-family: "Fira Code", "Source Code Pro", monospace;
+}
+
+:deep(.cm-gutters) {
+  border-radius: 6px 0 0 6px;
+}
 </style>
