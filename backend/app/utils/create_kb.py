@@ -52,7 +52,7 @@ def create_unstructured_db(db_name: str, label_name: list):
     # 初始化文档处理器
     node_parser = SentenceSplitter(
         chunk_overlap=Settings.chunk_overlap,
-        chunk_size=3000
+        chunk_size=1000
     )
     
     def optimized_markdown_split(content: str) -> list[str]:
@@ -86,12 +86,12 @@ def create_unstructured_db(db_name: str, label_name: list):
                 continue
             
             # 处理超长行（如长URL或代码）
-            if line_length > 3000 and not in_code_block:
+            if line_length > 1000 and not in_code_block:
                 # 在空格处分割长行，避免破坏单词
-                while len(line) > 3000:
-                    split_index = line[:3000].rfind(' ')
+                while len(line) > 1000:
+                    split_index = line[:1000].rfind(' ')
                     if split_index == -1 or split_index < 1000:  # 找不到合适分割点
-                        split_index = 3000
+                        split_index = 1000
                     chunks.append(line[:split_index])
                     line = line[split_index:].lstrip()
                 current_chunk = [line]
@@ -136,7 +136,7 @@ def create_unstructured_db(db_name: str, label_name: list):
             
             # 处理列表项（保持列表完整）
             if is_list_item:
-                if in_list and current_length + line_length > 3000:
+                if in_list and current_length + line_length > 1000:
                     # 当前块已满，保存并开始新块
                     chunk_text = '\n'.join(current_chunk).strip()
                     if chunk_text:
@@ -154,7 +154,7 @@ def create_unstructured_db(db_name: str, label_name: list):
                 in_list = False  # 退出列表状态
             
             # 普通行处理
-            if current_length + line_length <= 3000:
+            if current_length + line_length <= 1000:
                 current_chunk.append(line)
                 current_length += line_length + 1  # +1 for newline
                 i += 1
@@ -323,7 +323,7 @@ def create_unstructured_db(db_name: str, label_name: list):
         print("没有可处理的文档内容")
 
 
-MAX_CHUNK_SIZE = 3000  # 最大块大小
+MAX_CHUNK_SIZE = 1000  # 最大块大小
 MIN_QUESTIONS_TO_TRIGGER = 1  # 触发题目分块模式的最小题目数量
 def create_unstructured_db_for_questions(db_name: str, label_name: List[str]) -> None:
     """创建专门针对题库类MD文件的知识库索引

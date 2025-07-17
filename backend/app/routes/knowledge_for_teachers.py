@@ -18,6 +18,7 @@ from app.utils.ai_chat import _retrieve_chunks_from_multiple_dbs
 from app.models.courseclass import Courseclass
 from app.models.CategoryFileImage import CategoryFileImage
 from app.utils.keywords_search import calculate_keyword_match, extract_keywords
+from app.utils.create_kb_new import create_unstructured_db_new
 
 knowledge_for_teachers_bp = Blueprint('knowledge_for_teachers', __name__)
 
@@ -818,6 +819,7 @@ def update_single_knowledge_base_endpoint(kb_id):
             'message': str(e)
         }), 500
 
+from app.utils.create_kb_new import create_unstructured_db_new
 
 def update_single_knowledge_base(knowledge_base: KnowledgeBase):
     """更新单个知识库的核心逻辑"""
@@ -890,7 +892,7 @@ def create_knowledge_base_endpoint():
         
         # 根据类目类型调用不同的创建函数
         if unstructured_categories:
-            create_unstructured_db(unique_name, unstructured_categories)
+            create_unstructured_db_new(unique_name, unstructured_categories)
         elif structured_categories:
             create_structured_db(unique_name, structured_categories)
         
