@@ -30,13 +30,7 @@
 
       <!-- 课后练习 -->
       <a-tab-pane key="post" tab="课后练习">
-        <question-list
-          :key="'post-' + courseId"
-          :questions="postQuestions"
-          :loading="loading"
-          :deadline="postClassDeadline"
-          @submit="handlePostSubmit"
-        />
+        <PostClassExercise :classId="courseclassId" :courseId="courseId" />
       </a-tab-pane>
 
       <!-- 新增学习报告标签页 -->
@@ -164,6 +158,7 @@ import {
   getPostClassRecommendations,
 } from "@/api/student_recommend";
 import dayjs from "dayjs";
+import PostClassExercise from "@/components/studentcourse/PostExercise.vue";
 
 // 初始化Markdown解析器
 const md: any = new MarkdownIt({
@@ -188,7 +183,7 @@ export interface AnswerItem {
 
 export default defineComponent({
   name: "StudentCourseDetail",
-  components: { QuestionList, SyncOutlined },
+  components: { QuestionList, SyncOutlined, PostClassExercise },
   setup() {
     const route = useRoute();
     const courseId = ref<number>(0);

@@ -1,72 +1,8 @@
 <template>
-  <a-modal
-    :visible="internalVisible"
-    title="小智AI助手"
-    :width="1350"
-    :footer="null"
-    :bodyStyle="{ padding: '0' }"
-    :style="{ top: '20px' }"
-    @cancel="handleClose"
-    @ok="handleClose"
-    class="ai-chat-modal"
-  >
+  <div class="ai-chat-container">
     <div class="ai-chat-container">
-      <!-- 班级选择和会话管理 -->
-      <div class="chat-header">
-        <!-- 班级选择 -->
-        <a-select
-          v-model:value="selectedClassId"
-          placeholder="选择班级"
-          style="width: 200px"
-          :options="classOptions"
-          :loading="loadingClasses"
-          @focus="loadClasses"
-          @change="handleClassChange"
-        />
-
-        <!-- 会话选择/创建 -->
-        <a-select
-          v-model:value="currentConversationId"
-          placeholder="选择或创建会话"
-          style="width: 250px; margin-left: 10px"
-          :options="conversationOptions"
-          :loading="loadingConversations"
-          @focus="loadConversations"
-          @change="handleConversationChange"
-        >
-        </a-select>
-        <!-- 会话操作按钮 -->
-        <div class="conversation-actions">
-          <!-- 3. 添加新建会话按钮 -->
-          <a-button
-            type="text"
-            size="small"
-            @click="showRenameModal"
-            :disabled="!currentConversationId"
-            v-if="currentConversationId"
-          >
-            <template #icon><edit-outlined /></template>
-            重命名
-          </a-button>
-          <a-button type="text" size="small" @click="createNewConversation">
-            <template #icon><plus-outlined /></template> 新建会话
-          </a-button>
-        </div>
-      </div>
-      <div v-if="!currentConversationId" class="empty-state">
-        <img
-          src="@/assets/ai-chat-empty-state.png"
-          alt="请选择班级和会话"
-          class="empty-image"
-        />
-        <p class="empty-text">请选择班级并创建/选择会话以开始对话</p>
-      </div>
       <!-- 消息列表 -->
-      <div
-        class="chat-messages"
-        ref="messagesContainer"
-        v-if="currentConversationId"
-      >
+      <div class="chat-messages" ref="messagesContainer">
         <!-- AI欢迎消息 -->
         <div class="message assistant" v-if="messages.length === 0">
           <div class="message-content">
@@ -285,11 +221,11 @@
       </div>
 
       <!-- 输入区域 -->
-      <div class="chat-input" v-if="currentConversationId">
+      <div class="chat-input">
         <a-textarea
           v-model:value="inputMessage"
           placeholder="输入您的问题..."
-          :rows="4"
+          :rows="2"
           allow-clear
           @pressEnter="handleSend"
           :disabled="isLoading"
@@ -309,27 +245,14 @@
             type="primary"
             @click="handleSend"
             :loading="isLoading"
-            :disabled="!inputMessage.trim() || !currentConversationId"
+            :disabled="!inputMessage.trim()"
           >
             发送
           </a-button>
         </div>
       </div>
-
-      <!-- 重命名会话模态框 -->
-      <a-modal
-        v-model:visible="renameModalVisible"
-        title="重命名会话"
-        @ok="handleRenameConversation"
-        @cancel="renameModalVisible = false"
-      >
-        <a-input
-          v-model:value="newConversationName"
-          placeholder="输入新的会话名称"
-        />
-      </a-modal>
     </div>
-  </a-modal>
+  </div>
 </template>
 
 <script setup>
@@ -340,26 +263,13 @@ import {
   defineProps,
   defineEmits,
   onUnmounted,
-  computed,
 } from "vue";
-import {
-  UserOutlined,
-  PlusOutlined,
-  EditOutlined,
-  TrademarkCircleOutlined,
-} from "@ant-design/icons-vue";
 import Markdown from "vue3-markdown-it";
 import "highlight.js/styles/github.css";
-import {
-  courseClassChat,
-  createConversation,
-  getCourseClassConversations,
-  getConversationDetail,
-  updateConversationName,
-} from "@/api/aichat";
-import { getAllCourseclasses } from "@/api/courseclass";
+import { questionClassChat } from "@/api/aichat";
 import { useAuthStore } from "@/stores/auth";
 import AIavatar from "@/assets/xiaozhi_avatar.png";
+import { TrademarkCircleOutlined, UserOutlined } from "@ant-design/icons-vue";
 
 const auth = useAuthStore();
 
@@ -367,6 +277,14 @@ const props = defineProps({
   visible: {
     type: Boolean,
     default: false,
+  },
+  classId: {
+    type: Number,
+    required: true,
+  },
+  questionId: {
+    type: Number,
+    required: true,
   },
 });
 
@@ -382,36 +300,20 @@ const messages = ref([]);
 const streamingContent = ref("");
 const streamingThinkingContent = ref("");
 const streamingSources = ref(null);
-const selectedClassId = ref(null);
-const currentConversationId = ref(null);
 const thinkingMode = ref(false);
-const classOptions = ref([]);
-const conversations = ref([]);
-const loadingClasses = ref(false);
-const loadingConversations = ref(false);
-const renameModalVisible = ref(false);
-const newConversationName = ref("");
-
-// 计算属性 - 会话选项
-const conversationOptions = computed(() => {
-  return conversations.value.map((conv) => ({
-    value: conv.id,
-    label: conv.name,
-    created_at: conv.created_at,
-  }));
-});
 
 // 欢迎消息
 const welcomeMessage = ref(`
-# 欢迎使用 DeepSeek AI 助手
+# 题目AI助手
 
-我是您的智能助手，基于班级知识库为您提供帮助：
+我是您的题目专属助手，可以为您：
 
-1. **选择班级和会话**：从下拉菜单中选择您的班级和会话
-2. **提问方式**：
-   - 普通模式：快速回答
-   - 深度思考模式：额外展示思考过程
-3. **知识参考**：所有回答都会显示参考的知识片段
+1. **解释题目**：分析题目要求和解题思路
+2. **解答疑问**：回答题目相关的任何问题
+3. **提供提示**：在您卡住时给予解题提示
+4. **检查答案**：(完成习题后)帮助验证您的解答是否正确
+
+请随时向我提问关于题目的任何问题！
 `);
 
 // 监听visible变化
@@ -420,138 +322,15 @@ watch(
   (val) => {
     internalVisible.value = val;
     if (val) {
+      // 每次打开重置消息
+      messages.value = [];
+      messageIdCounter = 0;
       nextTick(() => {
         scrollToBottom();
       });
     }
   }
 );
-
-// 加载班级列表
-const loadClasses = async () => {
-  if (classOptions.value.length > 0) return;
-
-  try {
-    loadingClasses.value = true;
-    const classes = await getAllCourseclasses();
-    classOptions.value = classes.map((c) => ({
-      value: c.id,
-      label: c.name,
-    }));
-  } finally {
-    loadingClasses.value = false;
-  }
-};
-
-// 班级变更处理
-const handleClassChange = async () => {
-  currentConversationId.value = null;
-  messages.value = [];
-  await loadConversations();
-};
-
-// 加载会话列表
-const loadConversations = async () => {
-  if (!selectedClassId.value) return;
-
-  try {
-    loadingConversations.value = true;
-    conversations.value = await getCourseClassConversations(
-      selectedClassId.value
-    );
-    console.log("conversations:", conversations.value);
-    if (conversations.value.length > 0) {
-      // 默认选择最新的会话
-      currentConversationId.value = conversations.value[0].id;
-      await loadConversationMessages(currentConversationId.value);
-    }
-  } finally {
-    loadingConversations.value = false;
-  }
-};
-
-// 加载会话消息
-const loadConversationMessages = async (conversationId) => {
-  try {
-    const conversation = await getConversationDetail(conversationId);
-    messages.value = conversation.messages || [];
-
-    // 初始化 messageIdCounter 为最后一条消息的 ID + 1
-    if (messages.value.length > 0) {
-      const lastMessage = messages.value[messages.value.length - 1];
-      messageIdCounter = lastMessage.id + 1;
-    } else {
-      messageIdCounter = 0;
-    }
-
-    scrollToBottom();
-  } catch (error) {
-    console.error("加载会话消息失败:", error);
-  }
-};
-
-// 会话变更处理
-const handleConversationChange = async () => {
-  if (currentConversationId.value) {
-    console.log("currentConversationId changed:", currentConversationId.value);
-    await loadConversationMessages(currentConversationId.value);
-  } else {
-    messages.value = [];
-  }
-};
-
-// 创建新会话
-const createNewConversation = async () => {
-  if (!selectedClassId.value) return;
-
-  try {
-    const response = await createConversation(selectedClassId.value);
-    currentConversationId.value = response.chat_id;
-    conversations.value.unshift({
-      id: response.chat_id,
-      name: response.name,
-      created_at: response.created_at,
-    });
-
-    // 重置消息和计数器
-    messages.value = [];
-    messageIdCounter = 0;
-  } catch (error) {
-    console.error("创建会话失败:", error);
-  }
-};
-
-// 显示重命名模态框
-const showRenameModal = () => {
-  const conversation = conversations.value.find(
-    (c) => c.id === currentConversationId.value
-  );
-  if (conversation) {
-    newConversationName.value = conversation.name;
-    renameModalVisible.value = true;
-  }
-};
-
-// 处理重命名会话
-const handleRenameConversation = async () => {
-  if (!currentConversationId.value || !newConversationName.value.trim()) return;
-
-  try {
-    await updateConversationName(
-      currentConversationId.value,
-      newConversationName.value
-    );
-    const conversation = conversations.value.find(
-      (c) => c.id === currentConversationId.value
-    );
-    if (conversation) {
-      conversation.name = newConversationName.value;
-    }
-    renameModalVisible.value = false;
-  } catch (error) {
-    console.error("重命名会话失败:", error);
-  }
-};
 
 // 用于管理展开/收起状态
 const expandedChunks = ref({});
@@ -599,12 +378,7 @@ const handleSend = (e) => {
 
 let messageIdCounter = 0;
 const sendMessage = async () => {
-  if (
-    !inputMessage.value.trim() ||
-    !currentConversationId.value ||
-    isLoading.value
-  )
-    return;
+  if (!inputMessage.value.trim() || isLoading.value) return;
 
   const msgId = messageIdCounter++;
   const userMsg = {
@@ -627,17 +401,22 @@ const sendMessage = async () => {
   let cancelFunction;
 
   try {
-    cancelFunction = courseClassChat(
-      currentConversationId.value,
+    // 获取最近5条消息作为历史
+    const recentHistory = messages.value
+      .slice(-5)
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
+    cancelFunction = questionClassChat(
+      props.questionId,
       {
         query: userMsg.content,
         thinking_mode: thinkingMode.value,
-        history: messages.value
-          .filter((m) => m.role === "user" || m.role === "assistant")
-          .map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
+        class_id: props.classId,
+        history: recentHistory,
       },
       (response) => {
         switch (response.status) {
@@ -739,82 +518,18 @@ const scrollToBottom = () => {
 </script>
 
 <style scoped lang="scss">
-.ai-chat-modal {
-  :deep(.ant-modal-body) {
-    padding: 0;
-  }
-
-  :deep(.ant-modal-header) {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-
-    .ant-modal-title {
-      color: white;
-      font-size: 18px;
-      font-weight: 600;
-    }
-  }
-
-  :deep(.ant-modal-close) {
-    color: white;
-  }
-}
-
 .ai-chat-container {
   display: flex;
   flex-direction: column;
-  height: 85vh;
+  height: 100vh;
   background: #f8fafc;
-}
-
-.chat-header {
-  padding: 12px 16px;
-  border-bottom: 1px solid #e2e8f0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: white;
-
-  .conversation-actions {
-    margin-left: auto;
-  }
-
-  .thinking-checkbox {
-    margin-left: 0;
-  }
-}
-
-/* 空状态样式 */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  padding: 40px;
-  text-align: center;
-
-  .empty-image {
-    max-width: 1000px;
-    // max-height: 300px;
-    margin-bottom: 24px;
-    border-radius: 8px;
-    // box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-
-  .empty-text {
-    font-size: 18px;
-    color: #666;
-    margin-top: 16px;
-    max-width: 500px;
-    line-height: 1.6;
-  }
 }
 
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 18px;
+  padding-top: 18px;
+
   background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
 
   &::-webkit-scrollbar {
@@ -856,22 +571,22 @@ const scrollToBottom = () => {
 .message-content {
   display: flex;
   align-items: flex-start;
-  max-width: 80%;
+  max-width: 90%;
   margin: 0 auto;
 }
 
 .ai-avatar,
 .user-avatar {
   flex-shrink: 0;
-  width: 50px;
-  height: 50px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  border: 4px solid rgb(198, 217, 254);
+  border: 3px solid rgb(198, 217, 254);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 12px;
-  font-size: 18px;
+  margin: 0 10px;
+  font-size: 16px;
 }
 
 .ai-avatar {
@@ -888,7 +603,7 @@ const scrollToBottom = () => {
 .text-content {
   width: 80%;
   flex: 1;
-  padding: 16px 20px;
+  padding: 12px 16px;
   border-radius: 12px;
   line-height: 1.6;
   word-break: break-word;
@@ -908,7 +623,7 @@ const scrollToBottom = () => {
 
   :deep(pre) {
     background: rgba(0, 0, 0, 0.05);
-    padding: 12px;
+    padding: 10px;
     border-radius: 6px;
     overflow-x: auto;
   }
@@ -1054,32 +769,9 @@ const scrollToBottom = () => {
 
 /* 知识参考部分样式 */
 .sources-collapse {
-  max-width: 80%;
+  max-width: 90%;
   margin: 12px auto 0;
   border: none;
-
-  :deep(.ant-collapse-header) {
-    padding: 8px 16px !important;
-    background: #f0f5ff;
-    border-radius: 6px;
-    color: #667eea;
-    font-weight: 500;
-  }
-
-  :deep(.ant-collapse-content) {
-    border: none;
-    background: transparent;
-  }
-}
-
-/* 知识参考容器样式 */
-.sources-container {
-  max-width: 90%;
-}
-
-.sources-collapse {
-  border: none;
-  background: transparent;
 
   :deep(.ant-collapse-header) {
     padding: 8px 16px !important;
@@ -1164,7 +856,6 @@ const scrollToBottom = () => {
 }
 
 /* 思考过程折叠面板 */
-/* 思考过程容器样式 */
 .thinking-container {
   margin-bottom: 12px;
 
@@ -1197,24 +888,6 @@ const scrollToBottom = () => {
 
 .thinking-title {
   font-weight: 500;
-}
-
-.toggle-icon {
-  font-size: 12px;
-  color: #667eea;
-}
-
-/* 思考过程文本样式 */
-.thinking-text {
-  white-space: pre-wrap;
-  color: #666;
-  font-size: 14px;
-  line-height: 1.6;
-  padding: 12px;
-  background: white;
-  border-radius: 6px;
-  margin-top: 8px;
-  border: 1px solid #e2e8f0;
 }
 
 @keyframes fadeInUp {

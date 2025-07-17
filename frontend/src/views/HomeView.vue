@@ -5,124 +5,88 @@
       <a-col :span="16">
         <div class="data-dashboard">
           <!-- 第一行统计卡片 -->
-          <a-row :gutter="24" class="dashboard-row">
+          <a-row :gutter="16" class="dashboard-row">
             <a-col :span="8">
-              <a-card class="stat-card">
-                <div class="stat-header">
-                  <rocket-two-tone
-                    :style="{ fontSize: '24px', color: '#1890ff' }"
-                  />
-                  <h3>智能备课平均耗时</h3>
-                </div>
-                <div class="stat-value">42分钟</div>
-                <div class="stat-trend">
-                  相对传统备课，平均减少 <span class="positive">38%</span>
+              <a-card hoverable>
+                <div class="stat-card">
+                  <rocket-two-tone style="font-size: 36px; color: #1890ff" />
+                  <div class="stat-content">
+                    <div class="stat-title">智能备课平均耗时</div>
+                    <div class="stat-value">33.56分钟</div>
+                    <div class="stat-trend">
+                      相比传统备课时间节省<arrow-down-outlined
+                        style="color: #52c41a"
+                      />
+                      38%
+                    </div>
+                  </div>
                 </div>
               </a-card>
             </a-col>
             <a-col :span="8">
-              <a-card class="stat-card">
-                <div class="stat-header">
+              <a-card hoverable>
+                <div class="stat-card">
                   <check-circle-two-tone
-                    :style="{ fontSize: '24px', color: '#52c41a' }"
+                    style="font-size: 36px; color: #52c41a"
                   />
-                  <h3>作业正确率</h3>
+                  <div class="stat-content">
+                    <div class="stat-title">作业正确率</div>
+                    <div class="stat-value">78.50%</div>
+                    <div class="stat-trend">最近一次布置的作业</div>
+                  </div>
                 </div>
-                <div class="stat-value">78.5%</div>
-                <div class="stat-trend">最近一次布置的作业</div>
               </a-card>
             </a-col>
             <a-col :span="8">
-              <a-card class="stat-card">
-                <div class="stat-header">
+              <a-card hoverable>
+                <div class="stat-card">
                   <clock-circle-two-tone
-                    :style="{ fontSize: '24px', color: '#722ed1' }"
+                    style="font-size: 36px; color: #722ed1"
                   />
-                  <h3>系统使用时长</h3>
-                </div>
-                <div class="stat-value">12.4小时/周</div>
-                <div class="stat-trend">
-                  较上月增加 <span class="positive">8%</span>
+                  <div class="stat-content">
+                    <div class="stat-title">系统使用时长</div>
+                    <div class="stat-value">10.4小时/周</div>
+                    <div class="stat-trend">
+                      <arrow-up-outlined style="color: #52c41a" /> 8%
+                    </div>
+                  </div>
                 </div>
               </a-card>
             </a-col>
           </a-row>
-
-          <!-- AI资源使用统计 -->
-          <a-card title="AI资源使用统计" class="chart-card">
-            <div class="chart-container">
-              <div class="ai-resource-chart">
-                <div
-                  class="resource-bar"
-                  v-for="(item, index) in aiUsageData"
-                  :key="index"
-                >
-                  <div class="resource-label">{{ item.name }}</div>
-                  <div class="bar-container">
-                    <div
-                      class="bar-fill"
-                      :style="{
-                        width: item.percentage + '%',
-                        background: item.color,
-                      }"
-                    ></div>
-                    <div class="bar-value">{{ item.count }}次</div>
-                  </div>
-                </div>
+          <div class="carousel-section">
+            <a-carousel autoplay>
+              <div v-for="(image, index) in carouselImages" :key="index">
+                <img
+                  :src="image.src"
+                  class="carousel-image"
+                  alt="轮播图"
+                  @click="handleCarouselClick(image.action)"
+                />
               </div>
-            </div>
-          </a-card>
-
-          <!-- 学生数据图表 -->
-          <a-row :gutter="24" class="dashboard-row">
+            </a-carousel>
+          </div>
+          <!-- 学生学习时长和正确率图表 -->
+          <a-row :gutter="16">
+            <!-- 学生学习时长和正确率图表 -->
             <a-col :span="12">
-              <a-card title="学生活跃度分布" class="chart-card">
-                <div class="chart-container">
-                  <div class="activity-chart">
-                    <div
-                      v-for="(item, index) in activityData"
-                      :key="index"
-                      class="activity-item"
-                    >
-                      <div class="activity-label">{{ item.label }}</div>
-                      <div class="activity-bar">
-                        <div
-                          class="activity-fill"
-                          :style="{
-                            width: item.percentage + '%',
-                            background: item.color,
-                          }"
-                        ></div>
-                      </div>
-                      <div class="activity-value">{{ item.value }}人</div>
-                    </div>
-                  </div>
-                </div>
+              <a-card
+                title="学生学习时长与正确率"
+                hoverable
+                style="margin-top: 16px; height: 430px"
+              >
+                <div ref="studentChart" style="height: 340px"></div>
               </a-card>
             </a-col>
+
+            <!-- AI资源使用占比饼图 -->
             <a-col :span="12">
-              <a-card title="学习进度分布" class="chart-card">
-                <div class="chart-container">
-                  <div class="progress-chart">
-                    <div
-                      v-for="(item, index) in progressData"
-                      :key="index"
-                      class="progress-item"
-                    >
-                      <div class="progress-label">{{ item.label }}</div>
-                      <div class="progress-bar">
-                        <div
-                          class="progress-fill"
-                          :style="{
-                            width: item.percentage + '%',
-                            background: item.color,
-                          }"
-                        ></div>
-                      </div>
-                      <div class="progress-value">{{ item.percentage }}%</div>
-                    </div>
-                  </div>
-                </div>
+              <a-card
+                title="AI资源使用占比"
+                hoverable
+                style="margin-top: 16px; height: 430px"
+              >
+                <div ref="aiUsageChart" style="height: 350px"></div>
               </a-card>
             </a-col>
           </a-row>
@@ -133,7 +97,7 @@
       <a-col :span="8">
         <div class="right-section">
           <!-- 日历热力图 -->
-          <a-card class="calendar-card">
+          <a-card hoverable>
             <div class="calendar-container">
               <div class="calendar-header">
                 <div class="month-selector">
@@ -185,7 +149,7 @@
           </a-card>
 
           <!-- 课程班列表 -->
-          <div class="section-title">
+          <div class="section-title" style="margin-top: 20px">
             <h2>我的课程班</h2>
           </div>
           <a-list
@@ -214,7 +178,7 @@
               </a-list-item>
             </template>
             <template #loadMore>
-              <div class="view-more">
+              <div class="view-more" style="margin-top: 16px">
                 <a @click="$router.push('/home/my-class')">查看全部课程 →</a>
               </div>
             </template>
@@ -226,16 +190,19 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed } from "vue";
+import { defineComponent, ref, computed, onMounted } from "vue";
 import {
   BookOutlined,
   RocketTwoTone,
   CheckCircleTwoTone,
   ClockCircleTwoTone,
+  ArrowUpOutlined,
+  ArrowDownOutlined,
 } from "@ant-design/icons-vue";
 import { useAuthStore } from "@/stores/auth";
 import { getAllCourseclasses } from "@/api/courseclass";
 import dayjs from "dayjs";
+import * as echarts from "echarts";
 
 export default defineComponent({
   name: "HomeView",
@@ -244,33 +211,152 @@ export default defineComponent({
     RocketTwoTone,
     CheckCircleTwoTone,
     ClockCircleTwoTone,
+    ArrowUpOutlined,
+    ArrowDownOutlined,
   },
   setup() {
     const authStore = useAuthStore();
     const courseClasses = ref<any[]>([]);
     const loading = ref<boolean>(false);
+    const studentChart = ref(null);
+    const aiUsageChart = ref(null);
 
-    // 伪造的AI资源使用数据
+    // 学生学习数据
+    const studentData = ref([
+      { name: "张三", studyTime: 240, accuracy: 85 },
+      { name: "李四", studyTime: 180, accuracy: 72 },
+      { name: "王五", studyTime: 210, accuracy: 78 },
+      { name: "赵六", studyTime: 150, accuracy: 65 },
+      { name: "钱七", studyTime: 270, accuracy: 92 },
+      { name: "孙八", studyTime: 190, accuracy: 68 },
+    ]);
+
+    // AI资源使用数据
     const aiUsageData = ref([
-      { name: "AI问答", count: 245, percentage: 75, color: "#1890ff" },
-      { name: "教学设计生成", count: 128, percentage: 40, color: "#52c41a" },
-      { name: "教学资源生成", count: 96, percentage: 30, color: "#722ed1" },
-      { name: "题目生成", count: 82, percentage: 25, color: "#faad14" },
+      { name: "AI问答", value: 25, color: "#1890ff" },
+      { name: "教学设计生成", value: 35, color: "#52c41a" },
+      { name: "教学资源生成", value: 18, color: "#722ed1" },
+      { name: "题目生成", value: 12, color: "#faad14" },
+      { name: "学情分析", value: 10, color: "#faad14" },
     ]);
 
-    // 伪造的学生活跃度数据
-    const activityData = ref([
-      { label: "高活跃度", value: 42, percentage: 35, color: "#237804" },
-      { label: "中等活跃度", value: 68, percentage: 57, color: "#52c41a" },
-      { label: "低活跃度", value: 10, percentage: 8, color: "#a0d911" },
-    ]);
+    // 初始化图表
+    const initCharts = () => {
+      // 学生学习时长与正确率图表
+      const studentEchart = echarts.init(studentChart.value);
+      studentEchart.setOption({
+        tooltip: {
+          trigger: "axis",
+          axisPointer: {
+            type: "cross",
+            crossStyle: {
+              color: "#999",
+            },
+          },
+        },
+        legend: {
+          data: ["学习时长(分钟)", "正确率(%)"],
+        },
+        grid: {
+          left: "3%",
+          right: "4%",
+          bottom: "3%",
+          containLabel: true,
+        },
+        xAxis: {
+          type: "category",
+          data: studentData.value.map((item) => item.name),
+          axisPointer: {
+            type: "shadow",
+          },
+        },
+        yAxis: [
+          {
+            type: "value",
+            name: "学习时长(分钟)",
+            min: 0,
+            max: 300,
+            axisLabel: {
+              formatter: "{value}",
+            },
+          },
+          {
+            type: "value",
+            name: "正确率(%)",
+            min: 0,
+            max: 100,
+            axisLabel: {
+              formatter: "{value}%",
+            },
+          },
+        ],
+        series: [
+          {
+            name: "学习时长(分钟)",
+            type: "bar",
+            data: studentData.value.map((item) => item.studyTime),
+            itemStyle: {
+              color: "#1890ff",
+            },
+          },
+          {
+            name: "正确率(%)",
+            type: "line",
+            yAxisIndex: 1,
+            data: studentData.value.map((item) => item.accuracy),
+            itemStyle: {
+              color: "#52c41a",
+            },
+          },
+        ],
+      });
 
-    // 伪造的学习进度数据
-    const progressData = ref([
-      { label: "超前学习", value: 18, percentage: 18, color: "#237804" },
-      { label: "正常进度", value: 65, percentage: 65, color: "#52c41a" },
-      { label: "进度落后", value: 17, percentage: 17, color: "#faad14" },
-    ]);
+      // AI资源使用占比图表
+      const aiEchart = echarts.init(aiUsageChart.value);
+      aiEchart.setOption({
+        tooltip: {
+          trigger: "item",
+        },
+        legend: {
+          top: "5%",
+          left: "center",
+        },
+        series: [
+          {
+            name: "AI资源使用占比",
+            type: "pie",
+            radius: ["40%", "70%"],
+            avoidLabelOverlap: false,
+            itemStyle: {
+              borderRadius: 10,
+              borderColor: "#fff",
+              borderWidth: 2,
+            },
+            label: {
+              show: false,
+              position: "center",
+            },
+            emphasis: {
+              label: {
+                show: true,
+                fontSize: "18",
+                fontWeight: "bold",
+              },
+            },
+            labelLine: {
+              show: false,
+            },
+            data: aiUsageData.value,
+          },
+        ],
+      });
+
+      // 窗口大小变化时重新调整图表大小
+      window.addEventListener("resize", function () {
+        studentEchart.resize();
+        aiEchart.resize();
+      });
+    };
 
     // 日历热力图相关数据
     const currentDate = ref(dayjs());
@@ -285,26 +371,37 @@ export default defineComponent({
       { level: 4, label: "非常高", color: "#196127" },
     ]);
 
-    // 生成日历数据
     const calendarDays = computed(() => {
       const startOfMonth = currentDate.value.startOf("month");
       const endOfMonth = currentDate.value.endOf("month");
       const startDay = startOfMonth.day();
       const daysInMonth = endOfMonth.date();
       const today = dayjs();
+      const yesterday = today.subtract(1, "day");
 
       // 生成当月的日期数组
       const days = [];
       for (let i = 1; i <= daysInMonth; i++) {
         const date = startOfMonth.date(i);
+        const isPast = date.isBefore(today, "day");
+        const isToday = date.isSame(today, "day");
+        const isYesterday = date.isSame(yesterday, "day");
+
+        // 只伪造今天之前的日期数据
+        let activity = 0;
+        if (isPast) {
+          activity = Math.floor(Math.random() * 100);
+        } else if (isYesterday) {
+          activity = Math.floor(Math.random() * 100);
+        }
+
         days.push({
           date: i,
           inMonth: true,
-          isToday: date.isSame(today, "day"),
-          activity: Math.floor(Math.random() * 100), // 随机生成活跃度数据
+          isToday: isToday,
+          activity: activity,
         });
       }
-
       // 填充上个月的空白
       const prevMonthDays = startDay;
       for (let i = 0; i < prevMonthDays; i++) {
@@ -354,7 +451,7 @@ export default defineComponent({
       try {
         loading.value = true;
         const data = await getAllCourseclasses();
-        courseClasses.value = data.slice(0, 3);
+        courseClasses.value = data.slice(0, 4);
       } catch (error) {
         console.error("获取课程班失败:", error);
       } finally {
@@ -362,16 +459,37 @@ export default defineComponent({
       }
     };
 
-    // 初始化加载数据
-    if (authStore.isAuthenticated) {
-      loadCourseClasses();
-    }
+    onMounted(() => {
+      initCharts();
+      if (authStore.isAuthenticated) {
+        loadCourseClasses();
+      }
+    });
+
+    const carouselImages = ref([
+      {
+        src: require("@/assets/carousel1.png"),
+        action: () => (window.location.href = "/home"),
+      },
+      {
+        src: require("@/assets/aiforedu.png"),
+        action: () => (window.location.href = "/home/smart-preparation"),
+      },
+      {
+        src: require("@/assets/community.png"),
+        action: () => (window.location.href = "/home/community"),
+      },
+    ]);
+
+    // 处理轮播图点击
+    const handleCarouselClick = (action: () => void) => {
+      action();
+    };
 
     return {
       courseClasses,
+      studentData,
       aiUsageData,
-      activityData,
-      progressData,
       currentMonth,
       calendarDays,
       heatLevels,
@@ -379,15 +497,19 @@ export default defineComponent({
       prevMonth,
       nextMonth,
       loading,
+      studentChart,
+      aiUsageChart,
+      carouselImages,
+      handleCarouselClick,
     };
   },
 });
 </script>
 
-<style scoped lang="less">
+<style scoped>
 .home {
-  padding: 16px;
-  // background-color: #91bbfa;
+  padding: 20px;
+  background: #edf6fbcc;
   height: 100%;
 }
 
@@ -396,148 +518,46 @@ export default defineComponent({
 }
 
 .data-dashboard {
-  // background-color: #fff;
   border-radius: 12px;
   height: 100%;
-  .dashboard-row {
-    margin-bottom: 24px;
-  }
 }
 
 .stat-card {
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  height: 140px;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-
-  .stat-header {
-    display: flex;
-    align-items: center;
-    margin-bottom: 16px;
-
-    h3 {
-      margin: 0 0 0 12px;
-      font-size: 16px;
-      color: #595959;
-    }
-  }
-
-  .stat-value {
-    font-size: 28px;
-    font-weight: 600;
-    color: #1f1f1f;
-    margin-bottom: 8px;
-  }
-
-  .stat-trend {
-    font-size: 14px;
-    color: #8c8c8c;
-
-    .positive {
-      color: #52c41a;
-    }
-
-    .negative {
-      color: #f5222d;
-    }
-  }
+  align-items: center;
+  /* background-color: #f9fbff; */
 }
 
-.chart-card {
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  margin-bottom: 24px;
-
-  :deep(.ant-card-head) {
-    border-bottom: none;
-  }
+.stat-content {
+  margin-left: 16px;
 }
 
-.chart-container {
-  padding: 16px 0;
-  height: 250px;
+.stat-title {
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.45);
 }
 
-.ai-resource-chart {
-  .resource-bar {
-    display: flex;
-    align-items: center;
-    margin-bottom: 16px;
-
-    .resource-label {
-      width: 150px;
-      font-size: 14px;
-      color: #595959;
-    }
-
-    .bar-container {
-      flex: 1;
-      height: 30px;
-      background: #f5f5f5;
-      border-radius: 4px;
-      position: relative;
-      overflow: hidden;
-
-      .bar-fill {
-        height: 100%;
-        border-radius: 4px;
-        transition: width 0.5s ease;
-      }
-
-      .bar-value {
-        position: absolute;
-        right: 10px;
-        top: 50%;
-        transform: translateY(-50%);
-        color: #fff;
-        font-size: 12px;
-        font-weight: 500;
-      }
-    }
-  }
+.stat-value {
+  font-size: 24px;
+  font-weight: bold;
+  margin: 4px 0;
 }
 
-.activity-chart,
-.progress-chart {
-  .activity-item,
-  .progress-item {
-    display: flex;
-    align-items: center;
-    margin-bottom: 16px;
+.stat-trend {
+  font-size: 12px;
+}
 
-    .activity-label,
-    .progress-label {
-      width: 100px;
-      font-size: 14px;
-      color: #595959;
-    }
+.carousel-section {
+  margin-top: 32px;
+  margin-bottom: 32px;
 
-    .activity-bar,
-    .progress-bar {
-      flex: 1;
-      height: 20px;
-      background: #f5f5f5;
-      border-radius: 4px;
-      position: relative;
-      overflow: hidden;
-
-      .activity-fill,
-      .progress-fill {
-        height: 100%;
-        border-radius: 4px;
-        transition: width 0.5s ease;
-      }
-    }
-
-    .activity-value,
-    .progress-value {
-      width: 60px;
-      text-align: right;
-      font-size: 14px;
-      color: #8c8c8c;
-    }
+  .carousel-image {
+    width: 100%;
+    height: 300px;
+    object-fit: cover;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: transform 0.3s;
   }
 }
 
@@ -545,26 +565,6 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   height: 100%;
-
-  .calendar-card {
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    margin-bottom: 24px;
-    flex: 1;
-
-    :deep(.ant-card-body) {
-      padding: 16px;
-    }
-  }
-
-  .my-classes-list {
-    flex: 1;
-    background: #fff;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    padding: 16px;
-    height: 200px !important;
-  }
 }
 
 .calendar-container {
@@ -685,6 +685,11 @@ export default defineComponent({
 }
 
 .my-classes-list {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  padding: 16px;
+
   .class-item {
     padding: 12px 0;
     border-bottom: 1px solid #f0f0f0;
@@ -703,6 +708,10 @@ export default defineComponent({
       text-overflow: ellipsis;
     }
   }
+}
+
+.view-more {
+  text-align: center;
 }
 
 @media (max-width: 992px) {

@@ -3,10 +3,11 @@
 export interface ChatMessage {
   query: string;
   thinking_mode: boolean;
-  // history?: Array<{
-  //   role: "user" | "assistant";
-  //   content: string;
-  // }>;
+  history?: Array<{
+    role: "user" | "assistant";
+    content: string;
+  }>;
+  class_id: number; //问题需要
   // similarity_threshold?: number;
   // chunk_cnt?: number;
   // api_key?: string;
@@ -234,6 +235,105 @@ export const courseClassChat = (
             for (const part of parts) {
               if (part.startsWith("data: ")) {
                 const data = JSON.parse(part.substring(6)) as ChatResponse;
+                onMessage(data);
+              }
+            }
+          }
+        } catch (error) {
+          onError?.(error as Error);
+        } finally {
+          onComplete?.();
+        }
+      };
+
+      processStream();
+    })
+    .catch((error) => {
+      onError?.(error);
+      onComplete?.();
+    });
+
+  // 返回取消函数
+  return () => {
+    controller.abort();
+  };
+};
+
+/**
+ * 题目专用的AI聊天接口(流式)
+ * @param questionId 题目ID
+ * @param message 聊天消息对象
+ * @param onMessage 消息回调函数
+ * @param onError 错误回调函数
+ * @param onComplete 完成回调函数
+ * @returns 返回一个可选的取消函数
+ */
+export const questionClassChat = (
+  questionId: number,
+  message: ChatMessage,
+  onMessage: (response: ChatResponse) => void,
+  onError?: (error: Error) => void,
+  onComplete?: () => void
+): (() => void) | undefined => {
+  // 验证必要参数
+  if (
+    !message.query ||
+    message.thinking_mode === undefined ||
+    !message.class_id
+  ) {
+    const error = new Error("缺少必要字段: query, thinking_mode, class_id");
+    onError?.(error);
+    return;
+  }
+
+  // 使用fetch API实现流式请求
+  const controller = new AbortController();
+  const signal = controller.signal;
+
+  fetch(`http://localhost:5000/question_chat/${questionId}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      ...message,
+      include_answer_analysis: true, // 默认包含题目分析
+    }),
+    signal,
+    credentials: "include",
+  })
+    .then((response) => {
+      if (!response.ok || !response.body) {
+        throw new Error(`请求失败: ${response.status}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let fullResponse = "";
+
+      const processStream = async () => {
+        try {
+          // eslint-disable-next-line no-constant-condition
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+              onComplete?.();
+              return;
+            }
+
+            buffer += decoder.decode(value, { stream: true });
+
+            // 处理可能的多条消息
+            const parts = buffer.split("\n\n");
+            buffer = parts.pop() || "";
+
+            for (const part of parts) {
+              if (part.startsWith("data: ")) {
+                const data = JSON.parse(part.substring(6)) as ChatResponse;
+                if (data.status === "content") {
+                  fullResponse += data.content;
+                }
                 onMessage(data);
               }
             }

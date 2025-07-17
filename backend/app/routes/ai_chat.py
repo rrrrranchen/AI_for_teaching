@@ -464,7 +464,7 @@ def update_conversation_name(chat_history_id):
         current_app.logger.error(f"更新会话名称失败: {str(e)}")
         return jsonify({"error": "服务器内部错误"}), 500
 
-@ai_chat_bp.route('/course_class_chat/<int:question_id>', methods=['POST'])
+@ai_chat_bp.route('/question_chat/<int:question_id>', methods=['POST'])
 def question_class_chat(question_id):
     """
     基于班级知识库的AI聊天接口
@@ -533,26 +533,23 @@ def question_class_chat(question_id):
             题目内容: {question.content}
             正确答案: {question.correct_answer}
             题目解析: {question.analysis or "无"}
-            
-            ### 当前用户作答
             """
             
             if student_answer:
                 question_context += f"""
+                ### 当前学生用户作答
                 学生答案: {student_answer.answer}
                 正确率: {student_answer.correct_percentage}%
                 作答时间: {student_answer.answered_at.strftime('%Y-%m-%d %H:%M')}
                 """
-            else:
-                question_context += "该学生尚未作答此题"
             
             # 将题目上下文添加到查询中
-            data['query'] = f"{question_context}\n\n### 用户问题\n{data['query']}"
+            data['query'] = f"{question_context}\n\n### 学生用户问题\n{data['query']}\n"
         # 流式响应生成器
         def generate():
             formatted_sources = None
-            reasoning_content = ""
-            final_answer = ""
+            full_response = ""
+            thinking_content = ""  # 初始化思考内容变量
             
             for token, chunks, status, sources in chat_stream(
                 query=data['query'],
@@ -565,69 +562,35 @@ def question_class_chat(question_id):
                 api_key=data.get('api_key'),
                 data_type_filter=data.get('data_type_filter')
             ):
-                # 构建响应数据字典
-                response_data = {
-                    'type': '',
-                    'content': '',
-                    'metadata': None
-                }
-
                 if status == "chunks":
+                    # 格式化来源信息
                     formatted_sources = format_sources(sources, name_resolver) if sources else {
                         "message": "未引用特定来源",
                         "sources": []
                     }
-                    response_data.update({
-                        'type': 'sources',
-                        'content': '检索到相关知识片段',
-                        'metadata': {
-                            'chunks': chunks,
-                            'source_count': len(formatted_sources['sources']) if formatted_sources else 0
-                        }
-                    })
-                elif status == "reasoning":
-                    reasoning_content += token
-                    response_data.update({
-                        'type': 'reasoning',
-                        'content': token,
-                        'metadata': {
-                            'accumulated': reasoning_content
-                        }
-                    })
-                elif status in ["content", "tokens"]:
-                    final_answer += token
-                    response_data.update({
-                        'type': 'answer',
-                        'content': token,
-                        'metadata': {
-                            'accumulated': final_answer
-                        }
-                    })
-                elif status == "end":
-                    response_data.update({
-                        'type': 'complete',
-                        'content': '对话完成',
-                        'metadata': {
-                            'reasoning': reasoning_content if data['thinking_mode'] else None,
-                            'final_answer': final_answer,
-                            'sources': formatted_sources
-                        }
-                    })
-                elif status == "error":
-                    response_data.update({
-                        'type': 'error',
-                        'content': token,
-                        'metadata': None
-                    })
-
-                # 统一使用json.dumps生成响应字符串
-                yield f"data: {json.dumps(response_data)}\n\n"
+                    yield f"data: {json.dumps({'status': 'chunks', 'content': chunks})}\n\n"
                 
-                # 添加结束事件
-                if status == "end":
-                    yield "event: end\n\n"
+                elif status == "reasoning":
+                    thinking_content += token  # 累积思考内容
+                    yield f"data: {json.dumps({'status': 'reasoning', 'content': token})}\n\n"
+                
+                elif status in ["content", "tokens"]:
+                    full_response += token  # 累积完整响应
+                    yield f"data: {json.dumps({'status': 'content', 'content': token})}\n\n"
+                
+                elif status == "end":
+                    response_data = {
+                        "status": "end",
+                        "content": full_response,
+                        "sources": formatted_sources or {
+                            "message": "未引用特定来源",
+                            "sources": []
+                        }
+                    }
+                    yield f"data: {json.dumps(response_data)}\n\n"
+                
                 elif status == "error":
-                    yield "event: error\n\n"
+                    yield f"data: {json.dumps({'status': 'error', 'content': token})}\n\n"
 
         return Response(
             generate(),
