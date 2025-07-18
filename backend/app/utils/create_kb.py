@@ -23,7 +23,7 @@ EMBED_MODEL = DashScopeEmbedding(
 )
 
 Settings.embed_model = EMBED_MODEL
-Settings.chunk_overlap = 50
+Settings.chunk_overlap = 256
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CATEGORY_PATH = os.path.join(project_root, 'static', 'knowledge', 'category')
@@ -52,7 +52,7 @@ def create_unstructured_db(db_name: str, label_name: list):
     # 初始化文档处理器
     node_parser = SentenceSplitter(
         chunk_overlap=Settings.chunk_overlap,
-        chunk_size=1000
+        chunk_size=1024
     )
     
     def optimized_markdown_split(content: str) -> list[str]:
@@ -86,12 +86,12 @@ def create_unstructured_db(db_name: str, label_name: list):
                 continue
             
             # 处理超长行（如长URL或代码）
-            if line_length > 1000 and not in_code_block:
+            if line_length > 1024 and not in_code_block:
                 # 在空格处分割长行，避免破坏单词
-                while len(line) > 1000:
-                    split_index = line[:1000].rfind(' ')
-                    if split_index == -1 or split_index < 1000:  # 找不到合适分割点
-                        split_index = 1000
+                while len(line) > 1024:
+                    split_index = line[:1024].rfind(' ')
+                    if split_index == -1 or split_index < 1024:  # 找不到合适分割点
+                        split_index = 1024
                     chunks.append(line[:split_index])
                     line = line[split_index:].lstrip()
                 current_chunk = [line]
@@ -136,7 +136,7 @@ def create_unstructured_db(db_name: str, label_name: list):
             
             # 处理列表项（保持列表完整）
             if is_list_item:
-                if in_list and current_length + line_length > 1000:
+                if in_list and current_length + line_length > 1024:
                     # 当前块已满，保存并开始新块
                     chunk_text = '\n'.join(current_chunk).strip()
                     if chunk_text:
@@ -154,7 +154,7 @@ def create_unstructured_db(db_name: str, label_name: list):
                 in_list = False  # 退出列表状态
             
             # 普通行处理
-            if current_length + line_length <= 1000:
+            if current_length + line_length <= 1024:
                 current_chunk.append(line)
                 current_length += line_length + 1  # +1 for newline
                 i += 1
@@ -179,13 +179,13 @@ def create_unstructured_db(db_name: str, label_name: list):
         merged_chunks = []
         for chunk in chunks:
             # 确保不超过8192限制
-            while len(chunk) > 8192:
+            while len(chunk) > 1500:
                 # 在段落边界处分割
-                split_index = chunk[:8192].rfind('\n\n')
+                split_index = chunk[:1500].rfind('\n\n')
                 if split_index == -1:
-                    split_index = chunk[:8192].rfind('\n')
-                if split_index == -1 or split_index < 1000:  # 找不到合适分割点
-                    split_index = 8192
+                    split_index = chunk[:1500].rfind('\n')
+                if split_index == -1 or split_index < 1500:  # 找不到合适分割点
+                    split_index = 1500
                 
                 merged_chunks.append(chunk[:split_index].strip())
                 chunk = chunk[split_index:].lstrip()
@@ -201,7 +201,7 @@ def create_unstructured_db(db_name: str, label_name: list):
                                  any(char.isalpha() for char in chunk)
                 
                 if (last_is_text and current_is_text) and \
-                   len(last_chunk) + len(chunk) + 2 <= 8192:  # +2为换行符
+                   len(last_chunk) + len(chunk) + 2 <= 1500:  # +2为换行符
                     merged_chunks[-1] = last_chunk + '\n\n' + chunk
                 else:
                     merged_chunks.append(chunk)
@@ -323,7 +323,7 @@ def create_unstructured_db(db_name: str, label_name: list):
         print("没有可处理的文档内容")
 
 
-MAX_CHUNK_SIZE = 1000  # 最大块大小
+MAX_CHUNK_SIZE = 1024  # 最大块大小
 MIN_QUESTIONS_TO_TRIGGER = 1  # 触发题目分块模式的最小题目数量
 def create_unstructured_db_for_questions(db_name: str, label_name: List[str]) -> None:
     """创建专门针对题库类MD文件的知识库索引

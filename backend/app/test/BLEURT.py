@@ -1,11 +1,7 @@
-import evaluate
+from bleurt import score
 
-# 自动处理模型下载和加载
-bleurt = evaluate.load("bleurt", module_type="metric")
-
-# 计算分数
-references = ["The cat sits on the mat"]
-candidates = ["There is a cat on the mat"]
-results = bleurt.compute(predictions=candidates, references=references)
-
-print(results["scores"])  # 输出: [-0.12]
+scorer = score.BleurtScorer("D:/BLEURT-20")
+print(scorer.score(
+    references=["光合作用需要光照、水和CO2"],
+    candidates=["植物通过吸收光能、水分和二氧化碳制造养分"]
+))
