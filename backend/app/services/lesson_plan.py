@@ -366,9 +366,8 @@ def generate_lesson_plans(course_content, student_feedback, db_names, similarity
         stream=False
     )
 
-    return {
-        "plan": response.choices[0].message.content
-    }
+    return  response.choices[0].message.content
+    
 
 
 
