@@ -358,15 +358,12 @@ def get_design_versions(design_id):
         # 5. 构建响应数据
         versions_data = []
         for version in versions:
-            try:
-                content = json.loads(version.content) if version.content else None
-            except json.JSONDecodeError:
-                content = version.content
+            
             
             versions_data.append({
                 "id": version.id,
                 "version": version.version,
-                "content": content,
+                "content": version.content,
                 "recommendation_score": version.recommendation_score,
                 "created_at": version.created_at.isoformat() if version.created_at else None,
                 "updated_at": version.updated_at.isoformat() if version.updated_at else None,
