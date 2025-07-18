@@ -563,22 +563,15 @@ def update_teaching_design_version(design_id, version_id):
         if not data:
             return jsonify(code=400, message="缺少必要参数"), 400
 
-        # 尝试解析当前版本的 content 为 JSON
-        try:
-            current_content = json.loads(version.content) if version.content else {}
-        except json.JSONDecodeError:
-            current_content = {}
+
 
         # 如果传入了 plan_content 数据，更新其中的 plan_content 部分
         if 'plan_content' in data:
-            current_content['plan_content'] = data['plan_content']
+            current_content = data['plan_content']
 
-        # 如果传入了 analysis 数据，更新其中的 analysis 部分
-        if 'analysis' in data:
-            current_content['analysis'] = data['analysis']
 
         # 将更新后的 content 重新序列化为 JSON
-        version.content = json.dumps(current_content)
+        version.content = current_content
 
         # 如果传入了其他字段，直接更新
         if 'recommendation_score' in data:
