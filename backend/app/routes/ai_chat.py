@@ -11,7 +11,7 @@ from app.utils.database import db
 
 from flask import Blueprint, request, jsonify, Response
 from app.models.courseclass import Courseclass
-from app.utils.ai_chat import chat_stream
+from app.utils.ai_chat import chat_stream, chat_stream2
 import json
 
 from app.models.chat_history import ChatHistory
@@ -545,23 +545,41 @@ def question_class_chat(question_id):
             
             # 将题目上下文添加到查询中
             data['query'] = f"{question_context}\n\n### 学生用户问题\n{data['query']}\n"
+        
         # 流式响应生成器
         def generate():
             formatted_sources = None
             full_response = ""
             thinking_content = ""  # 初始化思考内容变量
             
-            for token, chunks, status, sources in chat_stream(
-                query=data['query'],
-                db_names=db_names,
-                model="deepseek-chat",
-                history=data.get('history', []),
-                thinking_mode=data['thinking_mode'],
-                similarity_threshold=data.get('similarity_threshold', 0.2),
-                chunk_cnt=data.get('chunk_cnt', 5),
-                api_key=data.get('api_key'),
-                data_type_filter=data.get('data_type_filter')
-            ):
+            # 根据学生作答情况选择不同的流处理函数
+            if student_answer:
+                stream_generator = chat_stream(
+                    query=data['query'],
+                    db_names=db_names,
+                    model="deepseek-chat",
+                    history=data.get('history', []),
+                    thinking_mode=data['thinking_mode'],
+                    similarity_threshold=data.get('similarity_threshold', 0.2),
+                    chunk_cnt=data.get('chunk_cnt', 5),
+                    api_key=data.get('api_key'),
+                    data_type_filter=data.get('data_type_filter')
+                )
+            else:
+                stream_generator = chat_stream2(
+                    query=data['query'],
+                    db_names=db_names,
+                    model="deepseek-chat",
+                    history=data.get('history', []),
+                    thinking_mode=data['thinking_mode'],
+                    similarity_threshold=data.get('similarity_threshold', 0.2),
+                    chunk_cnt=data.get('chunk_cnt', 5),
+                    api_key=data.get('api_key'),
+                    data_type_filter=data.get('data_type_filter')
+                )
+            
+            # 统一处理流式响应
+            for token, chunks, status, sources in stream_generator:
                 if status == "chunks":
                     # 格式化来源信息
                     formatted_sources = format_sources(sources, name_resolver) if sources else {

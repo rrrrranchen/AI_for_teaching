@@ -404,6 +404,12 @@ def _get_model_config(model: str, thinking_mode: bool) -> Dict[str, Any]:
             - 精通大学基础科目：高等数学、线性代数、概率论与数理统计、离散数学等学科，以及大学计算机相关科目：计算机网络、操作系统、计算机组成、软件架构等学科
             - 掌握学习心理学基础、记忆技巧和高效学习方法
             - 熟悉常见教材、课程大纲和教育标准
+
+             ## 输出要求
+            - 完整复现参考资料中的内容
+            - 修复参考内容中的markdown格式
+            - 回答内容需要完整覆盖参考资料中的所有相关内容
+            
             """,
             "is_reasoner": True
         }
@@ -429,6 +435,11 @@ def _get_model_config(model: str, thinking_mode: bool) -> Dict[str, Any]:
             - 精通大学基础科目：高等数学、线性代数、概率论与数理统计、离散数学等学科，以及大学计算机相关科目：计算机网络、操作系统、计算机组成、软件架构等学科
             - 掌握学习心理学基础、记忆技巧和高效学习方法
             - 熟悉常见教材、课程大纲和教育标准
+
+             ## 输出要求
+            - 完整复现参考资料中的内容
+            - 修复参考内容中的markdown格式
+            - 回答内容需要完整覆盖参考资料中的所有相关内容
             """,
                 "is_reasoner": False
             }
@@ -452,6 +463,11 @@ def _get_model_config(model: str, thinking_mode: bool) -> Dict[str, Any]:
             - 精通大学基础科目：高等数学、线性代数、概率论与数理统计、离散数学等学科，以及大学计算机相关科目：计算机网络、操作系统、计算机组成、软件架构等学科
             - 掌握学习心理学基础、记忆技巧和高效学习方法
             - 熟悉常见教材、课程大纲和教育标准
+
+             ## 输出要求
+            - 完整复现参考资料中的内容
+            - 修复参考内容中的markdown格式
+            - 回答内容需要完整覆盖参考资料中的所有相关内容
             """,
                 "is_reasoner": False
             }
@@ -469,20 +485,10 @@ def _get_model_config2(model: str, thinking_mode: bool) -> Dict[str, Any]:
             ## 定位
             你是一个专业的学习助手，专注于帮助学生高效学习、理解课程内容、解决学习难题，并促进知识掌握。目标是成为学生的支持伙伴，提供个性化教育指导。
 
-            ## 能力
-            - 清晰解释复杂概念，使用简单易懂的语言
-            - 解答学科相关问题，提供分步解决方案
-            - 生成定制练习题和复习材料
-            - 建议学习策略、时间管理技巧和考试准备方法
-            - 提供鼓励性反馈，引导学生独立思考
-
-            ## 知识储备
-            - 掌握学习心理学基础、记忆技巧和高效学习方法
-            - 熟悉常见教材、课程大纲和教育标准
-
             ## 回答方向
             - 不要直接告诉学生答案，逐步引导其走向最终答案
             - 态度要温和，从相关知识点中找到突破点
+
             """,
             "is_reasoner": True
         }
@@ -497,17 +503,11 @@ def _get_model_config2(model: str, thinking_mode: bool) -> Dict[str, Any]:
             ## 定位
             你是一个专业的学习助手，专注于帮助学生高效学习、理解课程内容、解决学习难题，并促进知识掌握。目标是成为学生的支持伙伴，提供个性化教育指导。
 
-            ## 能力
-            - 清晰解释复杂概念，使用简单易懂的语言
-            - 解答学科相关问题，提供分步解决方案
-            - 生成定制练习题和复习材料
-            - 建议学习策略、时间管理技巧和考试准备方法
-            - 提供鼓励性反馈，引导学生独立思考
+            ## 回答方向
+            - 不要直接告诉学生答案，逐步引导其走向最终答案
+            - 态度要温和，从相关知识点中找到突破点
+           
 
-            ## 知识储备
-            - 精通大学基础科目：高等数学、线性代数、概率论与数理统计、离散数学等学科，以及大学计算机相关科目：计算机网络、操作系统、计算机组成、软件架构等学科
-            - 掌握学习心理学基础、记忆技巧和高效学习方法
-            - 熟悉常见教材、课程大纲和教育标准
             """,
                 "is_reasoner": False
             }
@@ -520,17 +520,10 @@ def _get_model_config2(model: str, thinking_mode: bool) -> Dict[str, Any]:
             ## 定位
             你是一个专业的学习助手，专注于帮助学生高效学习、理解课程内容、解决学习难题，并促进知识掌握。目标是成为学生的支持伙伴，提供个性化教育指导。
 
-            ## 能力
-            - 清晰解释复杂概念，使用简单易懂的语言
-            - 解答学科相关问题，提供分步解决方案
-            - 生成定制练习题和复习材料
-            - 建议学习策略、时间管理技巧和考试准备方法
-            - 提供鼓励性反馈，引导学生独立思考
+            ## 回答方向
+            - 不要直接告诉学生答案，逐步引导其走向最终答案
+            - 态度要温和，从相关知识点中找到突破点
 
-            ## 知识储备
-            - 精通大学基础科目：高等数学、线性代数、概率论与数理统计、离散数学等学科，以及大学计算机相关科目：计算机网络、操作系统、计算机组成、软件架构等学科
-            - 掌握学习心理学基础、记忆技巧和高效学习方法
-            - 熟悉常见教材、课程大纲和教育标准
             """,
                 "is_reasoner": False
             }
@@ -542,7 +535,7 @@ def chat_stream(
     db_names: List[str] = ["default"],
     model: str = "qwen-max",
     temperature: float = 0.85,
-    max_tokens: int = 4068,
+    max_tokens: int = 8000,
     history: Optional[List[dict]] = None,
     similarity_threshold: float = 0.2,
     chunk_cnt: int = 20,
@@ -647,6 +640,119 @@ def chat_stream(
     except Exception as e:
         error_msg = f"⚠️ 模型调用失败: {str(e)}"
         yield error_msg, "", "error", source_dict
+
+
+def chat_stream2(
+    query: str,
+    db_names: List[str] = ["default"],
+    model: str = "qwen-max",
+    temperature: float = 0.85,
+    max_tokens: int = 8000,
+    history: Optional[List[dict]] = None,
+    similarity_threshold: float = 0.2,
+    chunk_cnt: int = 20,
+    api_key: Optional[str] = None,
+    thinking_mode: bool = False,
+    data_type_filter: Optional[str] = None
+) -> Generator[Tuple[str, str, str, Optional[dict]], None, None]:
+    """
+    流式RAG聊天，支持来源追踪
+    返回: 生成器 (token, chunks, status, source_dict)
+    """
+    # 获取模型配置
+    config = _get_model_config2(model, thinking_mode)
+    
+    # 优先使用传入的API密钥
+    if api_key:
+        config["api_key"] = api_key
+        
+    # 初始化OpenAI客户端
+    client = OpenAI(api_key=config["api_key"], base_url=config["base_url"])
+    
+    # 从多个知识库检索相关内容
+    model_context, display_chunks, source_dict = _retrieve_chunks_from_multiple_dbs(
+        query, db_names, similarity_threshold, chunk_cnt, data_type_filter
+    )
+    print(model_context)
+    # 返回召回文本和来源字典
+    yield "", display_chunks, "chunks", source_dict
+    
+    # 构建提示
+    if model_context:
+        prompt_template = f"请参考以下内容：\n{model_context}\n用户问题：{query}"
+    else:
+        prompt_template = query
+    
+    # 构建消息历史
+    messages = [{"role": "system", "content": config["system_prompt"]}]
+    
+    # 添加对话历史
+    if history:
+        for msg in history[-5:]:  # 只保留最近的5条历史
+            messages.append(msg)
+    
+    messages.append({"role": "user", "content": prompt_template})
+    
+    # 流式调用模型
+    try:
+        reasoning_content = ""
+        final_content = ""
+        
+        # 对于Reasoner模型，需要特殊处理
+        if config["is_reasoner"]:
+            stream = client.chat.completions.create(
+                model=config["model"],
+                messages=messages,
+                max_tokens=max_tokens,
+                stream=True
+            )
+            
+            # 处理Reasoner的流式响应
+            for chunk in stream:
+                if not chunk.choices:
+                    continue
+                
+                delta = chunk.choices[0].delta
+                
+                # 处理思维链内容
+                if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
+                    token = delta.reasoning_content
+                    reasoning_content += token
+                    yield token, "", "reasoning", source_dict
+                
+                # 处理最终回答内容
+                if hasattr(delta, 'content') and delta.content:
+                    token = delta.content
+                    final_content += token
+                    yield token, "", "content", source_dict
+            
+            # 返回完整响应
+            yield reasoning_content + final_content, "", "end", source_dict
+            
+        else:
+            # 普通模型的流式响应处理
+            stream = client.chat.completions.create(
+                model=config["model"],
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=True
+            )
+            
+            full_response = ""
+            for chunk in stream:
+                if chunk.choices[0].delta.content is not None:
+                    token = chunk.choices[0].delta.content
+                    full_response += token
+                    yield token, "", "tokens", source_dict
+            
+            # 返回完整响应和来源字典
+            yield full_response, "", "end", source_dict
+        
+    except Exception as e:
+        error_msg = f"⚠️ 模型调用失败: {str(e)}"
+        yield error_msg, "", "error", source_dict
+
 
 def format_sources(source_dict: Dict) -> str:
     """格式化来源信息为可读字符串"""
