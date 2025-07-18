@@ -8,6 +8,35 @@ import json
 key = Config.DEEPSEEK_API_KEY
 client = OpenAI(api_key=key, base_url="https://api.deepseek.com")
 
+
+# 提取关键词的函数
+def extract_keywords_from_report(report):
+    # 使用 DeepSeek 进行关键词提取
+    prompt = f"""
+请从以下报告中提取出 错题相关的一个具体知识点，要求：
+- 知识点应紧密相关于课程内容，具体到学科概念或技能点。
+- 只需一个知识点并且尽量简洁，最好不超过10个字。
+- 重点关注学生常见错误的知识点，并排除泛泛的错误分类。
+- 例如：路由器与交换机区别、HTTPS 协议理解，而不是模糊的错误类型如“网络设备混淆”。
+- 知识点前加入课程名称。
+
+
+以下是报告内容：
+{report}
+"""
+    # 调用 DeepSeek API 提取关键词
+    response = client.chat.completions.create(
+        model="deepseek-chat",
+        messages=[
+            {"role": "system", "content": "你是一个教育领域的助手，擅长从学情报告中提取关键点和关键词"},
+            {"role": "user", "content": prompt}
+        ],
+        stream=False
+    )
+
+    # 返回提取的关键词
+    extracted_keywords = response.choices[0].message.content.strip()
+    return extracted_keywords
 # --------------------------------推荐视频----------------------------------------------
 # 步骤1：抓取 B站视频链接
 def recommend_bilibili_videos(keyword):
@@ -81,7 +110,8 @@ def polish_title_description(video_infos):
 
 
 # 步骤4：主调用函数，组装最终 Markdown 格式输出
-def generate_final_markdown(keyword):
+def generate_final_markdown(input):
+    keyword = extract_keywords_from_report(input)
     links = recommend_bilibili_videos(keyword)
     if isinstance(links, str):
         return links  # 错误信息
