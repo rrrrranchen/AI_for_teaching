@@ -14,8 +14,8 @@ from metagpt.roles import Role
 from metagpt.schema import Message
 from metagpt.team import Team
 
-from action import 优化教学设计, 最终优化设计, 设计课程大纲
-from role import 上课模拟器, 增强优化专家, 教学材料编写者, 教学评估专家, 课程设计师
+from action import 优化教学设计, 学生画像构建器, 教学评估设计, 最终优化设计, 编写教学材料, 设计课程大纲
+from role import 上课模拟器, 增强优化专家, 学生智能体, 教学材料编写者, 教学评估专家, 课堂分析师, 课堂模拟教师, 课程设计师
 def _is_triggered_by(self, action_class):
         """检查是否由特定动作类触发"""
         last_msg = self.rc.memory.get()[-1]
@@ -33,19 +33,19 @@ def _is_triggered_by(self, action_class):
         return cause_by_name == target_name
 
 async def main(
-    objective: str = "计算机网络tcp原理",
-    teaching_content: str = "tcp的详细内容",
-    feed_back: str = """
-    [
+    objective: str = "计算机网络TCP原理",
+    teaching_content: str = "TCP协议的详细工作机制，包括三次握手、流量控制、拥塞控制等",
+    student_feedback: str = """
+[
   {
     "student_id": "S001",
     "questions": [
       {
-        "question": "什么是OSI七层模型？",
-        "answer": "OSI七层模型是国际标准化组织提出的网络通信参考模型，自上而下依次为应用层、表示层、会话层、传输层、网络层、数据链路层和物理层。"
+        "question": "TCP三次握手的主要目的是什么？",
+        "answer": "TCP三次握手的主要目的是确保通信双方都能发送和接收数据，同步序列号，并交换TCP窗口大小信息。"
       },
       {
-        "question": "TCP与UDP的主要区别是什么？",
+        "question": "TCP和UDP的主要区别是什么？",
         "answer": "TCP是面向连接的可靠传输协议，提供流量控制和拥塞控制；UDP是无连接的不可靠传输协议，开销小、延迟低，适用于实时应用。"
       }
     ]
@@ -54,12 +54,12 @@ async def main(
     "student_id": "S002",
     "questions": [
       {
-        "question": "IP地址分为几类？",
-        "answer": "IPv4地址传统上分为五类：A类（1.0.0.0–126.255.255.255）、B类（128.0.0.0–191.255.255.255）、C类（192.0.0.0–223.255.255.255）、D类组播（224.0.0.0–239.255.255.255）和E类保留（240.0.0.0–255.255.255.255）。"
+        "question": "TCP流量控制是如何实现的？",
+        "answer": "TCP通过滑动窗口机制实现流量控制，接收方通过通告窗口大小告知发送方自己还能接收多少数据。"
       },
       {
-        "question": "什么是子网掩码？",
-        "answer": "子网掩码用于划分网络位和主机位，通过与IP地址按位与运算得到网络地址，从而实现子网划分与路由选择。"
+        "question": "什么是TCP拥塞控制？",
+        "answer": "TCP拥塞控制是防止网络过度拥塞的机制，主要包括慢启动、拥塞避免、快速重传和快速恢复等算法。"
       }
     ]
   },
@@ -67,102 +67,107 @@ async def main(
     "student_id": "S003",
     "questions": [
       {
-        "question": "HTTP与HTTPS的区别？",
-        "answer": "HTTP以明文传输数据，不安全；HTTPS在HTTP基础上加入SSL/TLS加密层，提供身份验证、数据加密和完整性保护，默认端口443。"
+        "question": "TCP如何保证数据的可靠传输？",
+        "answer": "TCP通过序列号、确认应答、超时重传、流量控制和拥塞控制等机制保证数据的可靠传输。"
       },
       {
-        "question": "三次握手过程？",
-        "answer": "1) 客户端发送SYN=1,seq=x；2) 服务端回复SYN=1,ACK=1,seq=y,ack=x+1；3) 客户端发送ACK=1,seq=x+1,ack=y+1。完成连接建立。"
-      }
-    ]
-  },
-  {
-    "student_id": "S004",
-    "questions": [
-      {
-        "question": "DNS的作用是什么？",
-        "answer": "DNS（域名系统）将人类可读的域名解析为机器可读的IP地址，实现域名到IP地址的映射，便于用户访问互联网资源。"
-      },
-      {
-        "question": "什么是NAT？",
-        "answer": "网络地址转换（NAT）在私有网络与公网之间进行IP地址转换，允许多个内部主机共享一个或少量的公网IP地址，提升地址利用率并增强安全性。"
+        "question": "TCP头部中的标志位有哪些？",
+        "answer": "TCP头部中的标志位包括URG、ACK、PSH、RST、SYN和FIN，分别表示紧急指针有效、确认号有效、推送数据、重置连接、同步序列号和结束连接。"
       }
     ]
   }
 ]
     """,
-    knowledge: str= "知识库检索结果",
-    investment: float = 5.0,
-    n_round: int = 100,
-    add_human: bool = False,
+    knowledge_base: str = "《计算机网络：自顶向下方法》、《TCP/IP详解》等权威教材",
+    investment: float = 10.0,
+    n_round: int = 10
 ):
     """主函数，运行完整教学模拟系统"""
+    # 创建团队
     team = Team()
+    
+    # 设置上下文（学生反馈数据）
+    team.env.context = {
+        "student_feedback": student_feedback
+    }
+    
+    # 招聘核心角色
     team.hire([
-        课程设计师(teaching_content=teaching_content, objective=objective, knowledge=knowledge),
+        课程设计师(
+            objective=objective,
+            teaching_content=teaching_content,
+            knowledge_base=knowledge_base
+        ),
         教学材料编写者(),
         教学评估专家(),
-        增强优化专家(),  # 这是我们要找的角色
-        上课模拟器(feed_back=feed_back)
+        增强优化专家(),
+        学生画像构建器(),
+        课堂模拟教师(),
+        课堂分析师()
     ])
     
+    # 创建学生智能体（基于反馈数据）
+    try:
+        feedback_data = json.loads(student_feedback)
+        for student in feedback_data:
+            student_id = student["student_id"]
+            team.hire(学生智能体(
+                name=f"学生{student_id}",
+                profile=f"学生{student_id}",
+                student_data={
+                    "student_id": student_id,
+                    "strengths": [],
+                    "weaknesses": [],
+                    "learning_style": "通用型"
+                }
+            ))
+    except Exception as e:
+        logger.error(f"创建学生智能体失败: {str(e)}")
+    
+    # 投资并运行项目
     team.invest(investment)
     team.run_project(f"{objective}课程开发与模拟")
+    
+    # 运行团队协作
     await team.run(n_round=n_round)
     
-    # 调试：打印所有角色profile
-    print("所有角色列表:")
-    for role in team.env.get_roles().values():
-        print(f"- {role.profile}")
+    # 收集最终结果
+    results = {
+        "course_outline": "",
+        "teaching_materials": "",
+        "assessment": "",
+        "optimized_design": "",
+        "final_design": "",
+        "class_simulation": ""
+    }
     
-    # 正确查找增强优化专家（注意profile名称）
-    optimizer = None
-    for role in team.env.get_roles().values():
-        if role.profile == "增强优化专家":  # 与增强优化专家类中的定义一致
-            optimizer = role
-            print(f"\n找到优化专家: {role.profile}")
-            break
+    # 提取各阶段成果
+    for role in team.env.roles.values():
+        for msg in role.rc.memory.get():
+            if isinstance(role, 课程设计师) and isinstance(msg.cause_by, 设计课程大纲):
+                results["course_outline"] = msg.content
+            elif isinstance(role, 教学材料编写者) and isinstance(msg.cause_by, 编写教学材料):
+                results["teaching_materials"] = msg.content
+            elif isinstance(role, 教学评估专家) and isinstance(msg.cause_by, 教学评估设计):
+                results["assessment"] = msg.content
+            elif isinstance(role, 增强优化专家) and isinstance(msg.cause_by, 优化教学设计):
+                results["optimized_design"] = msg.content
+            elif isinstance(role, 增强优化专家) and isinstance(msg.cause_by, 最终优化设计):
+                results["final_design"] = msg.content
+            elif isinstance(role, 课堂模拟教师) and isinstance(msg.cause_by, 教学流程执行):
+                results["class_simulation"] = msg.content
     
-    if not optimizer:
-        return "错误：未找到教学设计优化师角色"
-    optimizer_msgs = []
-    # 打印优化专家的所有消息
-    print("\n优化专家的消息历史:")
-    for i, msg in enumerate(optimizer.rc.memory.get()):
-        cause_by=msg.cause_by
-        if hasattr(cause_by, '__name__'):
-            cause_by_name = f"{cause_by.__module__}.{cause_by.__name__}"
-        else:
-            cause_by_name = str(cause_by)
-        target_name = f"{最终优化设计.__module__}.{最终优化设计.__name__}"
-        if target_name==cause_by_name:
-
-            optimizer_msgs.append(msg)
-            print("找到了！！！！！！！！！！！！！！！！！")
-        print(f"消息 {i}: {cause_by} - {msg.content[:50]}...")
-    
-    # 获取所有优化教学设计动作产生的消息
-    
-    
-    print(f"\n找到的优化消息数量: {len(optimizer_msgs)}")
-    for i, msg in enumerate(optimizer_msgs):
-        print(f"优化消息 {i+1} 内容片段: {msg.content[:100]}...")
-    
-    # 返回结果
-    if len(optimizer_msgs) >= 2:
-        print("\n返回第二次优化结果")
-        return optimizer_msgs[1].content
-    elif optimizer_msgs:
-        print("\n返回最后一次优化结果")
-        return optimizer_msgs[-1].content
+    # 返回最终优化结果
+    if results["final_design"]:
+        return results["final_design"]
+    elif results["optimized_design"]:
+        return results["optimized_design"]
     else:
-        print("\n无优化结果，可能原因:")
-        print("- n_round设置太小（当前为{n_round}，建议≥3）")
-        print("- 团队协作流程未完整执行")
-        print("- 消息过滤条件不匹配")
-        return "尚未产生任何优化教学设计结果"
+        return json.dumps(results, ensure_ascii=False, indent=2)
     
 
-  
+
+
+
 if __name__ == "__main__":
     fire.Fire(main)

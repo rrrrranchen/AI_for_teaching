@@ -45,14 +45,10 @@ class 设计课程大纲(Action):
     name: str = "设计课程大纲"
 
     async def run(self, teaching_content: str, objective: str, knowledge_base: str):
-        prompt = self.PROMPT_TEMPLATE.format(teaching_content=teaching_content, objective=objective,knowledge_base=knowledge_base)
+        prompt = self.PROMPT_TEMPLATE.format(teaching_content=teaching_content, objective=objective, knowledge_base=knowledge_base)
         rsp = await self._aask(prompt)
         content_text = parse_content(rsp)
         return content_text
-
-
-
-
 
 class 编写教学材料(Action):
     """编写具体教学材料的行动类"""
@@ -82,8 +78,6 @@ class 编写教学材料(Action):
         rsp = await self._aask(prompt)
         content_text = parse_content(rsp)
         return content_text
-
-
 
 class 教学评估设计(Action):
     """设计教学评估方案的行动类"""
@@ -131,7 +125,6 @@ class 教学优化建议(Action):
         rsp = await self._aask(prompt)
         return parse_content(rsp)
 
-
 class 优化教学设计(Action):
     """根据评估建议优化教学设计的行动类"""
     PROMPT_TEMPLATE: str = """
@@ -154,8 +147,8 @@ class 优化教学设计(Action):
     """
     name: str = "优化教学设计"
 
-    async def run(self, evaluation: str, design: str,advice: str):
-        prompt = self.PROMPT_TEMPLATE.format(evaluation=evaluation, design=design,advice=advice)
+    async def run(self, evaluation: str, design: str, advice: str):
+        prompt = self.PROMPT_TEMPLATE.format(evaluation=evaluation, design=design, advice=advice)
         rsp = await self._aask(prompt)
         content_text = parse_content(rsp)
         return content_text
@@ -182,67 +175,202 @@ class 最终优化设计(Action):
     """
     name: str = "最终优化设计"
 
-    async def run(self, evaluation: str, design: str,advice: str):
-        prompt = self.PROMPT_TEMPLATE.format(evaluation=evaluation, design=design,advice=advice)
+    async def run(self, evaluation: str, design: str, advice: str):
+        prompt = self.PROMPT_TEMPLATE.format(evaluation=evaluation, design=design, advice=advice)
         rsp = await self._aask(prompt)
         content_text = parse_content(rsp)
         return content_text
 
-# 新增动作类：课堂报告分析
-class 分析课堂报告(Action):
-    """将课堂观察转化为优化建议的行动类"""
-    PROMPT_TEMPLATE:str = """
-    根据课堂观察报告生成优化建议：
-    {observation_report}
-    
-    当前教学设计版本：
-    {current_design}
+class 学生画像构建器(Action):
+    """根据学生作答记录构建学生画像"""
+    PROMPT_TEMPLATE: str = """
+    根据学生作答记录构建学生画像：
+    {feed_back}
     
     要求：
-    1. 识别3个最需改进的教学环节
-    2. 针对每个问题提出具体优化方案
-    3. 标注优化优先级（高/中/低）
-    4. 提供可量化的改进目标
-    5. 用markdown格式输出
-    """
-    name:str = "分析课堂报告"
+    1. 分析每个学生的知识掌握情况（强项/弱项）
+    2. 识别常见错误模式
+    3. 预测潜在学习障碍
+    4. 生成学生画像JSON格式
     
-    async def run(self, observation_report: str, current_design: str):
-        prompt = self.PROMPT_TEMPLATE.format(
-            observation_report=observation_report,
-            current_design=current_design
-        )
+    输出格式：
+    [
+      {{
+        "student_id": "S001",
+        "strengths": ["TCP原理", "三次握手"],
+        "weaknesses": ["拥塞控制", "滑动窗口"],
+        "learning_style": "视觉型",
+        "error_patterns": ["混淆TCP/UDP应用场景"],
+        "intervention_needed": true
+      }},
+      ...
+    ]
+    """
+    name: str = "学生画像构建器"
+
+    async def run(self, feed_back: str):
+        prompt = self.PROMPT_TEMPLATE.format(feed_back=feed_back)
         rsp = await self._aask(prompt)
         return parse_content(rsp)
-    
-class 上课模拟(Action):
-    """将课堂观察转化为优化建议的行动类"""
+
+class 课堂互动(Action):
+    """学生智能体的课堂互动行为（增强版）"""
     PROMPT_TEMPLATE: str = """
-    **角色**：课堂模拟器
-    **输入**：
-    - 教学设计：{current_design}
-    - 学生画像：{feed_back}
+    **角色**：学生{student_id}
+    **学习风格**：{learning_style}学习者
+    **知识掌握**：
+    - 强项：{strengths}
+    - 弱项：{weaknesses}
+    **当前学习状态**：{learning_state}
     
-    **模拟要求**：
-    1. 生成典型学生互动场景：
-    2. 记录时间节点偏差（对比教案时间分配）
+    **教学场景**：{context}
+    **教师活动**：{activity}
+    {question_section}
+    
+    **请以学生身份完成以下任务**：
+    1. 根据你的知识掌握情况和学习风格回应
+    2. 如果问题涉及弱项，可请求进一步解释
+    3. 评估对当前内容的理解程度（1-5分）
+    4. 提出与当前主题相关的深入问题
+    5. 更新学习状态描述
+    
+    **输出格式**：
+    {{
+        "response": "你的回答内容",
+        "question": "提出的问题（可选）",
+        "understanding": 3, // 理解程度评分
+        "new_state": "更新后的学习状态描述"
+    }}
     """
-    name:str = "上课模拟"
-    
-    async def run(self, feed_back: str, current_design: str):
+    name: str = "课堂互动"
+
+    async def run(self, activity: str, context: str, student_profile: dict, question: str = None):
+        # 从学生画像中提取状态，如果没有则初始化
+        learning_state = student_profile.get("learning_state", "专注听讲")
+        
+        # 添加问题部分（如果有）
+        question_section = f"**教师提问**：{question}" if question else ""
+        
         prompt = self.PROMPT_TEMPLATE.format(
-            feed_back=feed_back,
-            current_design=current_design
+            student_id=student_profile["student_id"],
+            learning_style=student_profile["learning_style"],
+            strengths=", ".join(student_profile["strengths"]),
+            weaknesses=", ".join(student_profile["weaknesses"]),
+            learning_state=learning_state,
+            context=context,
+            activity=activity,
+            question_section=question_section
         )
+        
         rsp = await self._aask(prompt)
-        return parse_content(rsp)
+        
+        try:
+            # 解析结构化响应
+            response_data = json.loads(rsp)
+            
+            # 更新学习状态
+            student_profile["learning_state"] = response_data.get("new_state", learning_state)
+            student_profile["last_understanding"] = response_data.get("understanding", 3)
+            
+            return response_data
+        except json.JSONDecodeError:
+            logger.warning(f"学生响应解析失败: {rsp}")
+            return {
+                "response": rsp,
+                "question": "",
+                "understanding": 3,
+                "new_state": learning_state
+            }
+
+class 教学流程执行(Action):
+    """执行课堂教学流程并与学生互动（增强版）"""
+    PROMPT_TEMPLATE: str = """
+    **角色**：课堂主持人
+    **教学设计**：{design}
     
+    **当前课堂进度**：{current_progress}
+    **剩余时间**：{remaining_time}分钟
+    **学生状态摘要**：
+    {student_profiles_summary}
+    
+    **下一步教学决策**：
+    1. 选择教学环节：{available_activities}
+    2. 设计互动策略（提问/小组讨论/练习等）
+    3. 选择目标学生（基于画像优化学习体验）
+    4. 预估活动时长（5-15分钟）
+    
+    **输出要求**：
+    {{
+        "activity": "活动描述",
+        "target_students": ["S001", "S002"], // 针对的学生ID
+        "duration": 5, // 预计分钟
+        "purpose": "活动目的",
+        "context": "场景说明",
+        "question": "具体问题（可选）"
+    }}
+    """
+    name: str = "教学流程执行"
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.time_elapsed = 0
+        self.total_time = 90  # 90分钟课堂
+        self.current_activity = None
+
+    async def run(self, design: str, student_profiles: List[Dict]):
+        # 创建学生画像摘要
+        profiles_summary = "\n".join([
+            f"- {p['student_id']}: {p['learning_style']}学习者 | "
+            f"状态: {p.get('learning_state', '未知')} | "
+            f"理解度: {p.get('last_understanding', 'N/A')}"
+            for p in student_profiles
+        ])
+        
+        # 可用教学活动
+        activities = [
+            "概念讲解", "示例演示", "小组讨论", 
+            "实践练习", "问答互动", "知识点总结",
+            "案例分析", "快速测验"
+        ]
+        
+        prompt = self.PROMPT_TEMPLATE.format(
+            design=design,
+            student_profiles_summary=profiles_summary,
+            current_progress=f"{self.time_elapsed}/{self.total_time}分钟",
+            remaining_time=self.total_time - self.time_elapsed,
+            available_activities=", ".join(activities)
+        )
+        
+        rsp = await self._aask(prompt)
+        
+        try:
+            activity_plan = json.loads(rsp)
+            activity_plan["start_time"] = self.time_elapsed
+            self.current_activity = activity_plan["activity"]
+            
+            # 更新已用时间
+            self.time_elapsed += activity_plan.get("duration", 5)
+            if self.time_elapsed > self.total_time:
+                self.time_elapsed = self.total_time
+                
+            return activity_plan
+        except json.JSONDecodeError:
+            logger.error("教学活动计划解析失败，使用默认计划")
+            return {
+                "activity": "问答互动",
+                "target_students": [p["student_id"] for p in student_profiles[:2]],
+                "duration": 5,
+                "purpose": "检查理解程度",
+                "context": "教师提问环节"
+            }
+
 class 课堂观察评估(Action):
-    """将课堂观察转化为优化建议的行动类"""
+    """分析课堂模拟报告并生成优化建议"""
     PROMPT_TEMPLATE: str = """
     **角色**：课堂分析师
     **输入**：
-    - 模拟记录：{feed_back}
+    - 课堂活动报告：{activity_report}
+    - 学生响应摘要：{responses_summary}
     
     **输出要求**：
     1. 关键问题TOP3（按优先级排序）：
@@ -255,16 +383,19 @@ class 课堂观察评估(Action):
     ```mermaid
     gantt
         title 教学优化计划
-        知识点重构 ：a1, 2023-10-01, 3d
+        知识点重构 ：a1, after a0, 3d
         互动改进   ：a2, after a1, 2d
         评估调整   ：a3, after a2, 2d
     ```
-    """
-    name:str = "课堂观察评估"
     
-    async def run(self, feed_back: str):
+    3. 具体优化建议（针对当前教学设计）
+    """
+    name: str = "课堂观察评估"
+    
+    async def run(self, activity_report: str, responses_summary: str):
         prompt = self.PROMPT_TEMPLATE.format(
-            feed_back=feed_back
+            activity_report=activity_report,
+            responses_summary=responses_summary
         )
         rsp = await self._aask(prompt)
         return parse_content(rsp)

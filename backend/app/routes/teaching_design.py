@@ -213,10 +213,7 @@ async def save_teaching_design_version_async(new_design, plan_content):
     version = TeachingDesignVersion(
         design_id=new_design.id,
         version='1',  # 固定为版本1
-        content=json.dumps({
-            'plan_content': plan_content,
-            'analysis': ''
-        }),
+        content=plan_content,
         recommendation_score=5,  # 默认推荐指数为5（最高）
         level='优秀',  # 默认等级为优秀
         author_id=new_design.creator_id
@@ -441,22 +438,11 @@ def get_teaching_design_version(version_id):
         # 3. 权限验证（教师只能查看自己创建的版本）
         if not design.is_public and current_user.role == 'teacher' and version.author_id != current_user.id:
             return jsonify(code=403, message="无访问权限"), 403
-        # 4. 构建响应数据
-        try:
-            # 解析 content 字段为 JSON
-            content = json.loads(version.content) if version.content else {}
-        except json.JSONDecodeError:
-            # 如果 content 不是有效的 JSON 格式，则返回原始内容
-            content = {"error": "内容格式错误", "raw_content": version.content}
-        plan_content = content.get("plan_content", "未设置教学设计内容")
-        analysis = content.get("analysis", "未设置教学分析")
-
         version_data = {
             "id": version.id,
             "design_id": version.design_id,
             "version": version.version,
-            "plan_content": plan_content,
-            "analysis": analysis,
+            "plan_content": version.content,
             "recommendation_score": version.recommendation_score,
             "level": version.level,
             "created_at": version.created_at.isoformat() if version.created_at else None,
