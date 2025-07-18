@@ -726,13 +726,10 @@ async def generate_and_store_mindmap(design_id):
             return jsonify(code=400, message="默认版本不存在或内容为空"), 400
 
         # 尝试解析默认版本的 content 为 JSON
-        try:
-            version_content = json.loads(default_version.content)
-        except json.JSONDecodeError:
-            return jsonify(code=400, message="默认版本内容格式错误"), 400
+        version_content=default_version.content
 
         # 5. 调用函数生成思维导图
-        mind_map_json = generate_knowledge_mind_map(version_content.get('plan_content', ''))
+        mind_map_json = generate_knowledge_mind_map(version_content)
 
         # 6. 存储思维导图到 MindMapNode 表，并获取带有 node_id 的思维导图
         stored_mind_map = await asyncio.to_thread(store_and_adjust_mind_map, design.id, mind_map_json)
