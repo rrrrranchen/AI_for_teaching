@@ -565,10 +565,8 @@ def update_teaching_design_version(design_id, version_id):
         # 如果传入了 plan_content 数据，更新其中的 plan_content 部分
         if 'plan_content' in data:
             current_content = data['plan_content']
-
-
-        # 将更新后的 content 重新序列化为 JSON
-        version.content = current_content
+            # 将更新后的 content 重新序列化为 JSON
+            version.content = current_content
 
         # 如果传入了其他字段，直接更新
         if 'recommendation_score' in data:
@@ -581,8 +579,7 @@ def update_teaching_design_version(design_id, version_id):
         # 返回更新后的版本信息
         return jsonify(code=200, message="更新成功", data={
             "version_id": version.id,
-            "plan_content": current_content.get("plan_content", "未设置教学设计内容"),
-            "analysis": current_content.get("analysis", "未设置教学分析"),
+            "plan_content": version.content,
             "recommendation_score": version.recommendation_score,
             "level": version.level
         }), 200
