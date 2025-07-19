@@ -8,7 +8,7 @@
       </a-button>
     </div>
 
-    <a-tabs v-model:activeKey="activeTab">
+    <a-tabs v-model:activeKey="activeTab" class="scrollable-tabs">
       <a-tab-pane key="all" tab="全部类目"></a-tab-pane>
       <a-tab-pane key="structural" tab="结构化类目"></a-tab-pane>
       <a-tab-pane key="non_structural" tab="非结构化类目"></a-tab-pane>
@@ -448,6 +448,29 @@ const formatDate = (dateString: string) => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+}
+
+/* 新增样式 */
+.scrollable-tabs {
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.scrollable-tabs::-webkit-scrollbar {
+  height: 6px;
+}
+
+.scrollable-tabs::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.scrollable-tabs::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 3px;
+}
+
+.scrollable-tabs::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }
 
 .category-files {

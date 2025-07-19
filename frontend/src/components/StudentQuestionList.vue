@@ -283,6 +283,8 @@ export default defineComponent({
         choice: "选择题",
         fill: "填空题",
         short_answer: "简答题",
+        practice: "实践题",
+        programming: "编程题",
       },
       parseContent: (text: string) => text.replace(/\n/g, "<br>"),
       isDeadlinePassed,

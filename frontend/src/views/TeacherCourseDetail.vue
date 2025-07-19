@@ -244,6 +244,7 @@
     <a-modal
       v-model:visible="editModalVisible"
       :title="`编辑题目 (ID: ${currentQuestion?.id})`"
+      width="60%"
       @ok="handleUpdateQuestion"
       @cancel="resetEditForm"
     >
@@ -256,7 +257,7 @@
           </a-select>
         </a-form-item>
         <a-form-item label="题目内容" required>
-          <a-textarea v-model:value="editFormState.content" rows="4" />
+          <div id="vditor-content-editor"></div>
         </a-form-item>
         <a-form-item label="正确答案" required>
           <a-textarea v-model:value="editFormState.correct_answer" rows="4" />
@@ -276,6 +277,7 @@ import {
   reactive,
   onMounted,
   onBeforeUnmount,
+  nextTick,
 } from "vue";
 import { useRoute } from "vue-router";
 import { message, Modal } from "ant-design-vue";
@@ -298,7 +300,6 @@ import {
   type QuestionType,
   type QuestionDifficulty,
 } from "@/api/questions";
-import { getCourseDesigns } from "@/api/teachingdesign";
 import {
   getCourseAnalysisReport,
   updateCourseReport,
@@ -309,6 +310,8 @@ import "highlight.js/styles/github.css";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import SmartPreparation from "@/components/teachercourse/SmartPreparation.vue";
+import Vditor from "vditor";
+import "vditor/dist/index.css";
 
 dayjs.extend(utc);
 
@@ -324,6 +327,9 @@ export default defineComponent({
     SmartPreparation,
   },
   setup() {
+    // 在setup函数中添加
+    const vditorInstance = ref<Vditor | null>(null);
+
     const route = useRoute();
     const courseclassName = ref<string>("");
     const courseclassId = ref<number>(0);
@@ -492,41 +498,93 @@ export default defineComponent({
       addModalVisible.value = false;
     };
 
-    // 显示编辑模态框
+    // 修改showEditModal函数
     const showEditModal = (question: Question) => {
       currentQuestion.value = question;
       editFormState.type = question.type;
-      editFormState.content = question.content;
       editFormState.correct_answer = question.correct_answer;
       editFormState.difficulty = question.difficulty;
+
       editModalVisible.value = true;
+
+      nextTick(() => {
+        if (vditorInstance.value) {
+          vditorInstance.value.destroy();
+        }
+
+        vditorInstance.value = new Vditor("vditor-content-editor", {
+          value: question.content,
+          placeholder: "请输入题目内容（支持Markdown格式）",
+          height: 300,
+          mode: "sv",
+          toolbar: [
+            "emoji",
+            "headings",
+            "bold",
+            "italic",
+            "strike",
+            "link",
+            "|",
+            "list",
+            "ordered-list",
+            "check",
+            "outdent",
+            "indent",
+            "|",
+            "table",
+            "|",
+            "undo",
+            "redo",
+            "|",
+            "edit-mode",
+            "preview",
+            "both",
+          ],
+          after: () => {
+            if (question.content) {
+              vditorInstance.value?.setValue(question.content);
+            }
+          },
+        });
+      });
     };
 
-    // 更新题目
+    // 修改handleUpdateQuestion函数
     const handleUpdateQuestion = async () => {
       try {
-        if (!currentQuestion.value) return;
+        if (!currentQuestion.value || !vditorInstance.value) return;
+
+        const content = vditorInstance.value.getValue();
+        if (!content.trim()) {
+          message.warning("请输入题目内容");
+          return;
+        }
 
         await questionApi.updateQuestion(currentQuestion.value.id, {
           ...editFormState,
+          content: content, // 使用Vditor获取的内容
           difficulty: editFormState.difficulty.toString() as QuestionDifficulty,
         });
 
         message.success("更新成功");
         resetEditForm();
         await fetchPreQuestions();
+        await fetchPostQuestions();
       } catch (error) {
         message.error("更新题目失败");
         console.error("更新题目错误:", error);
       }
     };
 
-    // 重置编辑表单
+    // 修改resetEditForm函数
     const resetEditForm = () => {
+      if (vditorInstance.value) {
+        vditorInstance.value.destroy();
+        vditorInstance.value = null;
+      }
       currentQuestion.value = null;
       editModalVisible.value = false;
     };
-
     // 删除题目确认
     const confirmDelete = (questionId: number) => {
       Modal.confirm({
@@ -700,7 +758,11 @@ export default defineComponent({
         console.error("获取截止时间失败:", error);
       }
     };
-
+    onBeforeUnmount(() => {
+      if (vditorInstance.value) {
+        vditorInstance.value.destroy();
+      }
+    });
     return {
       courseclassId,
       courseclassName,

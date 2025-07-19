@@ -14,7 +14,7 @@
         </a-menu-item>
         <a-menu-item key="2">
           <desktop-outlined />
-          <span>PPT模板</span>
+          <span>PPT管理</span>
         </a-menu-item>
         <a-menu-item key="3">
           <user-outlined />

@@ -9,7 +9,7 @@
               <user-outlined style="font-size: 36px; color: #1890ff" />
               <div class="stat-content">
                 <div class="stat-title">学生总数</div>
-                <div class="stat-value">1,842</div>
+                <div class="stat-value">127</div>
                 <div class="stat-trend">
                   <arrow-up-outlined style="color: #52c41a" /> 12.5%
                 </div>
@@ -23,7 +23,7 @@
               <team-outlined style="font-size: 36px; color: #722ed1" />
               <div class="stat-content">
                 <div class="stat-title">教师总数</div>
-                <div class="stat-value">128</div>
+                <div class="stat-value">24</div>
                 <div class="stat-trend">
                   <arrow-up-outlined style="color: #52c41a" /> 8.3%
                 </div>
@@ -37,7 +37,9 @@
               <dashboard-outlined style="font-size: 36px; color: #13c2c2" />
               <div class="stat-content">
                 <div class="stat-title">教师活跃度</div>
-                <div class="stat-value">86.5%</div>
+                <div class="stat-value">
+                  <arrow-up-outlined style="color: #52c41a" />5.2%
+                </div>
                 <div class="stat-trend">
                   <arrow-up-outlined style="color: #52c41a" /> 5.2%
                 </div>
@@ -51,7 +53,7 @@
               <clock-circle-outlined style="font-size: 36px; color: #fa8c16" />
               <div class="stat-content">
                 <div class="stat-title">备课平均用时</div>
-                <div class="stat-value">42分钟</div>
+                <div class="stat-value">27分钟</div>
                 <div class="stat-trend">
                   <arrow-down-outlined style="color: #f5222d" /> 15.7%
                 </div>
@@ -73,6 +75,26 @@
         <a-col :span="8">
           <a-card title="AI教学助手使用情况" hoverable>
             <div ref="aiUsageChart" style="height: 350px"></div>
+          </a-card>
+        </a-col>
+      </a-row>
+
+      <!-- 新增部分：教师活跃度柱状图和备课时间分配 -->
+      <a-row :gutter="16" style="margin-top: 20px">
+        <!-- 教师活跃度柱状图 -->
+        <a-col :span="16">
+          <a-card title="教师活跃曲线（最近30天）" hoverable>
+            <div ref="teacherActivityChart" style="height: 350px"></div>
+          </a-card>
+        </a-col>
+
+        <!-- 教师备课时间分配 -->
+        <a-col :span="8">
+          <a-card title="教师备课时间分配（AI生成 vs 修正）" hoverable>
+            <div
+              ref="preparationTimeDistributionChart"
+              style="height: 350px"
+            ></div>
           </a-card>
         </a-col>
       </a-row>
@@ -178,25 +200,78 @@ export default {
     ArrowDownOutlined,
   },
   setup() {
+    // 生成最近30天的日期（截止到前一天）
+    const generateRecent30Days = () => {
+      const dates = [];
+      const today = new Date();
+
+      // 从昨天开始倒推30天
+      for (let i = 29; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(today.getDate() - i - 1);
+        const month = (date.getMonth() + 1).toString().padStart(2, "0");
+        const day = date.getDate().toString().padStart(2, "0");
+        dates.push(`${month}-${day}`);
+      }
+      return dates;
+    };
+
+    const recent30Days = ref(generateRecent30Days());
     // 学生学习排行榜数据
     const studentRankData = ref([
-      { key: "1", rank: 1, name: "张三", studyHours: 28.5, course: "高等数学" },
-      { key: "2", rank: 2, name: "李四", studyHours: 26.0, course: "线性代数" },
-      { key: "3", rank: 3, name: "王五", studyHours: 24.5, course: "概率统计" },
-      { key: "4", rank: 4, name: "赵六", studyHours: 22.0, course: "数据结构" },
-      { key: "5", rank: 5, name: "钱七", studyHours: 20.5, course: "算法设计" },
+      {
+        key: "1",
+        rank: 1,
+        name: "张三",
+        studyHours: 28.5,
+        course: "嵌入式Linux开发实践教程",
+      },
+      {
+        key: "2",
+        rank: 2,
+        name: "赵六",
+        studyHours: 26.0,
+        course: "嵌入式Linux开发实践教程",
+      },
+      {
+        key: "3",
+        rank: 3,
+        name: "王五",
+        studyHours: 24.5,
+        course: "嵌入式Linux开发实践教程",
+      },
+      {
+        key: "4",
+        rank: 4,
+        name: "李四",
+        studyHours: 22.0,
+        course: "嵌入式Linux开发实践教程",
+      },
+      {
+        key: "5",
+        rank: 5,
+        name: "钱七",
+        studyHours: 20.5,
+        course: "嵌入式Linux开发实践教程",
+      },
       {
         key: "6",
         rank: 6,
-        name: "孙八",
+        name: "同学乙",
         studyHours: 18.0,
-        course: "计算机组成",
+        course: "计算机网络",
       },
-      { key: "7", rank: 7, name: "周九", studyHours: 16.5, course: "操作系统" },
+      {
+        key: "7",
+        rank: 7,
+        name: "同学甲",
+        studyHours: 16.5,
+        course: "计算机网络",
+      },
       {
         key: "8",
         rank: 8,
-        name: "吴十",
+        name: "同学丙",
         studyHours: 15.0,
         course: "计算机网络",
       },
@@ -211,7 +286,7 @@ export default {
       { title: "排名", key: "rank", dataIndex: "rank", width: 80 },
       { title: "学生姓名", key: "name", dataIndex: "name" },
       { title: "学习时长(小时)", key: "studyHours", dataIndex: "studyHours" },
-      { title: "主修课程", key: "course", dataIndex: "course" },
+      { title: "课程", key: "course", dataIndex: "course" },
       { title: "进度", key: "progress" },
     ]);
 
@@ -228,7 +303,9 @@ export default {
     const aiUsageChart = ref(null);
     const courseDistributionChart = ref(null);
     const preparationTimeChart = ref(null);
-
+    // 新增图表引用
+    const teacherActivityChart = ref(null);
+    const preparationTimeDistributionChart = ref(null);
     // 初始化图表
     const initCharts = () => {
       // 学生学习活跃曲线
@@ -251,7 +328,7 @@ export default {
         },
         xAxis: {
           type: "category",
-          data: Array.from({ length: 30 }, (_, i) => `${i + 1}日`),
+          data: recent30Days.value,
         },
         yAxis: [
           {
@@ -272,7 +349,7 @@ export default {
             smooth: true,
             data: Array.from(
               { length: 30 },
-              () => Math.floor(Math.random() * 500) + 800
+              () => Math.floor(Math.random() * 67) + 40
             ),
             itemStyle: {
               color: "#1890ff",
@@ -284,7 +361,7 @@ export default {
             yAxisIndex: 1,
             data: Array.from(
               { length: 30 },
-              () => Math.floor(Math.random() * 2000) + 3000
+              () => Math.floor(Math.random() * 90) + 50
             ),
             itemStyle: {
               color: "#13c2c2",
@@ -360,14 +437,14 @@ export default {
         yAxis: {
           type: "category",
           data: [
-            "高等数学",
-            "线性代数",
-            "概率统计",
-            "数据结构",
-            "算法设计",
-            "计算机组成",
-            "操作系统",
+            "嵌入式Linux开发实践教程",
             "计算机网络",
+            "数据库原理",
+            "Python",
+            "信息安全导论",
+            "算法设计",
+            "Web应用开发",
+            "操作系统",
           ],
         },
         series: [
@@ -434,11 +511,122 @@ export default {
             },
             data: [
               { value: 335, name: "0-30分钟" },
-              { value: 310, name: "30-60分钟" },
-              { value: 234, name: "60-90分钟" },
-              { value: 135, name: "90-120分钟" },
-              { value: 154, name: "120分钟以上" },
+              { value: 289, name: "30-60分钟" },
+              { value: 108, name: "60-90分钟" },
+              { value: 30, name: "90-120分钟" },
+              { value: 9, name: "120分钟以上" },
             ],
+          },
+        ],
+      });
+
+      // 新增：教师活跃度柱状图（展示活跃教师数和系统时长）
+      const teacherChart = echarts.init(teacherActivityChart.value);
+      teacherChart.setOption({
+        tooltip: {
+          trigger: "axis",
+          axisPointer: {
+            type: "shadow",
+          },
+        },
+        legend: {
+          data: ["活跃教师数", "系统使用时长(小时)"],
+        },
+        grid: {
+          left: "3%",
+          right: "4%",
+          bottom: "3%",
+          containLabel: true,
+        },
+        xAxis: {
+          type: "category",
+          data: recent30Days.value,
+        },
+        yAxis: [
+          {
+            type: "value",
+            name: "活跃教师数",
+            position: "left",
+          },
+          {
+            type: "value",
+            name: "系统使用时长(小时)",
+            position: "right",
+          },
+        ],
+        series: [
+          {
+            name: "活跃教师数",
+            type: "bar",
+            yAxisIndex: 0,
+            data: Array.from(
+              { length: 30 },
+              () => Math.floor(Math.random() * 20) + 4
+            ),
+            itemStyle: {
+              color: "#722ed1",
+            },
+          },
+          {
+            name: "系统使用时长(小时)",
+            type: "line",
+            smooth: true,
+            yAxisIndex: 1,
+            data: Array.from({ length: 30 }, () =>
+              (Math.random() * 100 + 50).toFixed(1)
+            ),
+            itemStyle: {
+              color: "#13c2c2",
+            },
+          },
+        ],
+      });
+
+      // 新增：教师备课时间分配饼图
+      const prepTimeChart = echarts.init(
+        preparationTimeDistributionChart.value
+      );
+      prepTimeChart.setOption({
+        tooltip: {
+          trigger: "item",
+          formatter: "{a} <br/>{b}: {c}分钟 ({d}%)",
+        },
+        legend: {
+          orient: "horizontal", // 水平排列图例
+          bottom: 10, // 放在底部
+          data: ["AI生成时间", "人工修正时间"],
+        },
+        series: [
+          {
+            name: "备课时间分配",
+            type: "pie",
+            radius: ["40%", "65%"], // 缩小半径适应窄容器
+            center: ["50%", "45%"], // 向上移动中心点
+            avoidLabelOverlap: false,
+            itemStyle: {
+              borderRadius: 10,
+              borderColor: "#fff",
+              borderWidth: 2,
+            },
+            label: {
+              show: false,
+              position: "center",
+            },
+            emphasis: {
+              label: {
+                show: true,
+                fontSize: "18",
+                fontWeight: "bold",
+              },
+            },
+            labelLine: {
+              show: false,
+            },
+            data: [
+              { value: 14.3, name: "AI生成时间" },
+              { value: 22.7, name: "人工修正时间" },
+            ],
+            color: ["#36cfc9", "#ff9c6e"],
           },
         ],
       });
@@ -449,6 +637,8 @@ export default {
         aiChart.resize();
         courseChart.resize();
         prepChart.resize();
+        teacherChart.resize();
+        prepTimeChart.resize();
       });
     };
 
@@ -484,6 +674,8 @@ export default {
       preparationTimeChart,
       getRankColor,
       getProgressColor,
+      teacherActivityChart,
+      preparationTimeDistributionChart,
     };
   },
 };

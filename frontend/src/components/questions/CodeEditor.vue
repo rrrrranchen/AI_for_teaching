@@ -68,7 +68,6 @@ import {
   defineEmits,
   defineExpose,
 } from "vue";
-import { Space, Select } from "ant-design-vue";
 import Codemirror from "codemirror-editor-vue3";
 import type { CmComponentRef } from "codemirror-editor-vue3";
 

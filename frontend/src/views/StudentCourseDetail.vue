@@ -30,7 +30,12 @@
 
       <!-- 课后练习 -->
       <a-tab-pane key="post" tab="课后练习">
-        <PostClassExercise :classId="courseclassId" :courseId="courseId" />
+        <PostClassExercise
+          :classId="courseclassId"
+          :courseId="courseId"
+          :deadline="postClassDeadline"
+          @submit="handlePostSubmit"
+        />
       </a-tab-pane>
 
       <!-- 新增学习报告标签页 -->

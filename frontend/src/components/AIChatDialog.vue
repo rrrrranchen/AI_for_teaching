@@ -296,6 +296,25 @@
         />
         <div class="input-actions">
           <span class="char-count">{{ inputMessage.length }}/2000</span>
+          <div v-if="isRecording" class="recording-status">
+            录音中... {{ formatRecordingTime }}
+          </div>
+          <a-button
+            class="voice-btn"
+            :type="isRecording ? 'danger' : 'default'"
+            @click="toggleVoiceInput"
+          >
+            <template #icon>
+              <!-- 修复动画：使用动态class -->
+              <audio-outlined
+                :class="{
+                  'recording-icon': true,
+                  'recording-animation': isRecording,
+                }"
+              />
+            </template>
+            {{ isRecording ? "停止录音" : "语音输入" }}
+          </a-button>
           <!-- 思考模式切换 -->
           <a-button
             class="thinking-btn"
@@ -342,11 +361,13 @@ import {
   onUnmounted,
   computed,
 } from "vue";
+import { message } from "ant-design-vue";
 import {
   UserOutlined,
   PlusOutlined,
   EditOutlined,
   TrademarkCircleOutlined,
+  AudioOutlined,
 } from "@ant-design/icons-vue";
 import Markdown from "vue3-markdown-it";
 import "highlight.js/styles/github.css";
@@ -736,6 +757,98 @@ const scrollToBottom = () => {
     }
   });
 };
+
+// 新增状态变量
+const isRecording = ref(false);
+const recordingTime = ref(0);
+const recognition = ref(null);
+const recordingTimer = ref(null);
+
+// 格式化录音时间
+const formatRecordingTime = computed(() => {
+  const mins = Math.floor(recordingTime.value / 60);
+  const secs = recordingTime.value % 60;
+  return `${mins.toString().padStart(2, "0")}:${secs
+    .toString()
+    .padStart(2, "0")}`;
+});
+
+// 初始化语音识别
+const initSpeechRecognition = () => {
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SpeechRecognition) {
+    message.error("您的浏览器不支持语音识别功能，请使用Chrome浏览器");
+    return false;
+  }
+
+  recognition.value = new SpeechRecognition();
+  recognition.value.continuous = true;
+  recognition.value.interimResults = true;
+  recognition.value.lang = "zh-CN";
+
+  recognition.value.onresult = (event) => {
+    let transcript = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      if (event.results[i].isFinal) {
+        transcript += event.results[i][0].transcript;
+      }
+    }
+    inputMessage.value += transcript;
+  };
+
+  recognition.value.onerror = (event) => {
+    console.error("语音识别错误:", event.error);
+    stopRecording();
+    message.error(`语音识别错误: ${event.error}`);
+  };
+
+  return true;
+};
+
+// 切换录音状态
+const toggleVoiceInput = () => {
+  if (isRecording.value) {
+    stopRecording();
+  } else {
+    startRecording();
+  }
+};
+
+// 开始录音
+const startRecording = () => {
+  if (!initSpeechRecognition()) return;
+
+  try {
+    recognition.value.start();
+    isRecording.value = true;
+    recordingTime.value = 0;
+
+    // 计时器
+    recordingTimer.value = setInterval(() => {
+      recordingTime.value++;
+    }, 1000);
+  } catch (error) {
+    message.error("无法访问麦克风，请检查权限设置");
+    console.error("麦克风访问错误:", error);
+  }
+};
+
+// 停止录音
+const stopRecording = () => {
+  if (recognition.value) {
+    recognition.value.stop();
+  }
+  isRecording.value = false;
+  clearInterval(recordingTimer.value);
+};
+// 组件卸载时清理
+onUnmounted(() => {
+  if (isRecording.value) {
+    stopRecording();
+  }
+});
 </script>
 
 <style scoped lang="scss">
@@ -1239,5 +1352,56 @@ const scrollToBottom = () => {
     transform: scale(1);
     opacity: 1;
   }
+}
+
+/* 新增语音按钮样式 */
+.voice-btn {
+  height: 40px;
+  padding: 0 15px;
+  font-size: 16px;
+  border-radius: 20px;
+  margin-right: 8px;
+
+  &.ant-btn-danger {
+    background: #ff4d4f;
+    border-color: #ff4d4f;
+    color: white;
+
+    &:hover {
+      background: #ff7875;
+      border-color: #ff7875;
+    }
+  }
+}
+
+/* 录音动画 */
+.recording-animation {
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* 录音状态提示 */
+.recording-status {
+  position: absolute;
+  bottom: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #ff4d4f;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 14px;
+  box-shadow: 0 2px 8px rgba(255, 77, 79, 0.3);
 }
 </style>

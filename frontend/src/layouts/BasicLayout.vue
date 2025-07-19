@@ -139,7 +139,6 @@
 import { ref, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
-import { message } from "ant-design-vue";
 import AIChatDialog from "@/components/AIChatDialog.vue";
 
 const auth = useAuthStore();

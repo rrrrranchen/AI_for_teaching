@@ -7,10 +7,10 @@
       <a-breadcrumb-item>{{ design?.title }}</a-breadcrumb-item>
     </a-breadcrumb>
     <div class="header-right">
-      <div class="preparation-timer">
+      <!-- <div class="preparation-timer">
         <clock-circle-outlined />
         <span class="timer-text">备课时长: {{ formattedTime }}</span>
-      </div>
+      </div> -->
       <a-switch
         checked-children="已公开"
         un-checked-children="未公开"
@@ -75,7 +75,7 @@
             <div class="analysis-top">
               <h3>课前预习水平分析</h3>
               <a-textarea
-                v-model:value="currentVersion.analysis"
+                v-model:value="preanalysis"
                 :rows="8"
                 placeholder="请输入分析内容"
                 class="analysis-textarea"
@@ -183,7 +183,7 @@ import {
   ref,
   onMounted,
   onBeforeUnmount,
-  computed,
+  // computed,
 } from "vue";
 import { useRoute } from "vue-router";
 import { message } from "ant-design-vue";
@@ -199,8 +199,8 @@ import {
   updateDesignVersion,
   updateTeachingDesign,
   setDesignVisibility,
-  controlDesignTimer,
-  getDesignTimer,
+  // controlDesignTimer,
+  // getDesignTimer,
   type TeachingDesignVersion,
   type TeachingDesign,
 } from "@/api/teachingdesign";
@@ -222,9 +222,12 @@ export default defineComponent({
     SaveOutlined,
     TeacherRecommendations,
     MindMapEditor,
-    ClockCircleOutlined,
+    // ClockCircleOutlined,
   },
   setup() {
+    const preanalysis = ref(
+      "学生整体预习效果良好，对TFLite的核心概念（转换器作用、FlatBuffers优势）理解到位，但在实践细节（Android配置）和完整工作流程记忆上存在提升空间。需在课堂强化转换模型与优化模型的操作演示，并解释`noCompress`配置的技术必要性。"
+    );
     const route = useRoute();
     const activeTab = ref("edit");
     const design = ref<TeachingDesign>();
@@ -253,6 +256,13 @@ export default defineComponent({
         height: 500,
         placeholder: "请输入Markdown格式的教学计划内容...",
         mode: "wysiwyg",
+        preview: {
+          hljs: {
+            enable: true,
+            style: "a11y-dark",
+            lineNumber: true, // 显示行号// 可选值如：github、github-dark、monokai、base16/dracula 等
+          },
+        },
         toolbar: [
           "emoji",
           "headings",
@@ -337,6 +347,7 @@ export default defineComponent({
       try {
         const response = await getDesignVersionDetail(versionId);
         currentVersion.value = response;
+        console.log("具体版本：", response);
         if (vditor.value) {
           vditor.value.setValue(currentVersion.value.plan_content || "");
         }
@@ -389,7 +400,7 @@ export default defineComponent({
         message.error("初始化失败");
         console.error("初始化错误:", err);
       }
-      await initTimer();
+      // await initTimer();
     });
 
     // 组件卸载前销毁 Vditor 实例
@@ -397,11 +408,11 @@ export default defineComponent({
       if (vditor.value) {
         vditor.value.destroy();
       }
-      if (timerInterval.value) {
-        clearInterval(timerInterval.value);
-        timerInterval.value = null;
-      }
-      saveTimerState();
+      // if (timerInterval.value) {
+      //   clearInterval(timerInterval.value);
+      //   timerInterval.value = null;
+      // }
+      // saveTimerState();
     });
 
     // 新增PPT相关状态
@@ -551,79 +562,80 @@ export default defineComponent({
       }
     };
 
-    const totalSeconds = ref(0);
-    const isTimerActive = ref(false);
-    const timerInterval = ref<number | null>(null); // 修改为 number 类型
-    const formattedTime = computed(() => {
-      const hours = Math.floor(totalSeconds.value / 3600);
-      const minutes = Math.floor((totalSeconds.value % 3600) / 60);
-      const seconds = totalSeconds.value % 60;
-      return `${hours.toString().padStart(2, "0")}:${minutes
-        .toString()
-        .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
-    });
+    // const totalSeconds = ref(0);
+    // const isTimerActive = ref(false);
+    // const timerInterval = ref<number | null>(null); // 修改为 number 类型
+    // const formattedTime = computed(() => {
+    //   const hours = Math.floor(totalSeconds.value / 3600);
+    //   const minutes = Math.floor((totalSeconds.value % 3600) / 60);
+    //   const seconds = totalSeconds.value % 60;
+    //   return `${hours.toString().padStart(2, "0")}:${minutes
+    //     .toString()
+    //     .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+    // });
 
     // 启动计时器
-    const startTimer = () => {
-      if (!timerInterval.value) {
-        timerInterval.value = window.setInterval(() => {
-          // 使用 window.setInterval
-          if (isTimerActive.value) {
-            totalSeconds.value += 1;
-          }
-        }, 1000);
-      }
-      isTimerActive.value = true;
-    };
+    // const startTimer = () => {
+    //   if (!timerInterval.value) {
+    //     timerInterval.value = window.setInterval(() => {
+    //       // 使用 window.setInterval
+    //       if (isTimerActive.value) {
+    //         totalSeconds.value += 1;
+    //       }
+    //     }, 1000);
+    //   }
+    //   isTimerActive.value = true;
+    // };
 
-    // 暂停计时器
-    const pauseTimer = () => {
-      isTimerActive.value = false;
-    };
+    // // 暂停计时器
+    // const pauseTimer = () => {
+    //   isTimerActive.value = false;
+    // };
 
-    // 初始化计时器
-    const initTimer = async () => {
-      try {
-        const timerData = await getDesignTimer(designId.value);
-        totalSeconds.value = timerData.total_seconds;
-        isTimerActive.value = timerData.is_active;
+    // // 初始化计时器
+    // const initTimer = async () => {
+    //   try {
+    //     const timerData = await getDesignTimer(designId.value);
+    //     totalSeconds.value = timerData.total_seconds;
+    //     isTimerActive.value = timerData.is_active;
 
-        if (isTimerActive.value) {
-          startTimer();
-        }
-      } catch (error) {
-        console.error("获取计时器状态失败:", error);
-        // 如果获取失败，默认开始新计时
-        startNewTimer();
-      }
-    };
+    //     if (isTimerActive.value) {
+    //       startTimer();
+    //     }
+    //   } catch (error) {
+    //     console.error("获取计时器状态失败:", error);
+    //     // 如果获取失败，默认开始新计时
+    //     startNewTimer();
+    //   }
+    // };
 
-    // 开始新计时
-    const startNewTimer = async () => {
-      try {
-        const timerData = await controlDesignTimer(designId.value, {
-          action: "start",
-        });
-        totalSeconds.value = timerData.total_seconds;
-        isTimerActive.value = timerData.is_active;
-        startTimer();
-      } catch (error) {
-        console.error("启动计时器失败:", error);
-      }
-    };
+    // // 开始新计时
+    // const startNewTimer = async () => {
+    //   try {
+    //     const timerData = await controlDesignTimer(designId.value, {
+    //       action: "start",
+    //     });
+    //     totalSeconds.value = timerData.total_seconds;
+    //     isTimerActive.value = timerData.is_active;
+    //     startTimer();
+    //   } catch (error) {
+    //     console.error("启动计时器失败:", error);
+    //   }
+    // };
 
-    // 保存计时状态
-    const saveTimerState = async () => {
-      try {
-        if (isTimerActive.value) {
-          await controlDesignTimer(designId.value, { action: "pause" });
-        }
-      } catch (error) {
-        console.error("保存计时状态失败:", error);
-      }
-    };
+    // // 保存计时状态
+    // const saveTimerState = async () => {
+    //   try {
+    //     if (isTimerActive.value) {
+    //       await controlDesignTimer(designId.value, { action: "pause" });
+    //     }
+    //   } catch (error) {
+    //     console.error("保存计时状态失败:", error);
+    //   }
+    // };
 
     return {
+      preanalysis,
       design,
       designId,
       activeTab,
@@ -654,7 +666,7 @@ export default defineComponent({
       isPublic,
       togglingVisibility,
       toggleVisibility,
-      formattedTime,
+      // formattedTime,
       ClockCircleOutlined,
     };
   },

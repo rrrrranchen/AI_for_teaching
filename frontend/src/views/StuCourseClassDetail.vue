@@ -558,6 +558,28 @@ export default defineComponent({
 });
 </script>
 <style scoped>
+/* 面包屑导航样式 */
+.ant-breadcrumb {
+  padding: 16px 24px; /* 上下间距和左间距 */
+  font-size: 16px; /* 字体大小 */
+  line-height: 1.5;
+  margin-bottom: 10px; /* 下间距 */
+}
+
+.ant-breadcrumb a {
+  transition: color 0.3s;
+  color: #1890ff; /* 链接颜色 */
+}
+
+.ant-breadcrumb a:hover {
+  color: #40a9ff !important; /* 鼠标悬停时的颜色 */
+}
+
+.ant-breadcrumb > span:last-child {
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.85); /* 当前页面颜色 */
+}
+
 .class-container {
   background: inherit;
   min-height: calc(100vh - 64px);

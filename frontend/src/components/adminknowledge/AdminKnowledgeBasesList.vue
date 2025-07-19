@@ -151,6 +151,10 @@
               <template #icon><delete-outlined /></template>
               移除类目
             </a-button>
+            <a-button type="link" size="small" @click="showMap">
+              <template #icon><RadarChartOutlined /></template>
+              知识图谱
+            </a-button>
           </template>
 
           <a-list-item-meta>
@@ -238,6 +242,8 @@
         :filter-option="filterOption"
       />
     </a-modal>
+
+    <knowledgeMap v-model:visible="showKMap" />
   </div>
 </template>
 
@@ -254,6 +260,7 @@ import {
   SearchOutlined,
   RedoOutlined,
   UserOutlined,
+  RadarChartOutlined,
 } from "@ant-design/icons-vue";
 import {
   adminGetKnowledgeBases,
@@ -266,6 +273,12 @@ import {
 } from "@/api/knowledgebasemanage";
 import AdminKnowledgeBaseCreateModal from "./KnowledgeBaseCreateModal.vue";
 import { type KnowledgeBase } from "@/api/knowledgebase";
+import knowledgeMap from "@/components/knowledgeMap2.vue";
+
+const showKMap = ref<boolean>(false);
+const showMap = () => {
+  showKMap.value = true;
+};
 
 interface SearchParams {
   name?: string;

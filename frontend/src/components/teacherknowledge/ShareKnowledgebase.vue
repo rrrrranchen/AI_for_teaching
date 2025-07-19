@@ -118,235 +118,243 @@
       show-icon
       style="margin-bottom: 16px"
     />
-
-    <!-- 列表浏览模式 -->
-    <div v-if="activeTab === 'list'">
-      <a-list
-        :data-source="publicKnowledgeBases"
-        :loading="loading"
-        :pagination="pagination"
-        item-layout="vertical"
-        bordered
-      >
-        <template #renderItem="{ item }">
-          <a-list-item style="margin-bottom: 8px; background-color: #f6f6f6">
-            <template #actions>
-              <span>
-                <folder-outlined />
-                {{ item.categories.length }} 个类目
-              </span>
-              <span>
-                <user-outlined />
-                {{ item.author_name || "未知作者" }}
-              </span>
-              <span>
-                <clock-circle-outlined />
-                {{ formatDate(item.created_at) }}
-              </span>
-              <span>
-                <star-outlined />
-                使用次数: {{ item.usage_count || 0 }}
-              </span>
-              <a-tag
-                :color="item.base_type === 'structural' ? 'blue' : 'purple'"
-              >
-                {{ item.base_type === "structural" ? "结构化" : "非结构化" }}
-              </a-tag>
-              <a-button
-                type="primary"
-                size="small"
-                @click="handleMigrate(item.id)"
-                :loading="migratingId === item.id"
-              >
-                <template #icon><download-outlined /></template>
-                迁移到我的知识库
-              </a-button>
-            </template>
-
-            <a-list-item-meta>
-              <template #title>
-                <a style="font-size: large; margin-right: 8px">{{
-                  item.name
-                }}</a>
-              </template>
-              <template #description>
-                {{ item.description || "暂无描述" }}
-              </template>
-            </a-list-item-meta>
-
-            <div class="kb-categories" v-if="item.categories.length > 0">
-              <h4>关联类目:</h4>
-              <div class="category-tags">
-                <a-tag
-                  v-for="cat in item.categories"
-                  :key="cat.id"
-                  :color="cat.type === 'structural' ? 'blue' : 'purple'"
-                >
-                  {{ cat.name }}
-                </a-tag>
-              </div>
-            </div>
-          </a-list-item>
-        </template>
-      </a-list>
-    </div>
-
-    <!-- 模糊搜索结果 -->
-    <div v-if="activeTab === 'search'">
-      <a-list
-        :data-source="searchResults"
-        :loading="searchLoading"
-        :pagination="searchPagination"
-        item-layout="vertical"
-        bordered
-      >
-        <template #renderItem="{ item }">
-          <a-list-item style="margin-bottom: 8px">
-            <template #actions>
-              <span>
-                <user-outlined />
-                {{ item.author_name }}
-              </span>
-              <span>
-                <clock-circle-outlined />
-                {{ formatDate(item.created_at) }}
-              </span>
-              <a-tag :color="getMatchTagColor(item.match_type)">
-                {{ item.match_type }}
-              </a-tag>
-              <a-button
-                type="primary"
-                size="small"
-                @click="handleMigrate(item.id)"
-                :loading="migratingId === item.id"
-              >
-                <template #icon><download-outlined /></template>
-                迁移到我的知识库
-              </a-button>
-            </template>
-
-            <a-list-item-meta>
-              <template #title>
-                <a style="font-size: large; margin-right: 8px">{{
-                  item.name
-                }}</a>
+    <div class="scrollable-content">
+      <!-- 列表浏览模式 -->
+      <div v-if="activeTab === 'list'" class="scrollable-list">
+        <a-list
+          :data-source="publicKnowledgeBases"
+          :loading="loading"
+          :pagination="pagination"
+          item-layout="vertical"
+          bordered
+        >
+          <template #renderItem="{ item }">
+            <a-list-item style="margin-bottom: 8px; background-color: #f6f6f6">
+              <template #actions>
+                <span>
+                  <folder-outlined />
+                  {{ item.categories.length }} 个类目
+                </span>
+                <span>
+                  <user-outlined />
+                  {{ item.author_name || "未知作者" }}
+                </span>
+                <span>
+                  <clock-circle-outlined />
+                  {{ formatDate(item.created_at) }}
+                </span>
+                <span>
+                  <star-outlined />
+                  使用次数: {{ item.usage_count || 0 }}
+                </span>
                 <a-tag
                   :color="item.base_type === 'structural' ? 'blue' : 'purple'"
                 >
                   {{ item.base_type === "structural" ? "结构化" : "非结构化" }}
                 </a-tag>
-              </template>
-              <template #description>
-                <div
-                  v-html="
-                    highlightKeyword(item.description, searchParams.keyword)
-                  "
-                ></div>
-              </template>
-            </a-list-item-meta>
-
-            <div class="kb-categories" v-if="item.categories.length > 0">
-              <h4>关联类目:</h4>
-              <div class="category-tags">
-                <a-tag
-                  v-for="cat in item.categories"
-                  :key="cat.id"
-                  :color="cat.type === 'structural' ? 'blue' : 'purple'"
+                <a-button type="link" size="small" @click="showMap">
+                  <template #icon><RadarChartOutlined /></template>
+                  知识图谱
+                </a-button>
+                <a-button
+                  type="primary"
+                  size="small"
+                  @click="handleMigrate(item.id)"
+                  :loading="migratingId === item.id"
                 >
-                  {{ cat.name }}
-                </a-tag>
-              </div>
-            </div>
-          </a-list-item>
-        </template>
-
-        <template #footer>
-          <div class="search-meta">
-            <span>共找到 {{ searchMeta.total_matches }} 个结果</span>
-            <span style="margin-left: 16px">
-              名称匹配: {{ searchMeta.name_matches }} 个
-            </span>
-            <span style="margin-left: 16px">
-              描述匹配: {{ searchMeta.desc_matches }} 个
-            </span>
-          </div>
-        </template>
-      </a-list>
-    </div>
-
-    <!-- 深度搜索结果 -->
-    <div v-if="activeTab === 'deep'">
-      <a-list
-        :data-source="deepSearchResults"
-        :loading="deepSearchLoading"
-        item-layout="vertical"
-        bordered
-      >
-        <template #renderItem="{ item }">
-          <a-list-item style="margin-bottom: 8px">
-            <template #actions>
-              <span>
-                <user-outlined />
-                {{ item.knowledge_base.author_name }}
-              </span>
-              <a-tag :color="getScoreTagColor(item.score)">
-                相似度: {{ (item.score * 100).toFixed(1) }}%
-              </a-tag>
-              <a-button
-                type="primary"
-                size="small"
-                @click="handleMigrate(item.knowledge_base.id)"
-                :loading="migratingId === item.knowledge_base.id"
-              >
-                <template #icon><download-outlined /></template>
-                迁移到我的知识库
-              </a-button>
-            </template>
-
-            <a-list-item-meta>
-              <template #title>
-                <a style="font-size: large; margin-right: 8px">
-                  {{ item.knowledge_base.name }}
-                </a>
-                <a-tag>来自: {{ item.knowledge_base.author_name }}</a-tag>
+                  <template #icon><download-outlined /></template>
+                  迁移到我的知识库
+                </a-button>
               </template>
-              <template #description>
-                <div class="deep-search-result">
-                  <h4>匹配内容:</h4>
+
+              <a-list-item-meta>
+                <template #title>
+                  <a style="font-size: large; margin-right: 8px">{{
+                    item.name
+                  }}</a>
+                </template>
+                <template #description>
+                  {{ item.description || "暂无描述" }}
+                </template>
+              </a-list-item-meta>
+
+              <div class="kb-categories" v-if="item.categories.length > 0">
+                <h4>关联类目:</h4>
+                <div class="category-tags">
+                  <a-tag
+                    v-for="cat in item.categories"
+                    :key="cat.id"
+                    :color="cat.type === 'structural' ? 'blue' : 'purple'"
+                  >
+                    {{ cat.name }}
+                  </a-tag>
+                </div>
+              </div>
+            </a-list-item>
+          </template>
+        </a-list>
+      </div>
+
+      <!-- 模糊搜索结果 -->
+      <div v-if="activeTab === 'search'" class="scrollable-list">
+        <a-list
+          :data-source="searchResults"
+          :loading="searchLoading"
+          :pagination="searchPagination"
+          item-layout="vertical"
+          bordered
+        >
+          <template #renderItem="{ item }">
+            <a-list-item style="margin-bottom: 8px">
+              <template #actions>
+                <span>
+                  <user-outlined />
+                  {{ item.author_name }}
+                </span>
+                <span>
+                  <clock-circle-outlined />
+                  {{ formatDate(item.created_at) }}
+                </span>
+                <a-tag :color="getMatchTagColor(item.match_type)">
+                  {{ item.match_type }}
+                </a-tag>
+                <a-button
+                  type="primary"
+                  size="small"
+                  @click="handleMigrate(item.id)"
+                  :loading="migratingId === item.id"
+                >
+                  <template #icon><download-outlined /></template>
+                  迁移到我的知识库
+                </a-button>
+              </template>
+
+              <a-list-item-meta>
+                <template #title>
+                  <a style="font-size: large; margin-right: 8px">{{
+                    item.name
+                  }}</a>
+                  <a-tag
+                    :color="item.base_type === 'structural' ? 'blue' : 'purple'"
+                  >
+                    {{
+                      item.base_type === "structural" ? "结构化" : "非结构化"
+                    }}
+                  </a-tag>
+                </template>
+                <template #description>
                   <div
-                    class="matched-text"
                     v-html="
-                      highlightKeyword(item.text, deepSearchParams.keyword)
+                      highlightKeyword(item.description, searchParams.keyword)
                     "
                   ></div>
-                  <div class="source-info">
-                    <span>
-                      <folder-outlined />
-                      {{ item.category }}
-                    </span>
-                    <span style="margin-left: 8px">
-                      <file-outlined />
-                      {{ item.file }}
-                    </span>
-                  </div>
-                </div>
-              </template>
-            </a-list-item-meta>
-          </a-list-item>
-        </template>
+                </template>
+              </a-list-item-meta>
 
-        <template #footer>
-          <div class="search-meta">
-            <span>共找到 {{ deepSearchMeta.matches }} 个匹配内容</span>
-          </div>
-        </template>
-      </a-list>
+              <div class="kb-categories" v-if="item.categories.length > 0">
+                <h4>关联类目:</h4>
+                <div class="category-tags">
+                  <a-tag
+                    v-for="cat in item.categories"
+                    :key="cat.id"
+                    :color="cat.type === 'structural' ? 'blue' : 'purple'"
+                  >
+                    {{ cat.name }}
+                  </a-tag>
+                </div>
+              </div>
+            </a-list-item>
+          </template>
+
+          <template #footer>
+            <div class="search-meta">
+              <span>共找到 {{ searchMeta.total_matches }} 个结果</span>
+              <span style="margin-left: 16px">
+                名称匹配: {{ searchMeta.name_matches }} 个
+              </span>
+              <span style="margin-left: 16px">
+                描述匹配: {{ searchMeta.desc_matches }} 个
+              </span>
+            </div>
+          </template>
+        </a-list>
+      </div>
+
+      <!-- 深度搜索结果 -->
+      <div v-if="activeTab === 'deep'" class="scrollable-list">
+        <a-list
+          :data-source="deepSearchResults"
+          :loading="deepSearchLoading"
+          item-layout="vertical"
+          bordered
+        >
+          <template #renderItem="{ item }">
+            <a-list-item style="margin-bottom: 8px">
+              <template #actions>
+                <span>
+                  <user-outlined />
+                  {{ item.knowledge_base.author_name }}
+                </span>
+                <a-tag :color="getScoreTagColor(item.score)">
+                  相似度: {{ (item.score * 100).toFixed(1) }}%
+                </a-tag>
+                <a-button
+                  type="primary"
+                  size="small"
+                  @click="handleMigrate(item.knowledge_base.id)"
+                  :loading="migratingId === item.knowledge_base.id"
+                >
+                  <template #icon><download-outlined /></template>
+                  迁移到我的知识库
+                </a-button>
+              </template>
+
+              <a-list-item-meta>
+                <template #title>
+                  <a style="font-size: large; margin-right: 8px">
+                    {{ item.knowledge_base.name }}
+                  </a>
+                  <a-tag>来自: {{ item.knowledge_base.author_name }}</a-tag>
+                </template>
+                <template #description>
+                  <div class="deep-search-result">
+                    <h4>匹配内容:</h4>
+                    <div
+                      class="matched-text"
+                      v-html="
+                        highlightKeyword(item.text, deepSearchParams.keyword)
+                      "
+                    ></div>
+                    <div class="source-info">
+                      <span>
+                        <folder-outlined />
+                        {{ item.category }}
+                      </span>
+                      <span style="margin-left: 8px">
+                        <file-outlined />
+                        {{ item.file }}
+                      </span>
+                    </div>
+                  </div>
+                </template>
+              </a-list-item-meta>
+            </a-list-item>
+          </template>
+
+          <template #footer>
+            <div class="search-meta">
+              <span>共找到 {{ deepSearchMeta.matches }} 个匹配内容</span>
+            </div>
+          </template>
+        </a-list>
+      </div>
     </div>
   </div>
+  <knowledgeMap v-model:visible="showKMap" />
 </template>
 
 <script lang="ts" setup>
-import { ref, reactive, computed, onMounted } from "vue";
+import { ref, reactive, onMounted } from "vue";
 import { message } from "ant-design-vue";
 import {
   SearchOutlined,
@@ -357,6 +365,7 @@ import {
   DownloadOutlined,
   StarOutlined,
   FileOutlined,
+  RadarChartOutlined,
 } from "@ant-design/icons-vue";
 import {
   migratePublicKnowledgeBase,
@@ -364,6 +373,13 @@ import {
   searchPublicKnowledgeBases,
   deepSearchPublicKnowledgeBases,
 } from "@/api/knowledgebase";
+
+import knowledgeMap from "@/components/knowledgeMap.vue";
+
+const showKMap = ref<boolean>(false);
+const showMap = () => {
+  showKMap.value = true;
+};
 
 interface ListParams {
   sort_by?: "name" | "created_at" | "updated_at" | "usage_count";
@@ -596,7 +612,38 @@ const highlightKeyword = (text: string | undefined, keyword: string) => {
 </script>
 
 <style scoped>
+/* 新增滚动容器样式 */
+.scrollable-content {
+  max-height: 55vh; /* 设置最大高度 */
+  overflow-y: auto; /* 启用垂直滚动 */
+  padding-right: 8px; /* 为滚动条留出空间 */
+}
+
+.scrollable-list {
+  margin-bottom: 20px;
+}
+
+/* 自定义滚动条样式 */
+.scrollable-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scrollable-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.scrollable-content::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.scrollable-content::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
 .public-knowledge-bases-container {
+  max-height: 85vh;
   padding: 24px;
   background: #fff;
   border-radius: 8px;

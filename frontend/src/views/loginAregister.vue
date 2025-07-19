@@ -51,32 +51,6 @@
                   </a-input-password>
                 </a-form-item>
 
-                <a-form-item
-                  label="验证码"
-                  name="captcha"
-                  :rules="[{ required: true, message: '请输入验证码' }]"
-                >
-                  <a-row :gutter="8">
-                    <a-col :span="16">
-                      <a-input
-                        v-model:value="loginForm.captcha"
-                        placeholder="请输入验证码"
-                        size="large"
-                      />
-                    </a-col>
-                    <a-col :span="8">
-                      <div class="captcha-image" @click="refreshCaptcha">
-                        <img
-                          :src="captchaImage"
-                          alt="验证码"
-                          v-if="captchaImage"
-                        />
-                        <reload-outlined v-else />
-                      </div>
-                    </a-col>
-                  </a-row>
-                </a-form-item>
-
                 <a-form-item>
                   <a-checkbox v-model:checked="loginForm.remember">
                     记住我
@@ -278,7 +252,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed } from "vue";
+import { defineComponent, ref } from "vue";
 import { useAuthStore } from "@/stores/auth";
 import {
   UserOutlined,
@@ -287,7 +261,6 @@ import {
   WechatOutlined,
   AlipayOutlined,
   QqOutlined,
-  ReloadOutlined,
 } from "@ant-design/icons-vue";
 import { message } from "ant-design-vue";
 
@@ -300,7 +273,6 @@ export default defineComponent({
     WechatOutlined,
     AlipayOutlined,
     QqOutlined,
-    ReloadOutlined,
   },
   setup() {
     const auth = useAuthStore();
@@ -314,7 +286,6 @@ export default defineComponent({
     const loginForm = ref({
       username: "",
       password: "",
-      captcha: "",
       remember: false,
     });
 

@@ -39,107 +39,119 @@
         <span v-if="currentUpdatingKB">{{ currentUpdatingKB.name }}</span>
       </p>
     </a-modal>
-
-    <a-list
-      :data-source="knowledgeBases"
-      :loading="loading"
-      item-layout="vertical"
-      bordered
-    >
-      <template #renderItem="{ item }">
-        <a-list-item style="background-color: #edf6fbcc">
-          <template #actions>
-            <span>
-              <folder-outlined />
-              {{ item.categories.length }} 个类目
-            </span>
-            <span>
-              <clock-circle-outlined />
-              {{ formatDate(item.created_at) }}
-            </span>
-            <a-tag :color="item.is_public ? 'green' : 'orange'">
-              {{ item.is_public ? "公开" : "私有" }}
-            </a-tag>
-            <a-tag :color="item.need_update ? 'red' : 'green'">
-              {{ item.need_update ? "需更新" : "已更新" }}
-            </a-tag>
-            <a-button
-              type="link"
-              size="small"
-              @click="handleUpdateKB(item.id)"
-              :loading="item.updating"
-              :disabled="!item.need_update"
-            >
-              <sync-outlined /> 更新
-            </a-button>
-            <a-popconfirm
-              title="确定要删除这个知识库吗？"
-              @confirm="handleDeleteKB(item.id)"
-            >
-              <a-button type="link" danger size="small">
-                <delete-outlined /> 删除
+    <div class="scrollable-list-container">
+      <a-list
+        :data-source="knowledgeBases"
+        :loading="loading"
+        item-layout="vertical"
+        bordered
+      >
+        <template #renderItem="{ item }">
+          <a-list-item style="background-color: #edf6fbcc; margin-bottom: 8px">
+            <template #actions>
+              <span>
+                <folder-outlined />
+                {{ item.categories.length }} 个类目
+              </span>
+              <span>
+                <clock-circle-outlined />
+                {{ formatDate(item.created_at) }}
+              </span>
+              <a-tag :color="item.is_public ? 'green' : 'orange'">
+                {{ item.is_public ? "公开" : "私有" }}
+              </a-tag>
+              <a-tag :color="item.need_update ? 'red' : 'green'">
+                {{ item.need_update ? "需更新" : "已更新" }}
+              </a-tag>
+              <a-button
+                type="link"
+                size="small"
+                @click="handleUpdateKB(item.id)"
+                :loading="item.updating"
+                :disabled="!item.need_update"
+              >
+                <sync-outlined /> 更新
               </a-button>
-            </a-popconfirm>
-            <!-- 新增单个知识库的类目操作按钮 -->
-            <a-button
-              type="link"
-              size="small"
-              @click="showAddCategoriesModal(item)"
-            >
-              <template #icon><folder-add-outlined /></template>
-              添加类目
-            </a-button>
-            <a-button
-              type="link"
-              danger
-              size="small"
-              @click="showRemoveCategoriesModal(item)"
-              :disabled="item.categories.length === 0"
-            >
-              <template #icon><delete-outlined /></template>
-              移除类目
-            </a-button>
-          </template>
-
-          <a-list-item-meta>
-            <template #title>
-              <a style="font-size: large; margin-right: 8px">{{ item.name }}</a>
-              <a-tag
-                :color="item.base_type === 'structural' ? 'blue' : 'purple'"
+              <a-popconfirm
+                title="确定要删除这个知识库吗？"
+                @confirm="handleDeleteKB(item.id)"
               >
-                {{ item.base_type === "structural" ? "结构化" : "非结构化" }}
-              </a-tag>
-            </template>
-            <template #description>
-              {{ item.description || "暂无描述" }}
-            </template>
-          </a-list-item-meta>
-
-          <div class="kb-categories" v-if="item.categories.length > 0">
-            <h4>关联类目:</h4>
-            <div class="category-tags">
-              <a-tag
-                v-for="cat in item.categories"
-                :key="cat.id"
-                :color="cat.category_type === 'structural' ? 'blue' : 'purple'"
+                <a-button type="link" danger size="small">
+                  <delete-outlined /> 删除
+                </a-button>
+              </a-popconfirm>
+              <!-- 新增单个知识库的类目操作按钮 -->
+              <a-button
+                type="link"
+                size="small"
+                @click="showAddCategoriesModal(item)"
               >
-                {{ cat.name }}
-                <span style="margin-left: 4px; font-size: 12px">
-                  ({{
-                    cat.category_type === "structural" ? "结构化" : "非结构化"
-                  }})
-                </span>
-              </a-tag>
+                <template #icon><folder-add-outlined /></template>
+                添加类目
+              </a-button>
+              <a-button
+                type="link"
+                danger
+                size="small"
+                @click="showRemoveCategoriesModal(item)"
+                :disabled="item.categories.length === 0"
+              >
+                <template #icon><delete-outlined /></template>
+                移除类目
+              </a-button>
+              <a-button type="link" size="small" @click="showMap">
+                <template #icon><RadarChartOutlined /></template>
+                知识图谱
+              </a-button>
+            </template>
+
+            <a-list-item-meta>
+              <template #title>
+                <a style="font-size: large; margin-right: 8px">{{
+                  item.name
+                }}</a>
+                <a-tag
+                  :color="item.base_type === 'structural' ? 'blue' : 'purple'"
+                >
+                  {{ item.base_type === "structural" ? "结构化" : "非结构化" }}
+                </a-tag>
+              </template>
+              <template #description>
+                {{ item.description || "暂无描述" }}
+              </template>
+            </a-list-item-meta>
+
+            <div class="kb-categories" v-if="item.categories.length > 0">
+              <h4>关联类目:</h4>
+              <div class="category-tags">
+                <a-tag
+                  v-for="cat in item.categories"
+                  :key="cat.id"
+                  :color="
+                    cat.category_type === 'structural' ? 'blue' : 'purple'
+                  "
+                >
+                  {{ cat.name }}
+                  <span style="margin-left: 4px; font-size: 12px">
+                    ({{
+                      cat.category_type === "structural"
+                        ? "结构化"
+                        : "非结构化"
+                    }})
+                  </span>
+                </a-tag>
+              </div>
             </div>
-          </div>
-        </a-list-item>
-      </template>
-    </a-list>
+          </a-list-item>
+        </template>
+      </a-list>
+    </div>
 
     <KnowledgeBaseCreateModal
       ref="knowledgeBaseCreateModal"
       @created="fetchKnowledgeBases"
     />
+    <knowledgeMap v-model:visible="showKMap" />
   </div>
   <!-- 添加类目模态框 -->
   <a-modal
@@ -186,6 +198,7 @@ import {
   ClockCircleOutlined,
   DeleteOutlined,
   FolderAddOutlined,
+  RadarChartOutlined,
 } from "@ant-design/icons-vue";
 import {
   getKnowledgeBases,
@@ -198,6 +211,12 @@ import {
   getCategories,
 } from "@/api/knowledgebase";
 import KnowledgeBaseCreateModal from "./KnowledgeBaseCreateModal.vue";
+import knowledgeMap from "@/components/knowledgeMap.vue";
+
+const showKMap = ref<boolean>(false);
+const showMap = () => {
+  showKMap.value = true;
+};
 
 interface KnowledgeBase {
   id: number;
@@ -528,6 +547,32 @@ const filterOption = (input: string, option: any) => {
 .actions {
   display: flex;
   align-items: center;
+}
+
+/* 新增滚动容器样式 */
+.scrollable-list-container {
+  max-height: 70vh; /* 设置最大高度 */
+  overflow-y: auto; /* 启用垂直滚动 */
+  padding-right: 8px; /* 为滚动条留出空间 */
+}
+
+/* 自定义滚动条样式 */
+.scrollable-list-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scrollable-list-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.scrollable-list-container::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.scrollable-list-container::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }
 
 .kb-categories {

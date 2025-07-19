@@ -1288,6 +1288,7 @@ def get_student_questions(course_id):
                 'type': question.type,
                 'content': question.content,
                 'difficulty': question.difficulty,
+                'correct_answer': question.correct_answer,
                 'knowledge_point': {
                     'id': question.knowledge_point_id,
                     'name': question.knowledge_point.node_name if question.knowledge_point else None,

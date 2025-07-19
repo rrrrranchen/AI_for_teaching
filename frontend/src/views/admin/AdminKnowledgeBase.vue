@@ -89,7 +89,7 @@ const knowledgeBases = ref();
 }
 
 .tab-content {
-  width: 70%;
+  width: 75%;
   background: #fff;
   padding: 16px;
   border-radius: 8px;

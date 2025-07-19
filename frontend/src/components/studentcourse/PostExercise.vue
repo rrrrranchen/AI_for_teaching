@@ -1,4 +1,12 @@
 <template>
+  <div v-if="isDeadlinePassed" class="deadline-alert">
+    <a-alert
+      message="已超过截止时间，无法继续提交答案"
+      type="warning"
+      show-icon
+      banner
+    />
+  </div>
   <div class="exercise-container">
     <!-- 顶部题目导航栏 -->
     <div class="question-nav">
@@ -32,7 +40,14 @@
           下一题
         </a-button>
 
-        <a-button v-else type="primary" @click="submitAll"> 提交答案 </a-button>
+        <a-button
+          v-else
+          type="primary"
+          @click="submitAll"
+          :disabled="Object.keys(savedAnswers).length === 0"
+        >
+          提交答案
+        </a-button>
       </div>
     </div>
 
@@ -138,6 +153,10 @@
               <h3>答题记录</h3>
               <div class="record-detail">
                 <p>
+                  <strong>正确答案：</strong>
+                  {{ currentQuestion.correct_answer }}
+                </p>
+                <p>
                   <strong>您的答案：</strong>
                   {{ currentQuestion.answer_record?.student_answer }}
                 </p>
@@ -174,12 +193,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, defineProps } from "vue";
+import { ref, computed, onMounted, watch, defineProps, defineEmits } from "vue";
 import Markdown from "vue3-markdown-it";
 import CodeEditor from "@/components/questions/CodeEditor.vue";
 import QuestionAIChat from "@/components/QuestionAIChat.vue";
 import { questionApi } from "@/api/questions";
 import { message } from "ant-design-vue";
+import dayjs from "dayjs";
 
 const props = defineProps({
   classId: {
@@ -190,6 +210,20 @@ const props = defineProps({
     type: Number,
     required: true,
   },
+  deadline: {
+    // 新增
+    type: String,
+    default: null,
+  },
+});
+
+// 2. 添加emit定义
+const emit = defineEmits(["submit"]);
+
+// 3. 添加截止时间检查
+const isDeadlinePassed = computed(() => {
+  if (!props.deadline) return false;
+  return dayjs().isAfter(dayjs(props.deadline));
 });
 
 // Piston API 地址
@@ -285,11 +319,37 @@ const nextQuestion = () => {
   }
 };
 
-// 提交所有答案
-const submitAll = () => {
-  saveAnswer();
-  message.success("所有答案已提交！");
-  // 在实际应用中，这里应该调用API提交所有答案
+// 4. 修改submitAll方法，实际提交到服务器
+const submitAll = async () => {
+  if (isDeadlinePassed.value) {
+    message.error("已超过截止时间，无法提交");
+    return;
+  }
+
+  try {
+    // 收集所有答案
+    const answers = Object.entries(savedAnswers.value).map(
+      ([index, answer]) => ({
+        questionId: questions.value[index].id,
+        answer: answer,
+      })
+    );
+
+    // 触发submit事件
+    emit("submit", answers);
+
+    // 清空本地存储
+    localStorage.removeItem(`postExerciseAnswers_${props.courseId}`);
+    savedAnswers.value = {};
+
+    // 重新加载题目以更新答题状态
+    await loadQuestions();
+
+    message.success("答案提交成功！");
+  } catch (error) {
+    message.error("提交失败，请重试");
+    console.error("提交错误:", error);
+  }
 };
 
 const codeEditor = ref(null);
