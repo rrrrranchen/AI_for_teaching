@@ -273,7 +273,7 @@ import {
 } from "@/api/knowledgebasemanage";
 import AdminKnowledgeBaseCreateModal from "./KnowledgeBaseCreateModal.vue";
 import { type KnowledgeBase } from "@/api/knowledgebase";
-import knowledgeMap from "@/components/knowledgeMap2.vue";
+import knowledgeMap from "@/components/knowledgeMap.vue";
 
 const showKMap = ref<boolean>(false);
 const showMap = () => {

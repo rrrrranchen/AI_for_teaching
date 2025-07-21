@@ -15,7 +15,7 @@
       </div>
 
       <div class="question-content">
-        <p>{{ question.content }}</p>
+        <Markdown :source="question.content" />
       </div>
 
       <div v-if="question.statistics" class="stats-section">
@@ -81,6 +81,7 @@ import {
   LegendComponent,
 } from "echarts/components";
 import VChart from "vue-echarts";
+import Markdown from "vue3-markdown-it";
 
 use([
   PieChart,
@@ -91,7 +92,7 @@ use([
 ]);
 
 export default {
-  components: { VChart },
+  components: { VChart, Markdown },
   props: {
     questions: {
       type: Array,
@@ -104,6 +105,8 @@ export default {
         choice: "选择题",
         fill: "填空题",
         short_answer: "简答题",
+        programming: "编程题",
+        practice: "实践题",
       },
     };
   },

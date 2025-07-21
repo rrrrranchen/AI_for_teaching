@@ -1,140 +1,45 @@
 <template>
   <div class="ai-chat-container">
-    <div class="ai-chat-container">
-      <!-- 消息列表 -->
-      <div class="chat-messages" ref="messagesContainer">
-        <!-- AI欢迎消息 -->
-        <div class="message assistant" v-if="messages.length === 0">
+    <!-- 消息列表 -->
+    <div class="chat-messages" ref="messagesContainer">
+      <!-- AI欢迎消息 -->
+      <div class="message assistant" v-if="messages.length === 0">
+        <div class="message-content">
+          <div class="ai-avatar">
+            <a-avatar size="large" :src="AIavatar" class="nav-avatar">
+            </a-avatar>
+          </div>
+          <div class="text-content">
+            <Markdown :source="welcomeMessage" />
+          </div>
+        </div>
+      </div>
+
+      <!-- 历史消息 -->
+      <template v-for="(msg, index) in messages" :key="msg.id">
+        <!-- 用户消息 -->
+        <div v-if="msg.role === 'user'" class="message user">
           <div class="message-content">
-            <div class="ai-avatar">
-              <a-avatar size="large" :src="AIavatar" class="nav-avatar">
+            <div class="user-avatar">
+              <a-avatar
+                v-if="auth.user?.avatar"
+                size="large"
+                :src="'http://localhost:5000/' + auth.user?.avatar"
+                class="nav-avatar"
+              >
+              </a-avatar>
+              <a-avatar v-else :size="48" class="nav-avatar">
+                <UserOutlined />
               </a-avatar>
             </div>
             <div class="text-content">
-              <Markdown :source="welcomeMessage" />
+              {{ msg.content }}
             </div>
           </div>
         </div>
 
-        <!-- 历史消息 -->
-        <template v-for="(msg, index) in messages" :key="msg.id">
-          <!-- 用户消息 -->
-          <div v-if="msg.role === 'user'" class="message user">
-            <div class="message-content">
-              <div class="user-avatar">
-                <a-avatar
-                  v-if="auth.user?.avatar"
-                  size="large"
-                  :src="'http://localhost:5000/' + auth.user?.avatar"
-                  class="nav-avatar"
-                >
-                </a-avatar>
-                <a-avatar v-else :size="48" class="nav-avatar">
-                  <UserOutlined />
-                </a-avatar>
-              </div>
-              <div class="text-content">
-                {{ msg.content }}
-              </div>
-            </div>
-          </div>
-
-          <!-- AI消息 -->
-          <div v-else class="message assistant">
-            <div class="message-content">
-              <div class="ai-avatar">
-                <a-avatar
-                  size="large"
-                  :src="AIavatar"
-                  class="nav-avatar"
-                ></a-avatar>
-              </div>
-              <div class="text-content">
-                <!-- 思考过程 -->
-                <div
-                  v-if="msg.thinkingMode && msg.thinkingContent"
-                  class="thinking-container"
-                >
-                  <a-collapse
-                    :bordered="false"
-                    :activeKey="thinkingExpanded[msg.id] ? '1' : []"
-                  >
-                    <a-collapse-panel key="1" :showArrow="false">
-                      <template #header>
-                        <div
-                          class="thinking-header"
-                          @click.stop="toggleThinking(msg.id)"
-                        >
-                          <span class="thinking-title">思考过程</span>
-                          <span class="toggle-icon">
-                            {{ thinkingExpanded[msg.id] ? "收起" : "展开" }}
-                          </span>
-                        </div>
-                      </template>
-                      <div class="thinking-text">
-                        {{ msg.thinkingContent }}
-                      </div>
-                    </a-collapse-panel>
-                  </a-collapse>
-                </div>
-                <Markdown :source="msg.content" />
-              </div>
-            </div>
-
-            <!-- 知识参考 -->
-            <div v-if="msg.sources" class="sources-container">
-              <a-collapse class="sources-collapse" :bordered="false">
-                <a-collapse-panel key="1" :header="msg.sources.message">
-                  <div
-                    v-for="(source, sIndex) in msg.sources.sources"
-                    :key="sIndex"
-                    class="source-section"
-                  >
-                    <div class="source-meta">
-                      <span v-if="source.knowledge_base"
-                        >知识库: {{ source.knowledge_base.name }}</span
-                      >
-                      <span v-if="source.category"
-                        >分类: {{ source.category.name }}</span
-                      >
-                      <span v-if="source.file"
-                        >文件: {{ source.file.name }}</span
-                      >
-                    </div>
-                    <div
-                      v-for="(chunk, cIndex) in source.chunks"
-                      :key="cIndex"
-                      class="chunk-item"
-                    >
-                      <div
-                        class="chunk-header"
-                        @click="toggleChunk(index, sIndex, cIndex)"
-                      >
-                        <span>片段 #{{ chunk.position }}</span>
-                        <span class="toggle-icon">
-                          {{
-                            isChunkExpanded(index, sIndex, cIndex)
-                              ? "收起"
-                              : "展开"
-                          }}
-                        </span>
-                      </div>
-                      <div
-                        v-if="isChunkExpanded(index, sIndex, cIndex)"
-                        class="chunk-content"
-                      >
-                        <Markdown :source="chunk.text" />
-                      </div>
-                    </div>
-                  </div>
-                </a-collapse-panel>
-              </a-collapse>
-            </div>
-          </div>
-        </template>
-
-        <!-- 流式输出中的消息 -->
-        <div v-if="isStreaming" class="message assistant">
+        <!-- AI消息 -->
+        <div v-else class="message assistant">
           <div class="message-content">
             <div class="ai-avatar">
               <a-avatar
@@ -144,38 +49,43 @@
               ></a-avatar>
             </div>
             <div class="text-content">
-              <!-- 流式思考过程 -->
+              <!-- 思考过程 -->
               <div
-                v-if="thinkingMode && streamingThinkingContent"
-                class="thinking-bubble"
+                v-if="msg.thinkingMode && msg.thinkingContent"
+                class="thinking-container"
               >
-                <div class="thinking-header">
-                  <span class="thinking-title">思考中...</span>
-                  <div class="typing-indicator">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                  </div>
-                </div>
-                <div class="thinking-text">
-                  {{ streamingThinkingContent }}
-                </div>
+                <a-collapse
+                  :bordered="false"
+                  :activeKey="thinkingExpanded[msg.id] ? '1' : []"
+                >
+                  <a-collapse-panel key="1" :showArrow="false">
+                    <template #header>
+                      <div
+                        class="thinking-header"
+                        @click.stop="toggleThinking(msg.id)"
+                      >
+                        <span class="thinking-title">思考过程</span>
+                        <span class="toggle-icon">
+                          {{ thinkingExpanded[msg.id] ? "收起" : "展开" }}
+                        </span>
+                      </div>
+                    </template>
+                    <div class="thinking-text">
+                      {{ msg.thinkingContent }}
+                    </div>
+                  </a-collapse-panel>
+                </a-collapse>
               </div>
-              <Markdown :source="streamingContent" />
-              <div v-if="!streamingContent" class="typing-indicator">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
+              <Markdown :source="msg.content" />
             </div>
           </div>
 
-          <!-- 流式知识参考（仅在结束时显示） -->
-          <div v-if="streamingSources" class="sources-container">
+          <!-- 知识参考 -->
+          <div v-if="msg.sources" class="sources-container">
             <a-collapse class="sources-collapse" :bordered="false">
-              <a-collapse-panel key="1" :header="streamingSources.message">
+              <a-collapse-panel key="1" :header="msg.sources.message">
                 <div
-                  v-for="(source, sIndex) in streamingSources.sources"
+                  v-for="(source, sIndex) in msg.sources.sources"
                   :key="sIndex"
                   class="source-section"
                 >
@@ -195,19 +105,19 @@
                   >
                     <div
                       class="chunk-header"
-                      @click="toggleStreamingChunk(sIndex, cIndex)"
+                      @click="toggleChunk(index, sIndex, cIndex)"
                     >
                       <span>片段 #{{ chunk.position }}</span>
                       <span class="toggle-icon">
                         {{
-                          isStreamingChunkExpanded(sIndex, cIndex)
+                          isChunkExpanded(index, sIndex, cIndex)
                             ? "收起"
                             : "展开"
                         }}
                       </span>
                     </div>
                     <div
-                      v-if="isStreamingChunkExpanded(sIndex, cIndex)"
+                      v-if="isChunkExpanded(index, sIndex, cIndex)"
                       class="chunk-content"
                     >
                       <Markdown :source="chunk.text" />
@@ -218,53 +128,139 @@
             </a-collapse>
           </div>
         </div>
-      </div>
+      </template>
 
-      <!-- 输入区域 -->
-      <div class="chat-input">
-        <a-textarea
-          v-model:value="inputMessage"
-          placeholder="输入您的问题..."
-          :rows="2"
-          allow-clear
-          @pressEnter="handleSend"
-          :disabled="isLoading"
-        />
-        <div class="input-actions">
-          <span class="char-count">{{ inputMessage.length }}/2000</span>
-          <div v-if="isRecording" class="recording-status">
-            录音中... {{ formatRecordingTime }}
+      <!-- 流式输出中的消息 -->
+      <div v-if="isStreaming" class="message assistant">
+        <div class="message-content">
+          <div class="ai-avatar">
+            <a-avatar
+              size="large"
+              :src="AIavatar"
+              class="nav-avatar"
+            ></a-avatar>
           </div>
-          <!-- 语音输入按钮 -->
-          <a-button
-            class="voice-btn"
-            :type="isRecording ? 'danger' : 'default'"
-            @click="toggleVoiceInput"
-          >
-            <template #icon>
-              <audio-outlined v-if="!isRecording" />
-              <loading-outlined v-else class="recording-animation" />
-            </template>
-            {{ isRecording ? "停止录音" : "语音输入" }}
-          </a-button>
-          <!-- 思考模式切换 -->
-          <a-button
-            class="thinking-btn"
-            :type="thinkingMode ? 'primary' : 'default'"
-            @click="thinkingMode = !thinkingMode"
-          >
-            <template #icon><TrademarkCircleOutlined /></template>
-            深度思考
-          </a-button>
-          <a-button
-            type="primary"
-            @click="handleSend"
-            :loading="isLoading"
-            :disabled="!inputMessage.trim()"
-          >
-            发送
-          </a-button>
+          <div class="text-content">
+            <!-- 流式思考过程 -->
+            <div
+              v-if="thinkingMode && streamingThinkingContent"
+              class="thinking-bubble"
+            >
+              <div class="thinking-header">
+                <span class="thinking-title">思考中...</span>
+                <div class="typing-indicator">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+              </div>
+              <div class="thinking-text">
+                {{ streamingThinkingContent }}
+              </div>
+            </div>
+            <Markdown :source="streamingContent" />
+            <div v-if="!streamingContent" class="typing-indicator">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </div>
         </div>
+
+        <!-- 流式知识参考（仅在结束时显示） -->
+        <div v-if="streamingSources" class="sources-container">
+          <a-collapse class="sources-collapse" :bordered="false">
+            <a-collapse-panel key="1" :header="streamingSources.message">
+              <div
+                v-for="(source, sIndex) in streamingSources.sources"
+                :key="sIndex"
+                class="source-section"
+              >
+                <div class="source-meta">
+                  <span v-if="source.knowledge_base"
+                    >知识库: {{ source.knowledge_base.name }}</span
+                  >
+                  <span v-if="source.category"
+                    >分类: {{ source.category.name }}</span
+                  >
+                  <span v-if="source.file">文件: {{ source.file.name }}</span>
+                </div>
+                <div
+                  v-for="(chunk, cIndex) in source.chunks"
+                  :key="cIndex"
+                  class="chunk-item"
+                >
+                  <div
+                    class="chunk-header"
+                    @click="toggleStreamingChunk(sIndex, cIndex)"
+                  >
+                    <span>片段 #{{ chunk.position }}</span>
+                    <span class="toggle-icon">
+                      {{
+                        isStreamingChunkExpanded(sIndex, cIndex)
+                          ? "收起"
+                          : "展开"
+                      }}
+                    </span>
+                  </div>
+                  <div
+                    v-if="isStreamingChunkExpanded(sIndex, cIndex)"
+                    class="chunk-content"
+                  >
+                    <Markdown :source="chunk.text" />
+                  </div>
+                </div>
+              </div>
+            </a-collapse-panel>
+          </a-collapse>
+        </div>
+      </div>
+    </div>
+
+    <!-- 输入区域 -->
+    <div class="chat-input">
+      <a-textarea
+        v-model:value="inputMessage"
+        placeholder="输入您的问题..."
+        :rows="2"
+        allow-clear
+        @pressEnter="handleSend"
+        :disabled="isLoading"
+      />
+      <div class="input-actions">
+        <span class="char-count">{{ inputMessage.length }}/2000</span>
+        <div v-if="isRecording" class="recording-status">
+          录音中... {{ formatRecordingTime }}
+        </div>
+        <!-- 语音输入按钮 -->
+        <a-button
+          class="voice-btn"
+          :type="isRecording ? 'danger' : 'default'"
+          @click="toggleVoiceInput"
+        >
+          <template #icon>
+            <audio-outlined v-if="!isRecording" />
+            <loading-outlined v-else class="recording-animation" />
+          </template>
+          {{ isRecording ? "停止录音" : "语音输入" }}
+        </a-button>
+        <!-- 思考模式切换 -->
+        <a-button
+          class="thinking-btn"
+          :type="thinkingMode ? 'primary' : 'default'"
+          @click="thinkingMode = !thinkingMode"
+        >
+          <template #icon><TrademarkCircleOutlined /></template>
+          深度思考
+        </a-button>
+        <a-button
+          type="primary"
+          @click="handleSend"
+          :loading="isLoading"
+          :disabled="!inputMessage.trim()"
+        >
+          发送
+        </a-button>
       </div>
     </div>
   </div>
@@ -433,6 +429,7 @@ const sendMessage = async () => {
         thinking_mode: thinkingMode.value,
         class_id: props.classId,
         history: recentHistory,
+        chunk_cnt: 2,
       },
       (response) => {
         switch (response.status) {
@@ -636,6 +633,7 @@ onUnmounted(() => {
 .chat-messages {
   flex: 1;
   overflow-y: auto;
+  height: 86vh;
   padding-top: 18px;
 
   background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
@@ -794,6 +792,7 @@ onUnmounted(() => {
 }
 
 .chat-input {
+  height: 14vh;
   padding: 10px;
   border-top: 1px solid #e2e8f0;
   background: white;

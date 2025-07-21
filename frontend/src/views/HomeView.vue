@@ -12,7 +12,7 @@
                   <rocket-two-tone style="font-size: 36px; color: #1890ff" />
                   <div class="stat-content">
                     <div class="stat-title">智能备课平均耗时</div>
-                    <div class="stat-value">33.56分钟</div>
+                    <div class="stat-value">33.6分钟</div>
                     <div class="stat-trend">
                       相比传统备课时间节省<arrow-down-outlined
                         style="color: #52c41a"

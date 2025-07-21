@@ -128,7 +128,7 @@
                     :disabled="!output || output === '运行结果将显示在这里...'"
                     class="save-output-btn"
                   >
-                    保存输出为答案
+                    保存为答案
                   </a-button>
                 </div>
               </div>
@@ -173,6 +173,24 @@
                 <h3>题目解析</h3>
                 <Markdown :source="currentQuestion.analysis || '暂无解析'" />
               </div>
+              <div
+                class="practice-generation"
+                v-if="currentQuestion.has_answered"
+              >
+                <h3>随练题目生成</h3>
+                <a-button
+                  type="primary"
+                  @click="generatePracticeQuestions"
+                  :loading="isGeneratingPractice"
+                  :disabled="isGeneratingPractice"
+                >
+                  {{ isGeneratingPractice ? "生成中..." : "生成随练题目" }}
+                </a-button>
+
+                <div class="generated-questions" v-if="generatedPractice">
+                  <Markdown :source="generatedPractice" />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -193,13 +211,15 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, defineProps, defineEmits } from "vue";
+import { ref, computed, onMounted, watch, defineProps, onUnmounted } from "vue";
 import Markdown from "vue3-markdown-it";
 import CodeEditor from "@/components/questions/CodeEditor.vue";
 import QuestionAIChat from "@/components/QuestionAIChat.vue";
 import { questionApi } from "@/api/questions";
+import { questionClassChat } from "@/api/aichat";
 import { message } from "ant-design-vue";
 import dayjs from "dayjs";
+import { addStudentAnswers } from "@/api/studentanswer";
 
 const props = defineProps({
   classId: {
@@ -216,9 +236,6 @@ const props = defineProps({
     default: null,
   },
 });
-
-// 2. 添加emit定义
-const emit = defineEmits(["submit"]);
 
 // 3. 添加截止时间检查
 const isDeadlinePassed = computed(() => {
@@ -276,10 +293,6 @@ const loadQuestions = async () => {
 const saveAnswer = () => {
   if (currentAnswer.value.trim() !== "") {
     savedAnswers.value[currentIndex.value] = currentAnswer.value;
-    localStorage.setItem(
-      `postExerciseAnswers_${props.courseId}`,
-      JSON.stringify(savedAnswers.value)
-    );
   }
 };
 
@@ -334,18 +347,23 @@ const submitAll = async () => {
         answer: answer,
       })
     );
+    const params = {
+      courseclass_id: props.classId,
+      answers: answers.map((a) => ({
+        question_id: a.questionId,
+        answer: a.answer,
+      })),
+    };
 
+    await addStudentAnswers(params);
+    message.success(`已提交 ${answers.length} 个答案`);
     // 触发submit事件
-    emit("submit", answers);
+    // emit("submit", answers);
 
-    // 清空本地存储
-    localStorage.removeItem(`postExerciseAnswers_${props.courseId}`);
     savedAnswers.value = {};
 
     // 重新加载题目以更新答题状态
     await loadQuestions();
-
-    message.success("答案提交成功！");
   } catch (error) {
     message.error("提交失败，请重试");
     console.error("提交错误:", error);
@@ -444,6 +462,57 @@ watch(currentIndex, (newIndex) => {
 onMounted(() => {
   loadQuestions();
 });
+// 新增状态变量
+const isGeneratingPractice = ref(false);
+const generatedPractice = ref("");
+
+// 生成随练题目方法
+const generatePracticeQuestions = async () => {
+  if (!currentQuestion.value.id) return;
+
+  isGeneratingPractice.value = true;
+  generatedPractice.value = "";
+
+  try {
+    // 使用questionClassChat接口
+    let cancelFunction;
+    const prompt =
+      "请帮我生成两道关于这道题的随练题目，要求题目类型和难度与本题相似，直接给我两道题目内容即可，题目内容做好排版。";
+
+    cancelFunction = questionClassChat(
+      currentQuestion.value.id, // 题目ID
+      {
+        query: prompt,
+        thinking_mode: false, // 不需要思考过程
+        class_id: props.classId,
+        history: [], // 不需要历史记录
+        chunk_cnt: 0, // 不需要知识参考
+      },
+      (response) => {
+        // 处理流式输出
+        if (response.status === "content") {
+          generatedPractice.value += response.content;
+        }
+      },
+      (error) => {
+        console.error("生成随练题目失败:", error);
+        message.error("生成随练题目失败");
+      },
+      () => {
+        isGeneratingPractice.value = false;
+      }
+    );
+
+    // 组件卸载时取消请求
+    onUnmounted(() => {
+      cancelFunction?.();
+    });
+  } catch (error) {
+    console.error("请求错误:", error);
+    isGeneratingPractice.value = false;
+    message.error("请求发送失败");
+  }
+};
 </script>
 
 <style scoped>
@@ -662,5 +731,27 @@ onMounted(() => {
   height: 100%;
   border-radius: 0;
   box-shadow: none;
+}
+
+/* 新增样式 */
+.practice-generation {
+  margin-top: 25px;
+  padding: 20px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  border: 1px solid #e8e8e8;
+}
+
+.practice-generation h3 {
+  margin-bottom: 15px;
+  color: #1890ff;
+}
+
+.generated-questions {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: white;
+  border-radius: 6px;
+  border: 1px solid #f0f0f0;
 }
 </style>

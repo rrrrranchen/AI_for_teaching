@@ -34,7 +34,6 @@
           :classId="courseclassId"
           :courseId="courseId"
           :deadline="postClassDeadline"
-          @submit="handlePostSubmit"
         />
       </a-tab-pane>
 

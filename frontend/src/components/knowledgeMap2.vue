@@ -329,12 +329,6 @@ const initChart = () => {
 const getChartOption = () => {
   return {
     backgroundColor: "#ffffff",
-    title: {
-      text: "Python 知识图谱",
-      top: "top",
-      left: "center",
-      textStyle: { color: "#333", fontSize: 20 },
-    },
     tooltip: {
       backgroundColor: "rgba(255,255,255,0.95)",
       borderColor: "#ddd",

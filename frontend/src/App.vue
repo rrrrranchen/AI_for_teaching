@@ -9,7 +9,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
 // import programmingTest from "./components/programmingTest.vue";
-// import knowledgeMap from "./components/knowledgemap.vue";
 </script>
 
 <style></style>

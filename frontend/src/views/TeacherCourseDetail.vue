@@ -254,6 +254,8 @@
             <a-select-option value="choice">选择题</a-select-option>
             <a-select-option value="fill">填空题</a-select-option>
             <a-select-option value="short_answer">简答题</a-select-option>
+            <a-select-option value="programming">编程题</a-select-option>
+            <a-select-option value="practice">实践题</a-select-option>
           </a-select>
         </a-form-item>
         <a-form-item label="题目内容" required>
@@ -515,7 +517,7 @@ export default defineComponent({
         vditorInstance.value = new Vditor("vditor-content-editor", {
           value: question.content,
           placeholder: "请输入题目内容（支持Markdown格式）",
-          height: 300,
+          height: 500,
           mode: "sv",
           toolbar: [
             "emoji",

@@ -659,6 +659,7 @@ const sendMessage = async () => {
             role: m.role,
             content: m.content,
           })),
+        chunk_cnt: 2,
       },
       (response) => {
         switch (response.status) {

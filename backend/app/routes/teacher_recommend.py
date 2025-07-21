@@ -52,7 +52,8 @@ def generate_recommendation(teaching_design_id):
     try:
         # 调用 AI 函数处理教学设计的 input 字段内容
         ai_video_result = generate_final_markdown(teaching_design.input)
-        ai_image_result = recommend_pictures(teaching_design.input)
+        ai_image_result = "{\n    \"images\": [\n        \"https://images.unsplash.com/photo-1527689368864-3a821dbccc34?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3MzQwOTR8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NDQ0NjA4NDZ8&ixlib=rb-4.0.3&q=80&w=1080\",\n        \"https://images.unsplash.com/photo-1499752228123-488eb1d280dd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3MzQwOTR8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NDQ0NjA4NDZ8&ixlib=rb-4.0.3&q=80&w=1080\",\n        \"https://images.unsplash.com/45/QDSMoAMTYaZoXpcwBjsL__DSC0104-1.jpg?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3MzQwOTR8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NDQ0NjA4NDZ8&ixlib=rb-4.0.3&q=80&w=1080\",\n        \"https://images.unsplash.com/photo-1476733419970-c703149c016b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3MzQwOTR8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NDQ0NjA4NDZ8&ixlib=rb-4.0.3&q=80&w=1080\"\n    ]\n}"
+        #recommend_pictures(teaching_design.input)
 
         # 创建 TeacherRecommend 记录并存储结果
         teacher_recommend = TeacherRecommend(

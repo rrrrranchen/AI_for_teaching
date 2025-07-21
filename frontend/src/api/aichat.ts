@@ -9,7 +9,7 @@ export interface ChatMessage {
   }>;
   class_id: number; //问题需要
   // similarity_threshold?: number;
-  // chunk_cnt?: number;
+  chunk_cnt: 2;
   // api_key?: string;
   // data_type_filter?: string | null;
 }

@@ -311,6 +311,9 @@ const handleOk = async () => {
       })),
     ];
 
+    // 上传成功后清空文件列表
+    fileList.value = [];
+
     // 显示结果消息
     if (result.data.failed.length === 0) {
       message.success(`成功上传 ${result.data.succeeded.length} 个文件`);

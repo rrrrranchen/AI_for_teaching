@@ -211,7 +211,7 @@ import {
   getCategories,
 } from "@/api/knowledgebase";
 import KnowledgeBaseCreateModal from "./KnowledgeBaseCreateModal.vue";
-import knowledgeMap from "@/components/knowledgeMap.vue";
+import knowledgeMap from "@/components/knowledgeMap2.vue";
 
 const showKMap = ref<boolean>(false);
 const showMap = () => {

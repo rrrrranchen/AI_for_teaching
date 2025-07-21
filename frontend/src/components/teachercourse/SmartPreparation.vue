@@ -21,7 +21,7 @@
         <a-textarea
           v-model:value="content"
           placeholder="在这里输入详细的教学内容..."
-          :auto-size="{ minRows: 8, maxRows: 8 }"
+          :auto-size="{ minRows: 9, maxRows: 9 }"
           class="content-textarea"
           allow-clear
         />
@@ -36,7 +36,7 @@
           placeholder="在这里输入明确的教学目标..."
           class="content-textarea"
           allow-clear
-          :auto-size="{ minRows: 8, maxRows: 8 }"
+          :auto-size="{ minRows: 9, maxRows: 9 }"
         />
 
         <!-- New AI Generation Cards Section -->
@@ -69,9 +69,10 @@
           </a-card>
 
           <a-card
+            a-card
             hoverable
             class="generation-card"
-            @click="showGenerateTeachingDesignConfirm"
+            @click="showGenerateTeachingDesignModal"
           >
             <template #cover
               ><img
@@ -130,6 +131,25 @@
       </a-card>
     </div>
   </div>
+  <!-- 新增生成中模态框 -->
+  <a-modal
+    v-model:visible="generatingTeachingDesignModal"
+    title="生成教学设计"
+    :footer="null"
+    :closable="false"
+    :maskClosable="false"
+    width="400px"
+  >
+    <div class="generating-modal-content">
+      <img src="@/assets/loading.gif" alt="生成中" class="generating-gif" />
+      <div class="generating-text">
+        <loading-outlined :style="{ fontSize: '24px', color: '#1890ff' }" />
+        <span style="margin-top: 16px; margin-left: 12px"
+          >多智能体团队正在努力生成...</span
+        >
+      </div>
+    </div>
+  </a-modal>
 </template>
 
 <script lang="ts">
@@ -214,11 +234,14 @@ export default defineComponent({
       }
     };
 
+    // 原有的生成函数保持不变
     const handleGenerateTeachingDesign = async () => {
       try {
         generating.value = true;
         await createTeachingDesign({ course_id: courseId.value });
         message.success("教学设计生成成功");
+        // 刷新教学设计列表
+        await fetchTeachingDesigns();
       } catch (error) {
         message.error("生成教学设计失败");
         console.error("生成教学设计错误:", error);
@@ -242,18 +265,18 @@ export default defineComponent({
       });
     };
 
-    const showGenerateTeachingDesignConfirm = () => {
-      Modal.confirm({
-        title: "确认生成",
-        content: "确定要根据当前教学内容和目标生成教学设计吗？",
-        okText: "确定",
-        cancelText: "取消",
-        onOk() {
-          return handleGenerateTeachingDesign();
-        },
-        onCancel() {
-          console.log("取消生成教学设计");
-        },
+    // 新增状态控制模态框
+    const generatingTeachingDesignModal = ref(false);
+
+    // 修改后的生成教学设计函数
+    const showGenerateTeachingDesignModal = () => {
+      // 先显示生成中模态框
+      generatingTeachingDesignModal.value = true;
+
+      // 然后执行生成任务
+      handleGenerateTeachingDesign().finally(() => {
+        // 完成后关闭模态框
+        generatingTeachingDesignModal.value = false;
       });
     };
 
@@ -280,6 +303,7 @@ export default defineComponent({
     });
 
     return {
+      generatingTeachingDesignModal,
       content,
       objectives,
       saving,
@@ -289,7 +313,7 @@ export default defineComponent({
       handleGeneratePreQuestions,
       handleGenerateTeachingDesign,
       showGeneratePreQuestionsConfirm,
-      showGenerateTeachingDesignConfirm,
+      showGenerateTeachingDesignModal,
       handleDesignClick,
     };
   },
@@ -454,5 +478,33 @@ export default defineComponent({
   margin-top: 24px;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+/* 新增生成中模态框样式 */
+.generating-modal-content {
+  text-align: center;
+  padding: 20px;
+}
+
+.generating-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.generating-gif {
+  width: 150px;
+  height: 150px;
+  display: block;
+  margin: 0 auto;
+}
+
+.generating-tip {
+  margin-top: 20px;
+  color: #8c8c8c;
+  font-size: 14px;
 }
 </style>
