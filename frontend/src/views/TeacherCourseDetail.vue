@@ -1,20 +1,27 @@
 <template>
   <!-- 面包屑导航 -->
   <div class="breadcrumb-section">
-    <a-breadcrumb separator=">">
+    <a-breadcrumb>
+      <template #separator>
+        <right-outlined class="breadcrumb-sep-icon" />
+      </template>
       <a-breadcrumb-item>
-        <router-link to="/home/my-class">我的课程</router-link>
+        <router-link to="/home/my-class" class="breadcrumb-link">
+          <home-outlined class="breadcrumb-home-icon" />
+          <span class="breadcrumb-text">我的课程</span>
+        </router-link>
       </a-breadcrumb-item>
       <a-breadcrumb-item>
         <router-link
+          class="breadcrumb-link"
           :to="{
             path: `/home/courseclass/${courseclassId}`,
           }"
-          >{{ courseclassName }}</router-link
-        >
+          ><span class="breadcrumb-text">{{ courseclassName }}</span>
+        </router-link>
       </a-breadcrumb-item>
       <a-breadcrumb-item>
-        {{ courseName }}
+        <span class="breadcrumb-current">{{ courseName }}</span>
       </a-breadcrumb-item>
     </a-breadcrumb>
   </div>
@@ -290,6 +297,8 @@ import {
   DownOutlined,
   SyncOutlined,
   CalendarOutlined,
+  HomeOutlined,
+  RightOutlined,
 } from "@ant-design/icons-vue";
 import {
   setPreviewDeadline,
@@ -326,6 +335,8 @@ export default defineComponent({
     DownOutlined,
     SyncOutlined,
     CalendarOutlined,
+    HomeOutlined,
+    RightOutlined,
     SmartPreparation,
   },
   setup() {
@@ -838,11 +849,55 @@ export default defineComponent({
 }
 
 /* 面包屑导航样式 */
+.breadcrumb-link {
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  color: #1677ff;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #e6f4ff 0%, #f0f7ff 100%);
+  border: 1px solid #c8e5fb;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.12);
+}
+
+.breadcrumb-link:hover {
+  color: #0958d9;
+}
+
+.breadcrumb-home-icon {
+  font-size: 14px;
+  margin-right: 6px;
+}
+
+.breadcrumb-sep-icon {
+  color: #8c8c8c;
+  font-size: 12px;
+}
+
+.breadcrumb-text {
+  font-weight: 500;
+}
+
+.breadcrumb-current {
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #e6f4ff 0%, #f0f7ff 100%);
+  border: 1px solid #c8e5fb;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.12);
+  font-weight: 600;
+  color: #1d2129;
+}
+
+/* 面包屑导航样式 */
 .ant-breadcrumb {
-  padding: 16px 24px; /* 上下间距和左间距 */
+  padding-top: 16px;
+  padding-left: 24px; /* 上下间距和左间距 */
   font-size: 16px; /* 字体大小 */
   line-height: 1.5;
-  margin-bottom: 10px; /* 下间距 */
 }
 
 .ant-breadcrumb a {

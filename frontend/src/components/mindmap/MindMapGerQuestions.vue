@@ -198,30 +198,6 @@ const fetchMindMap = async () => {
     const response = await apiGetMindMap(props.designId);
     mindMapData.value = response.mindmap;
     console.log("mindMapData", mindMapData.value);
-
-    // 模拟数据
-    // mindMapData.value = {
-    //   data: {
-    //     text: "因特网和组成技术知识点",
-    //     id: 1,
-    //   },
-    //   children: [
-    //     {
-    //       data: {
-    //         text: "网络基本概念",
-    //         id: 2,
-    //       },
-    //       children: [
-    //         {
-    //           data: {
-    //             text: "因特网的定义与特点",
-    //             id: 3,
-    //           },
-    //         },
-    //       ],
-    //     },
-    //   ],
-    // };
   } catch (error) {
     message.error("获取思维导图失败");
     console.error(error);
@@ -325,7 +301,7 @@ onMounted(() => {
 
 .mind-map-wrapper {
   flex: 1;
-  min-height: 500px;
+  min-height: 550px;
   border: 1px solid #f0f0f0;
   border-radius: 4px;
   overflow: hidden;

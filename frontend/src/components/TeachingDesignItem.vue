@@ -12,7 +12,7 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { useRouter } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
 
 export default defineComponent({
   name: "TeachingDesignItem",
@@ -24,6 +24,7 @@ export default defineComponent({
   },
   setup(props) {
     const router = useRouter();
+    const route = useRoute();
 
     // 格式化日期
     const formatDate = (dateString: string) => {
@@ -33,11 +34,22 @@ export default defineComponent({
 
     // 点击卡片跳转到教学设计详情
     const handleCardClick = () => {
+      const courseId = route.params.courseId as string | undefined;
+      const courseName = (route.query.courseName as string) || undefined;
+      const courseclassId = (route.query.courseclassId as string) || undefined;
+      const courseclassName =
+        (route.query.courseclassName as string) || undefined;
+
       router.push({
         path: `/home/teaching-design/${props.design.design_id}`,
         query: {
           title: props.design.title,
           default_version_id: props.design.default_version_id,
+          // 从父级路由携带上下文，便于编辑页面包屑展示
+          courseId,
+          courseName,
+          courseclassId,
+          courseclassName,
         },
       });
     };

@@ -2,34 +2,43 @@
 <template>
   <div class="teacher-recommendations">
     <a-spin :spinning="loadingRecommend">
-      <div v-if="recommendData">
-        <!-- 视频推荐 -->
-        <div class="video-recommendations">
-          <h3>视频资源推荐</h3>
-          <div class="markdown-content" v-html="renderedVideoRecommend"></div>
+      <div v-if="videoList.length > 0" class="video-container">
+        <!-- 左侧视频播放器 -->
+        <div class="video-player">
+          <iframe
+            :src="`//player.bilibili.com/player.html?bvid=${currentVideo.bvid}&page=1`"
+            width="100%"
+            height="800"
+            scrolling="no"
+            frameborder="0"
+          ></iframe>
+          <div class="video-info">
+            <h3>{{ currentVideo.title }}</h3>
+            <p>{{ currentVideo.description }}</p>
+          </div>
         </div>
 
-        <div class="image-recommendations">
-          <h3>推荐图片素材</h3>
-          <a-empty
-            v-if="imageRecommendations.length === 0"
-            description="暂无推荐图片"
-          />
-          <div v-else class="image-grid">
-            <div
-              v-for="(img, index) in imageRecommendations"
-              :key="index"
-              class="image-item"
-            >
-              <a-image :src="img" height="150px" :preview="true">
-                <template #previewMask>
-                  <a-button type="primary" @click.stop="downloadImage(img)">
-                    <download-outlined /> 下载
-                  </a-button>
-                </template>
-              </a-image>
-            </div>
-          </div>
+        <!-- 右侧推荐列表 -->
+        <div class="video-list">
+          <h3>推荐视频列表 ({{ videoList.length }})</h3>
+          <a-list
+            :data-source="videoList"
+            item-layout="horizontal"
+            :split="false"
+          >
+            <template #renderItem="{ item, index }">
+              <a-list-item
+                :class="['video-item', { active: currentVideoIndex === index }]"
+                @click="changeVideo(index)"
+              >
+                <a-list-item-meta :description="item.description">
+                  <template #title>
+                    <a>{{ index + 1 }}. {{ item.title }}</a>
+                  </template>
+                </a-list-item-meta>
+              </a-list-item>
+            </template>
+          </a-list>
         </div>
       </div>
 
@@ -49,45 +58,19 @@ import { message } from "ant-design-vue";
 import {
   generateTeachingRecommendation,
   getRecommendationByDesign,
-  type RecommendationData,
 } from "@/api/teacher_recommend";
-import { DownloadOutlined, BulbOutlined } from "@ant-design/icons-vue";
-import MarkdownIt from "markdown-it";
-import hljs from "highlight.js";
-import "highlight.js/styles/github.css";
+import { BulbOutlined } from "@ant-design/icons-vue";
 
-// 初始化 Markdown 解析器
-const initMarkdownParser = () => {
-  return new MarkdownIt({
-    html: true,
-    linkify: true,
-    typographer: true,
-    highlight: function (str, lang) {
-      if (lang && hljs.getLanguage(lang)) {
-        try {
-          return (
-            '<pre class="hljs"><code>' +
-            hljs.highlight(str, { language: lang, ignoreIllegals: true })
-              .value +
-            "</code></pre>"
-          );
-        } catch (err) {
-          console.error("代码高亮错误:", err);
-        }
-      }
-      return (
-        '<pre class="hljs"><code>' +
-        MarkdownIt().utils.escapeHtml(str) +
-        "</code></pre>"
-      );
-    },
-  });
-};
+interface VideoItem {
+  title: string;
+  description: string;
+  link: string;
+  bvid: string;
+}
 
 export default defineComponent({
   name: "TeacherRecommendations",
   components: {
-    DownloadOutlined,
     BulbOutlined,
   },
   props: {
@@ -97,30 +80,66 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const md = initMarkdownParser();
-    const recommendData = ref<RecommendationData | null>(null);
     const loadingRecommend = ref(false);
+    const currentVideoIndex = ref(0);
+    const videoList = ref<VideoItem[]>([]);
 
-    // 计算属性渲染Markdown
-    const renderedVideoRecommend = computed(() => {
-      if (!recommendData.value?.video_recommendations) return "";
-
-      // 预处理代码块
-      const content = recommendData.value.video_recommendations
-        .replace(/<pre><code>/g, "```") // 转换旧格式代码块
-        .replace(/<\/code><\/pre>/g, "```");
-
-      return md.render(content);
+    // 当前播放的视频
+    const currentVideo = computed(() => {
+      return (
+        videoList.value[currentVideoIndex.value] || {
+          title: "",
+          description: "",
+          link: "",
+          bvid: "",
+        }
+      );
     });
 
+    // 切换视频
+    const changeVideo = (index: number) => {
+      currentVideoIndex.value = index;
+      // 滚动到选中的视频项
+      const element = document.querySelector(`.video-item.active`);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    };
+    const parseVideoLink = (link: string) => {
+      // 支持两种B站链接格式：
+      // 1. https://www.bilibili.com/video/BV1La411e7NC/
+      // 2. https://b23.tv/BV1La411e7NC
+      const match = link.match(/(?:video\/|tv\/)(BV\w+)/);
+      return match ? match[1] : null;
+    };
     // 加载推荐资源
     const loadRecommendations = async () => {
       try {
         loadingRecommend.value = true;
-        recommendData.value = await getRecommendationByDesign(props.designId);
-        console.log("获取的资源：", recommendData.value);
+        const response = await getRecommendationByDesign(props.designId);
+        console.log("Response:", response!.video_recommendations);
+        // 直接解析返回的JSON数据
+        if (response && response.video_recommendations) {
+          try {
+            const parsedData = JSON.parse(response.video_recommendations);
+            if (parsedData.videos && Array.isArray(parsedData.videos)) {
+              // 在loadRecommendations中处理数据时
+              videoList.value = parsedData.videos.map((video: any) => ({
+                ...video,
+                bvid: parseVideoLink(video.link),
+              }));
+              if (videoList.value.length > 0) {
+                currentVideoIndex.value = 0;
+              }
+            }
+          } catch (e) {
+            console.error("JSON解析错误:", e);
+            message.error("视频数据格式不正确");
+          }
+        }
       } catch (error) {
         message.error("获取推荐资源失败");
+        console.error("获取推荐资源错误:", error);
       } finally {
         loadingRecommend.value = false;
       }
@@ -135,45 +154,24 @@ export default defineComponent({
         message.success("推荐资源生成成功");
       } catch (error) {
         message.error("推荐资源生成失败");
+        console.error("生成推荐资源错误:", error);
       } finally {
         loadingRecommend.value = false;
       }
     };
 
-    // 下载图片
-    const downloadImage = (url: string) => {
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = url.split("/").pop() || "recommend-image";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    };
-
-    // 新增：解析图片推荐数据
-    const imageRecommendations = computed(() => {
-      if (!recommendData.value?.image_recommendations) return [];
-
-      try {
-        const parsed = JSON.parse(recommendData.value.image_recommendations);
-        return parsed.images || [];
-      } catch (error) {
-        console.error("图片数据解析失败:", error);
-        return [];
-      }
-    });
     // 初始化加载
     onMounted(async () => {
       await loadRecommendations();
     });
 
     return {
-      recommendData,
       loadingRecommend,
-      renderedVideoRecommend,
-      imageRecommendations,
+      videoList,
+      currentVideo,
+      currentVideoIndex,
       generateRecommend,
-      downloadImage,
+      changeVideo,
     };
   },
 });
@@ -183,92 +181,98 @@ export default defineComponent({
 .teacher-recommendations {
   padding: 16px;
   border-radius: 8px;
-  height: 83vh;
+  height: calc(100vh - 64px - 32px);
 }
 
-/* Markdown 内容样式 */
-.markdown-content {
-  padding: 24px;
+.video-container {
+  display: flex;
+  gap: 24px;
+  height: 100%;
+}
+
+.video-player {
+  flex: 3;
+  min-width: 0;
   background: #fff;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
-  max-height: 50vh;
-  overflow-y: auto;
-  line-height: 1.6;
-  margin-bottom: 16px;
-}
-
-.markdown-content :deep() h1,
-.markdown-content :deep() h2,
-.markdown-content :deep() h3 {
-  color: rgba(0, 0, 0, 0.85);
-  margin: 1em 0;
-}
-
-.markdown-content :deep() pre {
-  max-width: 100%;
-  overflow-x: auto;
-  background: #f6f8fa;
   padding: 16px;
-  border-radius: 6px;
-  margin: 1em 0;
-}
-
-.markdown-content :deep() code {
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-  font-size: 0.9em;
-}
-
-.markdown-content :deep() img {
-  max-width: 100%;
-  height: auto;
-  margin: 1em 0;
-  border-radius: 4px;
-}
-
-.markdown-content :deep() table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 1em 0;
-  background: #fff;
-}
-
-.markdown-content :deep() th,
-.markdown-content :deep() td {
-  border: 1px solid #dfe2e5;
-  padding: 0.6em 1em;
-  text-align: left;
-}
-
-.markdown-content :deep() blockquote {
-  border-left: 4px solid #1890ff;
-  margin: 1em 0;
-  padding-left: 1em;
-  color: #6a737d;
-  background: #f8f8f8;
-}
-
-/* 图片网格样式 */
-.image-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 16px;
-  margin-top: 16px;
 }
 
-.image-item {
-  border: 1px solid #f0f0f0;
+.video-info h3 {
+  margin: 0;
+  font-size: 18px;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+.video-info p {
+  margin: 8px 0 0;
+  color: rgba(0, 0, 0, 0.65);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.video-list {
+  flex: 1;
+  min-width: 300px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
+  padding: 16px;
+  overflow-y: auto;
+  max-height: 600px;
+}
+
+.video-item {
+  padding: 12px;
   border-radius: 4px;
-  overflow: hidden;
-  transition: transform 0.2s;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin-bottom: 8px;
 }
 
-.image-item:hover {
-  transform: translateY(-3px);
+.video-item:hover {
+  background-color: #f5f5f5;
+}
+
+.video-item.active {
+  background-color: #e6f7ff;
+  border-left: 3px solid #1890ff;
+}
+
+.video-item :deep(.ant-list-item-meta-title) {
+  margin-bottom: 4px;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.video-item :deep(.ant-list-item-meta-description) {
+  color: rgba(0, 0, 0, 0.65);
+  font-size: 13px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 空状态样式 */
 .ant-empty {
   margin: 40px 0;
+}
+
+@media (max-width: 768px) {
+  .video-container {
+    flex-direction: column;
+  }
+
+  .video-player,
+  .video-list {
+    flex: none;
+    width: 100%;
+  }
 }
 </style>

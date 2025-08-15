@@ -118,14 +118,12 @@
               @click="handleDesignClick(teachingDesigns[0])"
             />
             <!-- 添加思维导图生成题目组件 -->
-            <a-card
-              v-if="teachingDesigns.length > 0"
-              class="mind-map-card"
-              title="思维导图课后习题生成"
-              :bordered="false"
-            >
-              <MindMapGerQuestions :design-id="teachingDesigns[0].design_id" />
-            </a-card>
+            <a-divider class="divider" />
+            <div class="card-title" style="margin-bottom: 16px">
+              <rocket-outlined class="title-icon" />
+              <span style="font-size: large">思维导图课后习题生成</span>
+            </div>
+            <MindMapGerQuestions :design-id="teachingDesigns[0].design_id" />
           </div>
         </div>
       </a-card>

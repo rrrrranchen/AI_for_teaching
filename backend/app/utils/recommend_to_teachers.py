@@ -10,10 +10,36 @@ client = OpenAI(api_key=key, base_url="https://api.deepseek.com")
 
 
 # 提取关键词的函数
+def extract_keywords_from_design(report):
+    # 使用 DeepSeek 进行关键词提取
+    prompt = f"""
+请从以下教学设计中提取出相关的一个关键词，要求：
+- 关键词应紧密相关于课程内容。
+- 只需一个关键词并且尽量简洁，最好不超过10个字。
+- 例如：路由器与交换机区别、HTTPS 协议，而不是模糊的错误类型如“网络设备混淆”。
+
+
+以下是设计内容：
+{report}
+"""
+    # 调用 DeepSeek API 提取关键词
+    response = client.chat.completions.create(
+        model="deepseek-chat",
+        messages=[
+            {"role": "system", "content": "你是一个教育领域的助手，擅长从教学设计中提取关键点和关键词"},
+            {"role": "user", "content": prompt}
+        ],
+        stream=False
+    )
+
+    # 返回提取的关键词
+    extracted_keywords = response.choices[0].message.content.strip()
+    return extracted_keywords
+
 def extract_keywords_from_report(report):
     # 使用 DeepSeek 进行关键词提取
     prompt = f"""
-请从以下报告中提取出 错题相关的一个具体知识点，要求：
+请从以下报告中提取出 相关的一个具体知识点，要求：
 - 知识点应紧密相关于课程内容，具体到学科概念或技能点。
 - 只需一个知识点并且尽量简洁，最好不超过10个字。
 - 重点关注学生常见错误的知识点，并排除泛泛的错误分类。
@@ -111,7 +137,7 @@ def polish_title_description(video_infos):
 
 # 步骤4：主调用函数，组装最终 Markdown 格式输出
 def generate_final_markdown(input):
-    keyword = extract_keywords_from_report(input)
+    keyword = extract_keywords_from_design(input)
     links = recommend_bilibili_videos(keyword)
     if isinstance(links, str):
         return links  # 错误信息
@@ -130,6 +156,36 @@ def generate_final_markdown(input):
         markdown.append(f"{block.strip()}\n- 相关链接：{link}\n")
 
     return "\n".join(markdown)
+# Modified version to return JSON format for video recommendations
+def generate_final_json(input):
+    keyword = extract_keywords_from_design(input)
+    links = recommend_bilibili_videos(keyword)
+    if isinstance(links, str):
+        return json.dumps({"error": links}, ensure_ascii=False)  # Return error as JSON
+
+    video_infos = [fetch_video_info(link) for link in links]
+    ai_result = polish_title_description(video_infos)
+
+    # Parse AI's polished results
+    result_blocks = ai_result.strip().split("\n\n")
+    videos = []
+    
+    for i, block in enumerate(result_blocks):
+        if i >= len(video_infos):
+            break
+            
+        # Parse the polished title and description
+        lines = block.split('\n')
+        polished_title = lines[0].replace("资源推荐：", "").strip()
+        polished_desc = lines[1].replace("资源简介：", "").strip()
+        
+        videos.append({
+            "title": polished_title,
+            "description": polished_desc,
+            "link": video_infos[i]["link"]
+        })
+
+    return json.dumps({"videos": videos}, indent=4, ensure_ascii=False)
 
 
 # -----------------------------推荐图片---------------------------------------------------------------

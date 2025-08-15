@@ -4,7 +4,7 @@ import LoginAregister from "../views/loginAregister.vue";
 import BasicLayout from "../layouts/BasicLayout.vue";
 import AdminLayout from "../layouts/AdminLayout.vue";
 import HomeView from "../views/HomeView.vue";
-import SmartPreparationView from "../views/SmartPreparationView.vue";
+import SmartPreparationView from "../views/SmartPPT.vue";
 import MyProfileView from "../views/MyProfile.vue";
 import { useAuthStore } from "@/stores/auth";
 const routes: Array<RouteRecordRaw> = [
@@ -157,7 +157,7 @@ const routes: Array<RouteRecordRaw> = [
         path: "teaching-design/:designId",
         name: "teaching-design",
         component: () => import("../views/TeachingDesignEdit.vue"),
-        meta: { menuKey: 3 },
+        meta: { menuKey: 2 },
       },
       {
         path: "community",

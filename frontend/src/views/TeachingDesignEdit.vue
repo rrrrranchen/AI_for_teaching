@@ -1,10 +1,40 @@
 <template>
   <div class="header-container">
-    <a-breadcrumb separator=">">
-      <a-breadcrumb-item>
-        <router-link to="/home/smart-preparation">智慧备课</router-link>
+    <a-breadcrumb>
+      <template #separator>
+        <right-outlined class="breadcrumb-sep-icon" />
+      </template>
+      <a-breadcrumb-item class="breadcrumb-item">
+        <router-link to="/home/my-class" class="breadcrumb-link">
+          <home-outlined class="breadcrumb-home-icon" />
+          <span class="breadcrumb-text">我的课程</span>
+        </router-link>
       </a-breadcrumb-item>
-      <a-breadcrumb-item>{{ design?.title }}</a-breadcrumb-item>
+      <a-breadcrumb-item
+        class="breadcrumb-item"
+        v-if="courseclassId && courseclassName"
+      >
+        <router-link
+          :to="{ path: `/home/courseclass/${courseclassId}` }"
+          class="breadcrumb-link"
+        >
+          <span class="breadcrumb-text">{{ courseclassName }}</span>
+        </router-link>
+      </a-breadcrumb-item>
+      <a-breadcrumb-item class="breadcrumb-item" v-if="courseId && courseName">
+        <router-link
+          :to="{
+            path: `/home/t-course/${courseId}`,
+            query: { courseclassId, courseclassName, courseName },
+          }"
+          class="breadcrumb-link"
+        >
+          <span class="breadcrumb-text">{{ courseName }}</span>
+        </router-link>
+      </a-breadcrumb-item>
+      <a-breadcrumb-item class="breadcrumb-item">
+        <span class="breadcrumb-current">{{ design?.title }}</span>
+      </a-breadcrumb-item>
     </a-breadcrumb>
     <div class="header-right">
       <!-- <div class="preparation-timer">
@@ -89,9 +119,9 @@
                 v-if="pptResources.length === 0"
                 description="暂无PPT资源"
               >
-                <a-button type="primary" @click="showTemplateModal">
+                <a-button type="primary" @click="gotoPpt">
                   <template #icon><file-ppt-outlined /></template>
-                  生成PPT
+                  去生成PPT
                 </a-button>
               </a-empty>
 
@@ -131,39 +161,6 @@
             </div>
           </div>
         </div>
-        <!-- PPT模板选择模态框 -->
-        <!-- 修改模板展示部分的模板 -->
-        <!-- 模态框部分 -->
-        <a-modal
-          v-model:visible="showPPTModal"
-          title="选择PPT模板"
-          @ok="handleGeneratePPT"
-          :confirm-loading="generatingPPT"
-          :width="800"
-          :body-style="{
-            padding: '16px',
-            maxHeight: '60vh',
-            overflowY: 'auto',
-          }"
-          wrap-class-name="fixed-modal"
-        >
-          <div class="template-grid">
-            <div
-              v-for="template in pptTemplates"
-              :key="template.id"
-              class="template-item"
-              :class="{ selected: selectedTemplate?.id === template.id }"
-              @click="selectTemplate(template)"
-            >
-              <a-image
-                :src="'http://localhost:5000/' + template.image_url"
-                class="template-preview"
-                :preview="false"
-              />
-              <div class="template-name">{{ template.name }}</div>
-            </div>
-          </div>
-        </a-modal>
       </a-tab-pane>
       <!-- 新增推荐资源标签页 -->
       <a-tab-pane key="recommend" tab="推荐资源">
@@ -191,6 +188,8 @@ import {
   FilePptOutlined,
   SaveOutlined,
   ClockCircleOutlined,
+  HomeOutlined,
+  RightOutlined,
 } from "@ant-design/icons-vue";
 import {
   getDesignVersions,
@@ -206,14 +205,11 @@ import {
 } from "@/api/teachingdesign";
 import Vditor from "vditor";
 import "vditor/dist/index.css";
-import {
-  getDesignVersionResources,
-  generateTeachingPPT,
-  getAllPPTTemplates,
-} from "@/api/resource";
+import { getDesignVersionResources } from "@/api/resource";
 import type { PPTTemplate, MultimediaResource } from "@/api/resource";
 import TeacherRecommendations from "@/components/TeacherRecommendations.vue";
 import MindMapEditor from "@/components/mindmap/MindMapEditor.vue";
+import router from "@/router";
 
 export default defineComponent({
   name: "TeachingDesignEdit",
@@ -223,12 +219,18 @@ export default defineComponent({
     TeacherRecommendations,
     MindMapEditor,
     // ClockCircleOutlined,
+    HomeOutlined,
+    RightOutlined,
   },
   setup() {
     const preanalysis = ref(
       "学生整体预习效果良好，对TFLite的核心概念（转换器作用、FlatBuffers优势）理解到位，但在实践细节（Android配置）和完整工作流程记忆上存在提升空间。需在课堂强化转换模型与优化模型的操作演示，并解释`noCompress`配置的技术必要性。"
     );
     const route = useRoute();
+    const courseId = ref<number | null>(null);
+    const courseName = ref<string | null>(null);
+    const courseclassId = ref<number | null>(null);
+    const courseclassName = ref<string | null>(null);
     const activeTab = ref("edit");
     const design = ref<TeachingDesign>();
     const designId = ref<number>(0);
@@ -392,6 +394,15 @@ export default defineComponent({
         if (isNaN(id)) throw new Error("无效的教学设计ID");
         designId.value = id;
         defaultVersionId.value = Number(route.query.default_version_id);
+        // 读取用于面包屑的路由信息
+        courseId.value = route.query.courseId
+          ? Number(route.query.courseId)
+          : null;
+        courseName.value = (route.query.courseName as string) || null;
+        courseclassId.value = route.query.courseclassId
+          ? Number(route.query.courseclassId)
+          : null;
+        courseclassName.value = (route.query.courseclassName as string) || null;
         initVditor();
         await fetchDesignDetail(); // 新增
         await fetchDesignVersions();
@@ -408,19 +419,10 @@ export default defineComponent({
       if (vditor.value) {
         vditor.value.destroy();
       }
-      // if (timerInterval.value) {
-      //   clearInterval(timerInterval.value);
-      //   timerInterval.value = null;
-      // }
-      // saveTimerState();
     });
 
     // 新增PPT相关状态
     const pptResources = ref<MultimediaResource[]>([]);
-    const pptTemplates = ref<PPTTemplate[]>([]);
-    const showPPTModal = ref(false);
-    const selectedTemplate = ref<PPTTemplate | null>(null);
-    const generatingPPT = ref(false);
     const loadingPPT = ref(false);
 
     // 获取PPT资源
@@ -435,54 +437,9 @@ export default defineComponent({
       }
     };
 
-    // 获取PPT模板
-    const fetchPPTTemplates = async () => {
-      try {
-        pptTemplates.value = await getAllPPTTemplates();
-        console.log("所有模板内容：", pptTemplates.value);
-      } catch (err) {
-        message.error("获取模板失败");
-      }
+    const gotoPpt = () => {
+      router.push({ path: "/home/smart-preparation" });
     };
-
-    // 显示模板选择模态框
-    const showTemplateModal = async () => {
-      if (pptTemplates.value.length === 0) {
-        await fetchPPTTemplates();
-      }
-      showPPTModal.value = true;
-    };
-
-    // 选择模板
-    const selectTemplate = (template: PPTTemplate) => {
-      selectedTemplate.value = template;
-    };
-
-    // 生成PPT
-    const handleGeneratePPT = async () => {
-      if (!selectedTemplate.value) {
-        message.warning("请选择模板");
-        return;
-      }
-
-      try {
-        generatingPPT.value = true;
-        await generateTeachingPPT(
-          currentVersion.value.design_id, // 使用课程ID
-          currentVersion.value.id, // 使用版本ID
-          selectedTemplate.value.id,
-          `教学设计-${currentVersion.value.version}版`
-        );
-        message.success("PPT生成任务已开始，请稍后刷新查看");
-        showPPTModal.value = false;
-        await fetchPPTResources(currentVersion.value.id);
-      } catch (err) {
-        message.error("生成失败");
-      } finally {
-        generatingPPT.value = false;
-      }
-    };
-
     // 下载PPT
     const downloadPPT = (resource: MultimediaResource) => {
       console.log("下载资源ppt:", resource);
@@ -562,82 +519,14 @@ export default defineComponent({
       }
     };
 
-    // const totalSeconds = ref(0);
-    // const isTimerActive = ref(false);
-    // const timerInterval = ref<number | null>(null); // 修改为 number 类型
-    // const formattedTime = computed(() => {
-    //   const hours = Math.floor(totalSeconds.value / 3600);
-    //   const minutes = Math.floor((totalSeconds.value % 3600) / 60);
-    //   const seconds = totalSeconds.value % 60;
-    //   return `${hours.toString().padStart(2, "0")}:${minutes
-    //     .toString()
-    //     .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
-    // });
-
-    // 启动计时器
-    // const startTimer = () => {
-    //   if (!timerInterval.value) {
-    //     timerInterval.value = window.setInterval(() => {
-    //       // 使用 window.setInterval
-    //       if (isTimerActive.value) {
-    //         totalSeconds.value += 1;
-    //       }
-    //     }, 1000);
-    //   }
-    //   isTimerActive.value = true;
-    // };
-
-    // // 暂停计时器
-    // const pauseTimer = () => {
-    //   isTimerActive.value = false;
-    // };
-
-    // // 初始化计时器
-    // const initTimer = async () => {
-    //   try {
-    //     const timerData = await getDesignTimer(designId.value);
-    //     totalSeconds.value = timerData.total_seconds;
-    //     isTimerActive.value = timerData.is_active;
-
-    //     if (isTimerActive.value) {
-    //       startTimer();
-    //     }
-    //   } catch (error) {
-    //     console.error("获取计时器状态失败:", error);
-    //     // 如果获取失败，默认开始新计时
-    //     startNewTimer();
-    //   }
-    // };
-
-    // // 开始新计时
-    // const startNewTimer = async () => {
-    //   try {
-    //     const timerData = await controlDesignTimer(designId.value, {
-    //       action: "start",
-    //     });
-    //     totalSeconds.value = timerData.total_seconds;
-    //     isTimerActive.value = timerData.is_active;
-    //     startTimer();
-    //   } catch (error) {
-    //     console.error("启动计时器失败:", error);
-    //   }
-    // };
-
-    // // 保存计时状态
-    // const saveTimerState = async () => {
-    //   try {
-    //     if (isTimerActive.value) {
-    //       await controlDesignTimer(designId.value, { action: "pause" });
-    //     }
-    //   } catch (error) {
-    //     console.error("保存计时状态失败:", error);
-    //   }
-    // };
-
     return {
       preanalysis,
       design,
       designId,
+      courseId,
+      courseName,
+      courseclassId,
+      courseclassName,
       activeTab,
       designVersions,
       selectedVersionId,
@@ -649,14 +538,8 @@ export default defineComponent({
 
       //ppt
       pptResources,
-      pptTemplates,
-      showPPTModal,
-      selectedTemplate,
-      generatingPPT,
       loadingPPT,
-      showTemplateModal,
-      selectTemplate,
-      handleGeneratePPT,
+      gotoPpt,
       downloadPPT,
       getPPTPreviewUrl,
       settingDefault,
@@ -677,6 +560,49 @@ export default defineComponent({
 .header-container {
   display: flex;
   justify-content: space-between;
+}
+
+.breadcrumb-link {
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  color: #1677ff;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #e6f4ff 0%, #f0f7ff 100%);
+  border: 1px solid #c8e5fb;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.12);
+}
+
+.breadcrumb-link:hover {
+  color: #0958d9;
+}
+
+.breadcrumb-home-icon {
+  font-size: 14px;
+  margin-right: 6px;
+}
+
+.breadcrumb-sep-icon {
+  color: #8c8c8c;
+  font-size: 12px;
+}
+
+.breadcrumb-text {
+  font-weight: 500;
+}
+
+.breadcrumb-current {
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #e6f4ff 0%, #f0f7ff 100%);
+  border: 1px solid #c8e5fb;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.12);
+  font-weight: 600;
+  color: #1d2129;
 }
 
 .visibility-switch {
@@ -848,56 +774,6 @@ h3 {
   max-height: 60vh;
   overflow-y: auto;
   padding: 16px;
-}
-
-/* 模板网格布局 */
-.template-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-  padding: 8px;
-}
-
-/* 模板项样式 */
-.template-item {
-  position: relative;
-  border: 2px solid #f0f0f0;
-  border-radius: 8px;
-  overflow: hidden;
-  transition: all 0.3s;
-  cursor: pointer;
-  aspect-ratio: 1/0.7;
-}
-
-.template-item:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.template-item.selected {
-  border-color: #1890ff;
-  background: rgba(24, 144, 255, 0.05);
-}
-
-/* 图片预览 */
-.template-preview {
-  width: 100%;
-  height: 160px;
-  object-fit: cover;
-  background: #fafafa;
-}
-
-/* 模板名称 */
-.template-name {
-  padding: 8px;
-  font-size: 12px;
-  text-align: center;
-  color: rgba(0, 0, 0, 0.85);
-  line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
 /* 固定模态框样式 */

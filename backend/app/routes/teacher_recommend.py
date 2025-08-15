@@ -3,7 +3,7 @@ from flask import Blueprint, g, render_template, request, jsonify, session
 from app.utils.database import db
 from app.models.teacher_recommend import TeacherRecommend
 from app.models.teaching_design import TeachingDesign
-from app.utils.recommend_to_teachers import generate_final_markdown, recommend_pictures
+from app.utils.recommend_to_teachers import generate_final_markdown, generate_final_json, recommend_pictures
 from app.models.user import User
 from app.services.log_service import LogService
 
@@ -51,8 +51,8 @@ def generate_recommendation(teaching_design_id):
 
     try:
         # 调用 AI 函数处理教学设计的 input 字段内容
-        ai_video_result = generate_final_markdown(teaching_design.input)
-        ai_image_result = "{\n    \"images\": [\n        \"https://images.unsplash.com/photo-1527689368864-3a821dbccc34?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3MzQwOTR8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NDQ0NjA4NDZ8&ixlib=rb-4.0.3&q=80&w=1080\",\n        \"https://images.unsplash.com/photo-1499752228123-488eb1d280dd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3MzQwOTR8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NDQ0NjA4NDZ8&ixlib=rb-4.0.3&q=80&w=1080\",\n        \"https://images.unsplash.com/45/QDSMoAMTYaZoXpcwBjsL__DSC0104-1.jpg?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3MzQwOTR8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NDQ0NjA4NDZ8&ixlib=rb-4.0.3&q=80&w=1080\",\n        \"https://images.unsplash.com/photo-1476733419970-c703149c016b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3MzQwOTR8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NDQ0NjA4NDZ8&ixlib=rb-4.0.3&q=80&w=1080\"\n    ]\n}"
+        ai_video_result = generate_final_json(teaching_design.input)
+        # ai_image_result = "{\n    \"images\": [\n        \"https://images.unsplash.com/photo-1527689368864-3a821dbccc34?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3MzQwOTR8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NDQ0NjA4NDZ8&ixlib=rb-4.0.3&q=80&w=1080\",\n        \"https://images.unsplash.com/photo-1499752228123-488eb1d280dd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3MzQwOTR8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NDQ0NjA4NDZ8&ixlib=rb-4.0.3&q=80&w=1080\",\n        \"https://images.unsplash.com/45/QDSMoAMTYaZoXpcwBjsL__DSC0104-1.jpg?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3MzQwOTR8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NDQ0NjA4NDZ8&ixlib=rb-4.0.3&q=80&w=1080\",\n        \"https://images.unsplash.com/photo-1476733419970-c703149c016b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3MzQwOTR8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NDQ0NjA4NDZ8&ixlib=rb-4.0.3&q=80&w=1080\"\n    ]\n}"
         #recommend_pictures(teaching_design.input)
 
         # 创建 TeacherRecommend 记录并存储结果
@@ -60,7 +60,7 @@ def generate_recommendation(teaching_design_id):
             user_id=user_id,
             teaching_design_id=teaching_design_id,
             video_recommendations=ai_video_result,
-            image_recommendations=ai_image_result
+            # image_recommendations=ai_image_result
         )
         db.session.add(teacher_recommend)
         db.session.commit()
@@ -101,7 +101,7 @@ def get_recommendation_by_design(teaching_design_id):
         # 构建响应数据
         recommendation_data = {
             "video_recommendations": teacher_recommend.video_recommendations,
-            "image_recommendations": teacher_recommend.image_recommendations
+            # "image_recommendations": teacher_recommend.image_recommendations
         }
 
         return jsonify({"data": recommendation_data}), 200

@@ -1,6 +1,35 @@
 <template>
   <div class="mind-map-container">
+    <!-- 添加导出按钮 -->
+    <button v-if="editable" class="export-btn" @click="exportToXMind">
+      导出XMind
+    </button>
     <div ref="mindMapContainerRef" class="mind-map"></div>
+
+    <!-- 添加小地图容器 -->
+    <div
+      class="mini-map-container"
+      @mousedown="onMiniMapMousedown"
+      @mousemove="onMiniMapMousemove"
+    >
+      <div
+        class="mini-map-svg-container"
+        ref="miniMapContainer"
+        :style="{
+          transform: `scale(${miniMapBoxScale})`,
+          left: miniMapBoxLeft + 'px',
+          top: miniMapBoxTop + 'px',
+        }"
+      ></div>
+      <div
+        class="mini-map-view-box"
+        :style="viewBoxStyle"
+        :class="{ 'with-transition': withTransition }"
+        @mousedown.stop="onViewBoxMousedown"
+        @mousemove="onViewBoxMousemove"
+      ></div>
+    </div>
+
     <div
       v-if="showContextMenu"
       class="context-menu"
@@ -74,27 +103,94 @@ console.log("传入数据", props.data);
 const emit = defineEmits(["update"]);
 
 const mindMapContainerRef = ref(null);
+const miniMapContainer = ref(null); // 小地图容器引用
 let mindMap = null;
 const showContextMenu = ref(false);
 const menuPosition = ref({ x: 0, y: 0 });
 let currentNode = null;
 
+// 小地图相关状态
+const containerWidth = 200; // 小地图宽度
+const containerHeight = 120; // 小地图高度
+const viewBoxStyle = ref({});
+const withTransition = ref(true);
+const miniMapBoxScale = ref(1);
+const miniMapBoxLeft = ref(0);
+const miniMapBoxTop = ref(0);
+
+// 更新小地图
+const updateMiniMap = () => {
+  if (!mindMap || !mindMap.miniMap || !miniMapContainer.value) return;
+
+  // 计算小地图数据
+  let data = mindMap.miniMap.calculationMiniMap(
+    containerWidth,
+    containerHeight
+  );
+  // 渲染到小地图
+  miniMapContainer.value.innerHTML = data.svgHTML;
+  viewBoxStyle.value = data.viewBoxStyle;
+  miniMapBoxScale.value = data.miniMapBoxScale;
+  miniMapBoxLeft.value = data.miniMapBoxLeft;
+  miniMapBoxTop.value = data.miniMapBoxTop;
+};
+
+// 小地图鼠标事件
+const onMiniMapMousedown = (e) => {
+  if (mindMap && mindMap.miniMap) {
+    withTransition.value = false;
+    mindMap.miniMap.onMousedown(e);
+  }
+};
+
+const onMiniMapMousemove = (e) => {
+  if (mindMap && mindMap.miniMap) {
+    mindMap.miniMap.onMousemove(e);
+  }
+};
+
+const onMiniMapMouseup = (e) => {
+  if (mindMap && mindMap.miniMap) {
+    withTransition.value = true;
+    mindMap.miniMap.onMouseup(e);
+  }
+};
+
+// 视口框的鼠标事件
+const onViewBoxMousedown = (e) => {
+  if (mindMap && mindMap.miniMap) {
+    mindMap.miniMap.onViewBoxMousedown(e);
+  }
+};
+
+const onViewBoxMousemove = (e) => {
+  if (mindMap && mindMap.miniMap) {
+    mindMap.miniMap.onViewBoxMousemove(e);
+  }
+};
+
+// 视口框的位置大小改变事件
+const onViewBoxPositionChange = ({ left, right, top, bottom }) => {
+  withTransition.value = false;
+  viewBoxStyle.value.left = left;
+  viewBoxStyle.value.right = right;
+  viewBoxStyle.value.top = top;
+  viewBoxStyle.value.bottom = bottom;
+};
+
 // 精简数据，只保留必要字段
-// 精简数据，只保留必要的字段（如果有id则保留，没有则不添加）
 const simplifyData = (data) => {
   if (!data) return null;
 
   const simplifyNode = (node) => {
     if (!node || !node.data) return null;
 
-    // 创建精简后的数据对象
     const simplifiedData = {
       text: node.data.text || "",
       note: node.data.note || "",
       fillColor: node.data.color || "#ffffff",
     };
 
-    // 只有原数据有id时才保留
     if (node.data.id !== undefined) {
       simplifiedData.id = node.data.id;
     }
@@ -115,6 +211,7 @@ const simplifyData = (data) => {
 
   return simplifyNode(JSON.parse(JSON.stringify(data)));
 };
+
 // 获取精简后的思维导图数据
 const getSimplifiedMindMapData = () => {
   if (!mindMap) return null;
@@ -137,18 +234,14 @@ const initMindMap = () => {
       data: props.data[0],
       editable: props.editable,
       layout: {
-        // 树形布局，让整体更居中
         type: "mindMap",
         options: {
-          // 节点水平间距
           hgap: 60,
-          // 节点垂直间距
           vgap: 20,
-          // 控制整体位置
           getLayoutRootNode: () => {
             return {
-              x: 0, // 初始x位置设为0，让整体居中
-              y: 0, // 初始y位置设为0
+              x: 0,
+              y: 0,
             };
           },
         },
@@ -157,9 +250,10 @@ const initMindMap = () => {
         backgroundColor: "#edf6fbcc",
       },
     });
-    // 添加节点点击事件
+
+    // 添加事件监听
     mindMap.on("node_click", async (node) => {
-      console.log("节点被点击，节点数据:", node.nodeData); // 调试输出
+      console.log("节点被点击，节点数据:", node.nodeData);
       if (node.nodeData.data?.id) {
         try {
           emit("node-click", {
@@ -168,7 +262,6 @@ const initMindMap = () => {
             loading: true,
           });
 
-          // 调用第一个接口获取知识点问题
           const response = await mindmapApi.getKnowledgeQuestions(
             node.nodeData.data.id
           );
@@ -190,7 +283,6 @@ const initMindMap = () => {
       }
     });
 
-    // 节点右键事件
     mindMap.on("node_contextmenu", (e, node) => {
       if (e.which === 3 && props.editable) {
         menuPosition.value.x = e.clientX + 10;
@@ -200,7 +292,6 @@ const initMindMap = () => {
       }
     });
 
-    // 点击空白处关闭菜单
     mindMap.on("draw_click", () => {
       showContextMenu.value = false;
     });
@@ -209,16 +300,21 @@ const initMindMap = () => {
     mindMap.on("data_change", () => {
       const simplifiedData = getSimplifiedMindMapData();
       emit("update", simplifiedData);
+      updateMiniMap(); // 数据变化时更新小地图
     });
+
+    // 添加小地图相关事件监听
+    mindMap.on("view_data_change", updateMiniMap);
+    mindMap.on("node_tree_render_end", updateMiniMap);
+    mindMap.on("mini_map_view_box_position_change", onViewBoxPositionChange);
+    window.addEventListener("mouseup", onMiniMapMouseup);
+
+    // 初始化小地图
+    updateMiniMap();
   } catch (error) {
     console.error("初始化思维导图失败:", error);
   }
 };
-
-// // 获取当前思维导图数据
-// const getMindMapData = () => {
-//   return mindMap ? mindMap.getData() : null;
-// };
 
 // 添加子节点
 const addChildNode = () => {
@@ -283,220 +379,19 @@ defineExpose({
   getMindMapData: getSimplifiedMindMapData,
 });
 
-// const mindmaptest = {
-//   data: {
-//     id: 1,
-//     text: "因特网和组成技术知识点",
-//     note: "",
-//     backgroundColor: "#ffffff",
-//   },
-//   children: [
-//     {
-//       data: {
-//         id: 2,
-//         text: "网络基本概念",
-//         note: "",
-//         backgroundColor: "#ffffff",
-//       },
-//       children: [
-//         {
-//           data: {
-//             id: 3,
-//             text: "因特网的定义与特点",
-//             note: "因特网是全球性的、开放的计算机网络互联系统，基于TCP/IP协议族实现数据通信。",
-//             fillColor: "#ffffff",
-//           },
-//           children: [],
-//         },
-//         {
-//           data: {
-//             id: 4,
-//             text: "主机的作用",
-//             note: "主机是网络中的终端设备，负责数据的生成、发送和接收。",
-//             backgroundColor: "#ffffff",
-//           },
-//           children: [],
-//         },
-//         {
-//           data: {
-//             id: 5,
-//             text: "交换设备的作用",
-//             note: "交换设备负责在网络中转发数据，实现不同主机之间的通信。",
-//             backgroundColor: "#ffffff",
-//           },
-//           children: [],
-//         },
-//         {
-//           data: {
-//             id: 6,
-//             text: "链路的作用",
-//             note: "链路是连接网络设备的物理或逻辑通道，负责数据的传输。",
-//             backgroundColor: "#ffffff",
-//           },
-//           children: [],
-//         },
-//       ],
-//     },
-//     {
-//       data: {
-//         id: 7,
-//         text: "网络边缘",
-//         note: "",
-//         backgroundColor: "#ffffff",
-//       },
-//       children: [
-//         {
-//           data: {
-//             id: 8,
-//             text: "端系统的功能",
-//             note: "端系统是网络的终端设备，负责数据的生成、处理和接收。",
-//             backgroundColor: "#ffffff",
-//           },
-//           children: [],
-//         },
-//         {
-//           data: {
-//             id: 9,
-//             text: "端系统的类型",
-//             note: "包括个人计算机、服务器、移动设备等。",
-//             backgroundColor: "#ffffff",
-//           },
-//           children: [],
-//         },
-//         {
-//           data: {
-//             id: 10,
-//             text: "接入网的技术分类",
-//             note: "包括DSL、光纤、无线接入等。",
-//             backgroundColor: "#ffffff",
-//           },
-//           children: [],
-//         },
-//         {
-//           data: {
-//             id: 11,
-//             text: "物理媒体的种类",
-//             note: "包括双绞线、同轴电缆、光纤、无线电波等。",
-//             backgroundColor: "#ffffff",
-//           },
-//           children: [],
-//         },
-//         {
-//           data: {
-//             id: 12,
-//             text: "物理媒体的特性",
-//             note: "包括传输速率、传输距离、抗干扰能力等。",
-//             backgroundColor: "#ffffff",
-//           },
-//           children: [],
-//         },
-//       ],
-//     },
-//     {
-//       data: {
-//         id: 13,
-//         text: "网络核心",
-//         note: "",
-//         backgroundColor: "#39ffff",
-//       },
-//       children: [
-//         {
-//           data: {
-//             id: 14,
-//             text: "电路交换原理",
-//             note: "",
-//             backgroundColor: "#48ffff",
-//           },
-//           children: [
-//             {
-//               data: {
-//                 id: 15,
-//                 text: "FDM(频分复用)",
-//                 note: "**FDM**是将频带分割为多个子频带，每个子频带独立传输一路信号。",
-//                 backgroundColor: "#7fffff",
-//               },
-//               children: [],
-//             },
-//             {
-//               data: {
-//                 id: 16,
-//                 text: "TDM(时分复用)",
-//                 note: "**TDM**是将时间分割为多个时隙，每个时隙传输一路信号。",
-//                 backgroundColor: "#10ffff",
-//               },
-//               children: [],
-//             },
-//           ],
-//         },
-//         {
-//           data: {
-//             id: 17,
-//             text: "分组交换原理",
-//             note: "",
-//             backgroundColor: "#00ffff",
-//           },
-//           children: [
-//             {
-//               data: {
-//                 id: 18,
-//                 text: "数据报网络",
-//                 note: "数据报网络中，每个分组独立路由，不保证顺序到达。",
-//                 backgroundColor: "#00ffff",
-//               },
-//               children: [],
-//             },
-//             {
-//               data: {
-//                 id: 19,
-//                 text: "虚电路",
-//                 note: "虚电路网络中，通信前建立逻辑连接，分组按顺序传输。",
-//                 backgroundColor: "#ffffff",
-//               },
-//               children: [],
-//             },
-//           ],
-//         },
-//         {
-//           data: {
-//             id: 20,
-//             text: "交换技术比较",
-//             note: "电路交换建立专用路径，适合实时通信；分组交换共享路径，适合突发数据。",
-//             backgroundColor: "#ffffff",
-//           },
-//           children: [],
-//         },
-//       ],
-//     },
-//     {
-//       data: {
-//         id: 21,
-//         text: "网络的网络",
-//         note: "",
-//         backgroundColor: "#ffffff",
-//       },
-//       children: [
-//         {
-//           data: {
-//             id: 22,
-//             text: "层级结构设计",
-//             note: "网络采用分层设计，每层负责特定功能，简化网络管理和协议设计。",
-//             backgroundColor: "#ffffff",
-//           },
-//           children: [],
-//         },
-//         {
-//           data: {
-//             id: 23,
-//             text: "接入层级关系",
-//             note: "接入网连接端系统和核心网，核心网连接不同接入网，形成网络的网络。",
-//             backgroundColor: "#ffffff",
-//           },
-//           children: [],
-//         },
-//       ],
-//     },
-//   ],
-// };
+// 添加导出方法
+const exportToXMind = () => {
+  if (mindMap) {
+    try {
+      const rootText = mindMap.getData()?.data?.text || "思维导图";
+      const fileName = `${rootText}`;
+      mindMap.export("xmind", true, fileName);
+    } catch (error) {
+      console.error("导出XMind失败:", error);
+      alert("导出失败，请确保已安装所需插件");
+    }
+  }
+};
 </script>
 
 <style scoped>
@@ -506,9 +401,58 @@ defineExpose({
   height: 100%;
 }
 
+/* 导出按钮样式 */
+.export-btn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 100;
+  padding: 8px 16px;
+  background-color: #42b983;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: background-color 0.3s;
+}
+
+.export-btn:hover {
+  background-color: #359c6c;
+}
+
 .mind-map {
   width: 100%;
   height: 100vh;
+}
+
+/* 小地图容器样式 */
+.mini-map-container {
+  position: absolute;
+  left: 20px;
+  top: 20px;
+  width: 200px;
+  height: 120px;
+  background-color: rgba(255, 255, 255, 0.8);
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  z-index: 50;
+  overflow: hidden;
+}
+
+.mini-map-svg-container {
+  position: absolute;
+  transform-origin: left top;
+}
+
+.mini-map-view-box {
+  position: absolute;
+  border: 2px solid rgb(238, 69, 69);
+  transition: all 0.3s;
+}
+
+.mini-map-view-box.with-transition {
+  transition: all 0.3s;
 }
 
 .context-menu {
@@ -518,6 +462,7 @@ defineExpose({
   z-index: 1000;
   padding: 10px;
   border-radius: 4px;
+  background-color: #f0f0f0;
 }
 
 .context-menu ul {
