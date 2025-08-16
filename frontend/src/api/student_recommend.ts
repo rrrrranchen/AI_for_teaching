@@ -2,6 +2,11 @@
 import api from "@/request";
 import type { AxiosResponse } from "axios";
 
+export interface RecommendationData {
+  video_recommendations: string | null; // 修改为可空类型
+  message?: string; // 添加可选的消息字段
+}
+
 // 学生推荐资源类型
 export interface StudentRecommendation {
   type: "pre_class" | "post_class";
@@ -71,11 +76,12 @@ export const generatePostClassRecommendations = async (
  */
 export const getPostClassRecommendations = async (
   courseId: number
-): Promise<StudentRecommendation[]> => {
+): Promise<RecommendationData> => {
   try {
-    const response: AxiosResponse<{ data: StudentRecommendation[] }> =
-      await api.get(`/get_user_post_class_recommendations/${courseId}`);
-    return response.data.data;
+    const response: AxiosResponse<RecommendationData> = await api.get(
+      `/get_user_post_class_recommendations/${courseId}`
+    );
+    return response.data;
   } catch (error: any) {
     throw new Error(error.response?.data?.error || "获取课后推荐失败");
   }

@@ -303,24 +303,18 @@ def get_user_post_class_recommendations_by_course(session: Session, user_id: int
     :param course_id: 课程的 ID
     :return: 包含课后推荐资源的字典列表
     """
-    # 查询指定用户在指定课程中的所有课后推荐资源
-    recommendations = (
+    # 查询最新的课后推荐资源
+    recommendation = (
         session.query(StudentRecommend)
         .filter_by(user_id=user_id, course_id=course_id, type='post_class')
-        .all()
+        .order_by(StudentRecommend.created_at.desc())  # 按创建时间降序
+        .first()  # 只获取第一条
     )
-
+    # 如果没有找到推荐资源，返回 None
+    if not recommendation:
+        return None
     # 初始化一个列表，用于存储处理后的数据
-    processed_recommendations = []
-
-    # 遍历每个推荐资源，提取关键信息并封装为字典
-    for recommendation in recommendations:
-        processed_recommendation = {
-            "course_id": recommendation.course_id,
-            "type": recommendation.type,
-            "content": recommendation.content
-        }
-        processed_recommendations.append(processed_recommendation)
+    processed_recommendations = recommendation.content
 
     return processed_recommendations
 
@@ -341,7 +335,10 @@ def get_user_post_class_recommendations_route(course_id):
     try:
         # 调用函数查询当前登录用户的课后推荐资源
         recommendations = get_user_post_class_recommendations_by_course(db.session, current_user.id, course_id)
-        return jsonify({"data": recommendations}), 200
+        if recommendations is None:
+            return jsonify({"video_recommendations": None, "message": "尚未生成课后推荐资源"}), 200
+        
+        return jsonify({"video_recommendations": recommendations}), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500

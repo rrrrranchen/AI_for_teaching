@@ -96,7 +96,7 @@ def get_recommendation_by_design(teaching_design_id):
         teacher_recommend = TeacherRecommend.query.filter_by(teaching_design_id=teaching_design_id).first()
         if not teacher_recommend:
             # 如果没有推荐资源，返回空对象或特定提示信息
-            return jsonify({"data": None}), 200
+            teacher_recommend = None
 
         # 构建响应数据
         recommendation_data = {

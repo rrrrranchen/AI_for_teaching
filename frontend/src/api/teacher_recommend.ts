@@ -4,7 +4,7 @@ import type { AxiosResponse } from "axios";
 
 // 推荐内容数据结构
 export interface RecommendationData {
-  video_recommendations: string; // Markdown格式视频推荐
+  video_recommendations: string | null; // Markdown格式视频推荐
   image_recommendations: string; // 图片URL数组
 }
 

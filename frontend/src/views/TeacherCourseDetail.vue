@@ -1,30 +1,28 @@
 <template>
   <!-- 面包屑导航 -->
-  <div class="breadcrumb-section">
-    <a-breadcrumb>
-      <template #separator>
-        <right-outlined class="breadcrumb-sep-icon" />
-      </template>
-      <a-breadcrumb-item>
-        <router-link to="/home/my-class" class="breadcrumb-link">
-          <home-outlined class="breadcrumb-home-icon" />
-          <span class="breadcrumb-text">我的课程</span>
-        </router-link>
-      </a-breadcrumb-item>
-      <a-breadcrumb-item>
-        <router-link
-          class="breadcrumb-link"
-          :to="{
-            path: `/home/courseclass/${courseclassId}`,
-          }"
-          ><span class="breadcrumb-text">{{ courseclassName }}</span>
-        </router-link>
-      </a-breadcrumb-item>
-      <a-breadcrumb-item>
-        <span class="breadcrumb-current">{{ courseName }}</span>
-      </a-breadcrumb-item>
-    </a-breadcrumb>
-  </div>
+  <a-breadcrumb>
+    <template #separator>
+      <right-outlined class="breadcrumb-sep-icon" />
+    </template>
+    <a-breadcrumb-item>
+      <router-link to="/home/my-class" class="breadcrumb-link">
+        <home-outlined class="breadcrumb-home-icon" />
+        <span class="breadcrumb-text">我的课程</span>
+      </router-link>
+    </a-breadcrumb-item>
+    <a-breadcrumb-item>
+      <router-link
+        class="breadcrumb-link"
+        :to="{
+          path: `/home/courseclass/${courseclassId}`,
+        }"
+        ><span class="breadcrumb-text">{{ courseclassName }}</span>
+      </router-link>
+    </a-breadcrumb-item>
+    <a-breadcrumb-item>
+      <span class="breadcrumb-current">{{ courseName }}</span>
+    </a-breadcrumb-item>
+  </a-breadcrumb>
 
   <div class="course-container">
     <!-- 新增报告标签页 -->
@@ -826,13 +824,9 @@ export default defineComponent({
 
 <style scoped>
 .course-container {
-  height: 90vh;
   overflow-y: auto;
-  padding-left: 20px;
-  padding-right: 20px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
 }
 
 .custom-tabs :deep(.ant-tabs-nav) {
@@ -846,6 +840,10 @@ export default defineComponent({
 
 .custom-tabs :deep(.ant-tabs-tab-active) {
   color: #1677ff;
+}
+
+.ant-tabs {
+  padding: 16px;
 }
 
 /* 面包屑导航样式 */

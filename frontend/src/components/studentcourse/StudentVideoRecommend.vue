@@ -1,16 +1,17 @@
-<!-- src/components/TeacherRecommendations.vue -->
+<!-- src/components/studentcourse/StudentVideoRecommend.vue -->
 <template>
-  <div class="teacher-recommendations">
-    <a-spin :spinning="loadingRecommend">
-      <div v-if="videoList.length > 0" class="video-container">
+  <div class="video-recommend-container">
+    <a-spin :spinning="loading">
+      <div v-if="videoList.length > 0" class="video-content">
         <!-- 左侧视频播放器 -->
         <div class="video-player">
           <iframe
-            :src="`//player.bilibili.com/player.html?bvid=${currentVideo.bvid}&page=1`"
+            :src="`https://player.bilibili.com/player.html?bvid=${currentVideo.bvid}&high_quality=1&danmaku=0`"
             width="100%"
             height="700"
             scrolling="no"
-            frameborder="0"
+            frameborder="no"
+            sandbox="allow-top-navigation allow-same-origin allow-forms allow-scripts allow-popups"
           ></iframe>
           <div class="video-info">
             <h3>{{ currentVideo.title }}</h3>
@@ -20,7 +21,7 @@
 
         <!-- 右侧推荐列表 -->
         <div class="video-list">
-          <h3>推荐视频列表 ({{ videoList.length }})</h3>
+          <h3>课后推荐视频 ({{ videoList.length }})</h3>
           <a-list
             :data-source="videoList"
             item-layout="horizontal"
@@ -42,10 +43,10 @@
         </div>
       </div>
 
-      <a-empty v-else description="暂无推荐资源">
-        <a-button type="primary" @click="generateRecommend">
+      <a-empty v-else description="暂无课后推荐视频">
+        <a-button type="primary" @click="generateRecommendations">
           <template #icon><bulb-outlined /></template>
-          生成推荐资源
+          生成推荐视频
         </a-button>
       </a-empty>
     </a-spin>
@@ -55,11 +56,11 @@
 <script lang="ts">
 import { defineComponent, ref, computed, onMounted } from "vue";
 import { message } from "ant-design-vue";
-import {
-  generateTeachingRecommendation,
-  getRecommendationByDesign,
-} from "@/api/teacher_recommend";
 import { BulbOutlined } from "@ant-design/icons-vue";
+import {
+  generatePostClassRecommendations,
+  getPostClassRecommendations,
+} from "@/api/student_recommend";
 
 interface VideoItem {
   title: string;
@@ -69,20 +70,27 @@ interface VideoItem {
 }
 
 export default defineComponent({
-  name: "TeacherRecommendations",
+  name: "StudentVideoRecommend",
   components: {
     BulbOutlined,
   },
   props: {
-    designId: {
+    courseId: {
       type: Number,
       required: true,
     },
   },
   setup(props) {
-    const loadingRecommend = ref(false);
+    const loading = ref(false);
+    const generating = ref(false);
     const currentVideoIndex = ref(0);
     const videoList = ref<VideoItem[]>([]);
+
+    // 从链接中提取BV号
+    const extractBvid = (link: string) => {
+      const match = link.match(/video\/(BV\w+)/);
+      return match ? match[1] : "";
+    };
 
     // 当前播放的视频
     const currentVideo = computed(() => {
@@ -99,38 +107,24 @@ export default defineComponent({
     // 切换视频
     const changeVideo = (index: number) => {
       currentVideoIndex.value = index;
-      // 滚动到选中的视频项
-      const element = document.querySelector(`.video-item.active`);
-      if (element) {
-        element.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      }
     };
-    const parseVideoLink = (link: string) => {
-      // 支持两种B站链接格式：
-      // 1. https://www.bilibili.com/video/BV1La411e7NC/
-      // 2. https://b23.tv/BV1La411e7NC
-      const match = link.match(/(?:video\/|tv\/)(BV\w+)/);
-      return match ? match[1] : null;
-    };
-    // 加载推荐资源
+
+    // 加载推荐视频
     const loadRecommendations = async () => {
       try {
-        loadingRecommend.value = true;
-        const response = await getRecommendationByDesign(props.designId);
-        console.log("Response:", response!.video_recommendations);
-        // 直接解析返回的JSON数据
+        loading.value = true;
+        const response = await getPostClassRecommendations(props.courseId);
         if (response && response.video_recommendations === null) {
           message.info("暂未生成视频资源");
-          loadingRecommend.value = false;
+          loading.value = false;
           return;
         } else if (response && response.video_recommendations) {
           try {
             const parsedData = JSON.parse(response.video_recommendations);
             if (parsedData.videos && Array.isArray(parsedData.videos)) {
-              // 在loadRecommendations中处理数据时
               videoList.value = parsedData.videos.map((video: any) => ({
                 ...video,
-                bvid: parseVideoLink(video.link),
+                bvid: extractBvid(video.link),
               }));
               if (videoList.value.length > 0) {
                 currentVideoIndex.value = 0;
@@ -142,25 +136,25 @@ export default defineComponent({
           }
         }
       } catch (error) {
-        message.error("获取推荐资源失败");
-        console.error("获取推荐资源错误:", error);
+        message.error("获取推荐视频失败");
+        console.error("获取推荐视频错误:", error);
       } finally {
-        loadingRecommend.value = false;
+        loading.value = false;
       }
     };
 
-    // 生成推荐资源
-    const generateRecommend = async () => {
+    // 生成推荐视频
+    const generateRecommendations = async () => {
       try {
-        loadingRecommend.value = true;
-        await generateTeachingRecommendation(props.designId);
+        generating.value = true;
+        await generatePostClassRecommendations(props.courseId);
         await loadRecommendations();
-        message.success("推荐资源生成成功");
+        message.success("课后推荐视频生成成功");
       } catch (error) {
-        message.error("推荐资源生成失败");
-        console.error("生成推荐资源错误:", error);
+        message.error("生成课后推荐视频失败");
+        console.error("生成推荐视频错误:", error);
       } finally {
-        loadingRecommend.value = false;
+        generating.value = false;
       }
     };
 
@@ -170,11 +164,12 @@ export default defineComponent({
     });
 
     return {
-      loadingRecommend,
+      loading,
+      generating,
       videoList,
       currentVideo,
       currentVideoIndex,
-      generateRecommend,
+      generateRecommendations,
       changeVideo,
     };
   },
@@ -182,13 +177,13 @@ export default defineComponent({
 </script>
 
 <style scoped>
-.teacher-recommendations {
+.video-recommend-container {
   padding: 16px;
   border-radius: 8px;
   height: calc(100vh - 64px - 32px);
 }
 
-.video-container {
+.video-content {
   display: flex;
   gap: 24px;
   height: 100%;
@@ -269,7 +264,7 @@ export default defineComponent({
 }
 
 @media (max-width: 768px) {
-  .video-container {
+  .video-content {
     flex-direction: column;
   }
 

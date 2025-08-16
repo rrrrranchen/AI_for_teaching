@@ -85,19 +85,13 @@ def polish_title_description(video_infos):
     content = "\n\n".join(content_blocks)
 
     prompt = f"""
-请你对以下 Bilibili 视频的标题和简介进行语言润色，用markdown文本进行输出，使其更正式、清晰、有教学感。
+请你对以下 Bilibili 视频的标题和简介进行语言润色，使其更正式、清晰、有教学感。
 请注意：
+- 不要添加视频链接
 - 不要改变原始视频顺序
-- 输出格式示例如下：
-
-"
-根据学情分析报告，以下是针对TCP协议学习的三类补充资源推荐：
- 
- ### 1. 可视化学习资源
- - **资源推荐**：TCP/IP协议栈交互式学习网站（Computer Networking: A Top-Down Approach配套资源）
- - **资源简介**：通过动画演示TCP三次握手、流量控制等核心机制，适合直观理解抽象概念。建议配合教材章节边看边操作，重点观察数据包交互过程。
- - **相关链接**：[https://gaia.cs.umass.edu/kurose_ross/interactive/](https://gaia.cs.umass.edu/kurose_ross/interactive/)
-"
+- 每条输出格式如下：
+  - 资源推荐：润色后的标题
+  - 资源简介：润色后的简介
 
 以下是原始内容：
 {content}
@@ -120,35 +114,35 @@ def generate_final_json(keyword):
     # 获取推荐视频链接
     links = recommend_bilibili_videos(keyword)
     if isinstance(links, str):
-        return links  # 如果获取失败，返回错误信息
+        return json.dumps({"error": links}, ensure_ascii=False)  # 返回错误信息
 
-    # 获取每个视频的标题和简介
+    # 获取每个视频的原始信息
     video_infos = [fetch_video_info(link) for link in links]
-
+    
     # 对视频标题和简介进行润色
     ai_result = polish_title_description(video_infos)
-
-    # 拆分 AI 输出，逐条绑定原始链接
+    
+    # 解析AI润色后的结果
     result_blocks = ai_result.strip().split("\n\n")
-
-    # 组装成 JSON 格式数据
-    result_list = []
-
+    videos = []
+    
     for i, block in enumerate(result_blocks):
         if i >= len(video_infos):
             break
-        video_info = video_infos[i]
-        # 将视频信息组织成字典
-        result_dict = {
-            "资源推荐": block.strip().split("\n")[0],  # 资源标题是块的第一行
-            "资源简介": block.strip().split("\n")[1],  # 资源简介是块的第二行
-            "相关链接": video_info["link"]  # 相关链接是原始视频链接
-        }
-        result_list.append(result_dict)
+            
+        # 解析润色后的标题和描述
+        lines = block.split('\n')
+        polished_title = lines[0].replace("资源推荐：", "").strip()
+        polished_desc = lines[1].replace("资源简介：", "").strip()
+        
+        videos.append({
+            "title": polished_title,
+            "description": polished_desc,
+            "link": video_infos[i]["link"]
+        })
 
-    # 转换为 JSON 格式的字符串并返回
-    json_result = json.dumps(result_list, ensure_ascii=False, indent=4)
-    return ai_result
+    # 返回与教师推荐相同的JSON格式
+    return json.dumps({"videos": videos}, indent=4, ensure_ascii=False)
 
 
 # 示例调用
