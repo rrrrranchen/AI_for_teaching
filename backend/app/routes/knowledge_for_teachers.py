@@ -865,7 +865,10 @@ def update_single_knowledge_base(knowledge_base: KnowledgeBase):
     categories = knowledge_base.categories
     unstructured_categories = []
     structured_categories = []
-    
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    CATEGORY_PATH = os.path.join(project_root, 'static', 'knowledge', 'category')
+    BASE_PATH = os.path.join(project_root, 'static', 'knowledge', 'base')
+    base_path = os.path.join(BASE_PATH,knowledge_base.stored_basename)
     for category in categories:
         if category.category_type == 'non_structural':
             unstructured_categories.append(category.stored_categoryname)
@@ -876,16 +879,28 @@ def update_single_knowledge_base(knowledge_base: KnowledgeBase):
     kb_path = os.path.join(BASE_PATH, knowledge_base.stored_basename)
     if os.path.exists(kb_path):
         shutil.rmtree(kb_path)
-    
+    category_paths=[]
     # 3. 重新创建知识库
     if knowledge_base.base_type == 'non_structural':
         create_unstructured_db(knowledge_base.stored_basename, unstructured_categories)
+        for cpath in unstructured_categories:
+            cpath = os.path.join(CATEGORY_PATH,cpath)
+            category_paths.append(cpath)
     else:
         create_structured_db(knowledge_base.stored_basename, structured_categories)
+        for cpath in structured_categories:
+            cpath = os.path.join(CATEGORY_PATH,cpath)
+            category_paths.append(cpath)
+
+
+    graph = build_knowledge_graph(category_paths,base_path)
+    graph_path = graph["_file_abs"]    
     
     # 4. 更新数据库记录
     knowledge_base.need_update = False
     knowledge_base.updated_at = datetime.utcnow()
+    knowledge_base.graph_path = graph_path
+    knowledge_base
     db.session.commit()
 
 
@@ -1883,10 +1898,9 @@ def get_recommended_knowledge_bases(courseclass_id):
             'message': str(e)
         }), 500
     
-
 @knowledge_for_teachers_bp.route('/teacher/knowledge_bases/migrate_public', methods=['POST'])
 def migrate_public_knowledge_base():
-    """将公共知识库迁移为个人知识库"""
+    """将公共知识库迁移为个人知识库（含 graph_path）"""
     try:
         data = request.get_json()
         if not data or 'knowledge_base_id' not in data:
@@ -1908,34 +1922,46 @@ def migrate_public_knowledge_base():
                 'error': 'PUBLIC_KNOWLEDGE_BASE_NOT_FOUND',
                 'message': '公共知识库不存在或不是公开的'
             }), 404
-        
-        # 获取作者信息
+
+        # 原作者信息
         author = User.query.get(public_kb.author_id)
         author_name = author.username if author else "未知作者"
 
+        # 基础目录
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        BASE_PATH = os.path.join(project_root, 'static', 'knowledge', 'base')
-        
-        # 新知识库的存储路径
+        base_path = os.path.join(project_root, 'static', 'knowledge', 'base')
+        os.makedirs(base_path, exist_ok=True)
+
+        # 新库存储目录
         new_basename = f"kb_{uuid.uuid4().hex}"
-        new_dir = os.path.join(BASE_PATH, new_basename)
-        
-        # 复制文件
-        if public_kb.file_path:
-            shutil.copytree(public_kb.file_path, new_dir)
-        else:
+        new_dir = os.path.join(base_path, new_basename)
+
+        # 1. 复制文件
+        if not public_kb.file_path or not os.path.isdir(public_kb.file_path):
             return jsonify({
                 'success': False,
-                'error': 'SOURCE_KB_FILES_NOT_FOUND',
-                'message': '原知识库文件不存在'
+                'error': 'SOURCE_KB_DIR_NOT_FOUND',
+                'message': '原知识库目录不存在'
             }), 404
 
-        # 创建新的知识库记录
+        shutil.copytree(public_kb.file_path, new_dir)
+
+        # 2. 复制 graph 文件
+        new_graph_path = None
+        if public_kb.graph_path and os.path.isfile(public_kb.graph_path):
+            graph_filename = os.path.basename(public_kb.graph_path)
+            new_graph_abs = os.path.join(new_dir, graph_filename)
+            shutil.copy2(public_kb.graph_path, new_graph_abs)
+            new_graph_path = os.path.join('static', 'knowledge', 'base',
+                                          new_basename, graph_filename).replace('\\', '/')
+
+        # 3. 创建新库记录
         new_kb = KnowledgeBase(
             name=f"{public_kb.name} (副本)",
             stored_basename=new_basename,
             description=public_kb.description,
             file_path=new_dir,
+            graph_path=new_graph_path,
             is_public=False,
             is_system=False,
             base_type=public_kb.base_type,
@@ -1953,19 +1979,21 @@ def migrate_public_knowledge_base():
                     'id': new_kb.id,
                     'name': new_kb.name,
                     'path': new_dir,
-                    'original_author': author_name  # 添加原作者名称
+                    'graph_path': '/' + new_graph_path if new_graph_path else None,
+                    'original_author': author_name
                 }
             }
         }), 200
 
     except Exception as e:
         db.session.rollback()
-        # 清理可能已创建的文件
+        # 清理已复制文件
         if 'new_dir' in locals() and os.path.exists(new_dir):
             shutil.rmtree(new_dir, ignore_errors=True)
-            
+
         current_app.logger.error(
-            f"迁移公共知识库失败 - KBID: {kb_id}, UserID: {g.current_user.id}, Error: {str(e)}",
+            f"迁移公共知识库失败 - KBID: {locals().get('kb_id', 'N/A')}, "
+            f"UserID: {g.current_user.id}, Error: {str(e)}",
             exc_info=True
         )
         return jsonify({
@@ -1973,7 +2001,6 @@ def migrate_public_knowledge_base():
             'error': 'MIGRATION_FAILED',
             'message': f'迁移失败: {str(e)}'
         }), 500
-
 
 @knowledge_for_teachers_bp.route('/public/knowledge_bases', methods=['GET'])
 def get_public_knowledge_bases():
