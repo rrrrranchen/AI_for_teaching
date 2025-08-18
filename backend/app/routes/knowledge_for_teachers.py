@@ -140,8 +140,7 @@ def get_knowledge_base_graph(kb_id):
     try:
         # 1. 校验知识库所有权
         kb = KnowledgeBase.query.filter_by(
-            id=kb_id,
-            author_id=g.current_user.id
+            id=kb_id
         ).first()
 
         if not kb:
