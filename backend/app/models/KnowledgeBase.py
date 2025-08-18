@@ -10,6 +10,7 @@ class KnowledgeBase(db.Model):
     stored_basename = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text)
     file_path = db.Column(db.String(500), nullable=True)
+    graph_path = db.Column(db.String(500), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
     is_public = db.Column(db.Boolean, default=False)
@@ -23,6 +24,7 @@ class KnowledgeBase(db.Model):
                                  back_populates='knowledge_bases', lazy='joined')
     categories = db.relationship('Category', secondary=category_knowledge_base, 
                                back_populates='knowledge_bases')
+    
 
     def __repr__(self):
         return f'<KnowledgeBase {self.name}>'

@@ -8,6 +8,7 @@ class Category(db.Model):
     name = db.Column(db.String(100), nullable=False)
     stored_categoryname = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text)
+    keywords = db.Column(db.Text)
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     category_path = db.Column(db.String(500), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

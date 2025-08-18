@@ -1,5 +1,7 @@
 from datetime import datetime
+import json
 import os
+from pathlib import Path
 import shutil
 import uuid
 from flask import Blueprint, current_app, g, jsonify, request, session
@@ -18,6 +20,7 @@ from app.utils.ai_chat import _retrieve_chunks_from_multiple_dbs
 from app.models.courseclass import Courseclass
 from app.models.CategoryFileImage import CategoryFileImage
 from app.utils.keywords_search import calculate_keyword_match, extract_keywords
+from app.utils.knowlegdegraph import build_knowledge_graph
 
 
 knowledge_for_teachers_bp = Blueprint('knowledge_for_teachers', __name__)
@@ -124,8 +127,44 @@ def update_category(category_id):
             'error': 'SERVER_ERROR',
             'message': str(e)
         }), 500
-    
 
+#获取知识库的知识图谱内容
+@knowledge_for_teachers_bp.route('/teacher/knowledge_bases/<int:kb_id>/graph', methods=['GET'])
+def get_knowledge_base_graph(kb_id):
+    """
+    获取指定知识库的知识图谱 JSON 文件内容
+    ---
+    成功返回：{ "success": true, "data": <图谱对象> }
+    失败返回：{ "success": false, "error": "..." }
+    """
+    try:
+        # 1. 校验知识库所有权
+        kb = KnowledgeBase.query.filter_by(
+            id=kb_id,
+            author_id=g.current_user.id
+        ).first()
+
+        if not kb:
+            return jsonify({'success': False, 'error': 'KNOWLEDGE_BASE_NOT_FOUND'}), 404
+
+        # 2. 检查图谱文件是否存在
+        graph_file = Path(kb.graph_path) if kb.graph_path else None
+        if not graph_file or not graph_file.exists():
+            return jsonify({'success': False, 'error': 'GRAPH_FILE_NOT_FOUND'}), 404
+
+        # 3. 读取并解析 JSON
+        with open(graph_file, 'r', encoding='utf-8') as f:
+            graph_data = json.load(f)
+
+        return jsonify({'success': True, 'data': graph_data}), 200
+
+    except json.JSONDecodeError as e:
+        return jsonify({'success': False, 'error': 'INVALID_JSON', 'message': str(e)}), 500
+    except Exception as e:
+        current_app.logger.error(
+            f"获取知识图谱失败 - KB_ID: {kb_id}, Error: {str(e)}", exc_info=True
+        )
+        return jsonify({'success': False, 'error': 'SERVER_ERROR'}), 500
 
 # 类目管理接口
 @knowledge_for_teachers_bp.route('/teacher/categories', methods=['GET'])
@@ -850,6 +889,9 @@ def update_single_knowledge_base(knowledge_base: KnowledgeBase):
     knowledge_base.updated_at = datetime.utcnow()
     db.session.commit()
 
+
+
+
 @knowledge_for_teachers_bp.route('/teacher/knowledge_bases', methods=['POST'])
 def create_knowledge_base_endpoint():
     """创建知识库接口（通过类目ID）"""
@@ -888,14 +930,25 @@ def create_knowledge_base_endpoint():
         # 检查知识库是否已存在
         db_name = data['name']
         unique_name = f"{uuid.uuid4()}_{db_name}"
-        
-        
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        CATEGORY_PATH = os.path.join(project_root, 'static', 'knowledge', 'category')
+        BASE_PATH = os.path.join(project_root, 'static', 'knowledge', 'base')
+        base_path = os.path.join(BASE_PATH,unique_name)
+        category_paths = []
         # 根据类目类型调用不同的创建函数
         if unstructured_categories:
             create_unstructured_db(unique_name, unstructured_categories)
+            for cpath in unstructured_categories:
+                cpath = os.path.join(CATEGORY_PATH,cpath)
+                category_paths.append(cpath)
         elif structured_categories:
             create_structured_db(unique_name, structured_categories)
+            for cpath in structured_categories:
+                cpath = os.path.join(CATEGORY_PATH,cpath)
+                category_paths.append(cpath)
         
+        graph = build_knowledge_graph(category_paths,base_path)
+        graph_path = graph["_file_abs"]
         # 获取当前用户 ID
         aid = session.get('user_id')
         if aid is None:
@@ -909,7 +962,8 @@ def create_knowledge_base_endpoint():
             author_id=aid,
             is_public=data.get('is_public', False),
             file_path=os.path.join(BASE_PATH, unique_name),
-            base_type=data['base_type']
+            base_type=data['base_type'],
+            graph_path = graph_path
         )
         
         # 关联类目

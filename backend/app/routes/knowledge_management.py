@@ -13,6 +13,8 @@ from app.models.CategoryFile import CategoryFile
 from app.models.CategoryFileImage import CategoryFileImage
 from app.utils.create_cat import UPLOAD_FOLDER_KNOWLEDGE, allowed_file_non_structural, allowed_file_structural, create_user_category_folder, upload_file_to_folder_non_structural, upload_file_to_folder_structural
 from werkzeug.utils import secure_filename
+
+from app.utils.knowlegdegraph import build_knowledge_graph
 knowledge_management_bp=Blueprint('knowledge_management',__name__)
 
 
@@ -315,13 +317,24 @@ def admin_create_knowledge_base_questions():
         # 生成唯一知识库名称
         db_name = data['name']
         unique_name = f"{uuid.uuid4()}_{db_name}"
-        
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        CATEGORY_PATH = os.path.join(project_root, 'static', 'knowledge', 'category')
+        BASE_PATH = os.path.join(project_root, 'static', 'knowledge', 'base')
+        base_path = os.path.join(BASE_PATH,unique_name)
+        category_paths = []
         # 根据类目类型调用不同的创建函数
         if unstructured_categories:
             create_unstructured_db_for_questions(unique_name, unstructured_categories)
+            for cpath in unstructured_categories:
+                cpath = os.path.join(CATEGORY_PATH,cpath)
+                category_paths.append(cpath)
         elif structured_categories:
             create_structured_db(unique_name, structured_categories)
-        
+            for cpath in structured_categories:
+                cpath = os.path.join(CATEGORY_PATH,cpath)
+                category_paths.append(cpath)
+        graph = build_knowledge_graph(category_paths,base_path)
+        graph_path = graph["_file_abs"]
         # 创建知识库数据库记录（作者固定为当前管理员）
         knowledge_base = KnowledgeBase(
             name=data['name'],
@@ -332,7 +345,8 @@ def admin_create_knowledge_base_questions():
             is_system=True,
             file_path=os.path.join(BASE_PATH, unique_name),
             base_type=data['base_type'],
-            need_update=data.get('need_update', False)
+            need_update=data.get('need_update', False),
+            graph_path= graph_path
         )
         
         # 关联类目
