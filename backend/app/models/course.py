@@ -17,7 +17,7 @@ class Course(db.Model):
     # 新增字段：课后题目截止时间
     post_class_deadline = db.Column(db.DateTime, nullable=True)
     post_class_deadline_processed = db.Column(db.Boolean, default=False)
-    
+    ppt_path = db.Column(db.String(500),nullable = True)
     # 新增字段：课程内容 (支持长文本和中文)
     content = db.Column(db.Text, nullable=True)
     

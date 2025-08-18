@@ -1,4 +1,6 @@
 from datetime import datetime
+import os
+import uuid
 from flask import Blueprint, g, render_template, request, jsonify, session
 from sqlalchemy import func, select
 from app.utils.database import db
@@ -47,6 +49,75 @@ def is_teacher_of_courseclass(courseclass_id):
     return association > 0
 
 
+# 允许的 PPT 扩展名
+ALLOWED_PPT_EXTENSIONS = {'ppt', 'pptx'}
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_PPT_EXTENSIONS
+from werkzeug.utils import secure_filename
+
+@course_bp.route('/courses/<int:course_id>/ppt', methods=['POST'])
+def upload_course_ppt(course_id):
+    """为指定课程上传 PPT 文件"""
+
+    course = Course.query.get(course_id)
+    if not course:
+        return jsonify({'error': 'Course not found'}), 404
+
+
+    if 'ppt' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+    file = request.files['ppt']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+    if not allowed_file(file.filename):
+        return jsonify({'error': 'File type not allowed'}), 400
+
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    ppt_dir = os.path.join(project_root, 'static', 'ppt')
+    os.makedirs(ppt_dir, exist_ok=True)
+
+    ext = file.filename.rsplit('.', 1)[1].lower()
+    unique_name = f"{course_id}_{int(datetime.utcnow().timestamp())}_{uuid.uuid4().hex}.{ext}"
+    unique_name = secure_filename(unique_name)
+    file_path = os.path.join(ppt_dir, unique_name)
+
+    try:
+        file.save(file_path)
+    except Exception as e:
+        return jsonify({'error': f'Failed to save file: {str(e)}'}), 500
+
+    # 6. 更新数据库记录
+    try:
+        course.ppt_path = os.path.join('static', 'ppt', unique_name).replace('\\', '/')
+        db.session.commit()
+    except Exception as e:
+        # 回滚并删除已保存文件
+        db.session.rollback()
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        return jsonify({'error': f'Database update failed: {str(e)}'}), 500
+
+    # 7. 返回成功信息
+    return jsonify({
+        'msg': 'PPT uploaded successfully',
+        'ppt_path': '/' + course.ppt_path
+    }), 200
+@course_bp.route('/courses/<int:course_id>/ppt', methods=['GET'])
+def get_course_ppt(course_id):
+    """查询指定课程的 PPT 文件路径"""
+
+
+    course = Course.query.get(course_id)
+    if not course:
+        return jsonify({'error': 'Course not found'}), 404
+    # 4. 是否已上传 PPT
+    if not course.ppt_path:
+        return jsonify({'error': 'PPT not uploaded for this course'}), 404
+
+    # 5. 返回路径
+    return jsonify({'ppt_path': '/' + course.ppt_path}), 200
 
 # 根据 ID 查询单个课程
 @course_bp.route('/courses/<int:course_id>', methods=['GET'])

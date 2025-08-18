@@ -329,8 +329,7 @@ def create_conversation(courseclass_id):
     new_chat_history = ChatHistory(
         courseclass_id=courseclass_id,
         student_id=student_id,
-        name="New Conversation",  # 默认会话名称
-        content=json.dumps([])    # 初始化为空对话列表
+        name="New Conversation"
     )
 
     db.session.add(new_chat_history)
