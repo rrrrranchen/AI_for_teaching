@@ -66,6 +66,8 @@ export interface KnowledgeBase {
     type?: CategoryType; // 新增字段
   }[];
   updating?: boolean; // 新增字段
+  graph_path?: string; // 新增图谱路径字段
+  showingGraph?: boolean;
 }
 
 // 课程班基础类型
@@ -571,6 +573,35 @@ export const deepSearchPublicKnowledgeBases = async (params: {
     }
   );
   return response.data.data;
+};
+
+// ======================== 知识图谱API ========================
+
+/**
+ * 获取知识库的知识图谱内容
+ * @param kbId 知识库ID
+ */
+export const getKnowledgeBaseGraph = async (
+  kbId: number
+): Promise<{
+  success: boolean;
+  data?: any; // 图谱数据可以是任意结构，由后端决定
+  error?: string;
+}> => {
+  try {
+    const response: AxiosResponse = await api.get(
+      `/teacher/knowledge_bases/${kbId}/graph`
+    );
+    return response.data;
+  } catch (error: any) {
+    if (error.response) {
+      return error.response.data;
+    }
+    return {
+      success: false,
+      error: "NETWORK_ERROR",
+    };
+  }
 };
 
 export default {

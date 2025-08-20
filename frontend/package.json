@@ -33,6 +33,7 @@
     "v-md-editor": "^1.0.6",
     "vditor": "^3.10.9",
     "vue": "^3.2.13",
+    "vue-doc-preview": "^0.3.2",
     "vue-echarts": "^7.0.3",
     "vue-router": "^4.0.3",
     "vue3-markdown-it": "^1.0.10"

@@ -14,7 +14,7 @@
       <router-link
         class="breadcrumb-link"
         :to="{
-          path: `/home/courseclass/${courseclassId}`,
+          path: `/home/s-courseclass/${courseclassId}`,
         }"
         ><span class="breadcrumb-text">{{ courseclassName }}</span>
       </router-link>
@@ -30,6 +30,13 @@
       @change="handleTabChange"
       class="custom-tabs"
     >
+      <a-tab-pane key="ppt" tab="PPT">
+        <!-- 添加条件渲染，确保courseId有效时才渲染子组件 -->
+        <CoursePPTViewer v-if="courseId > 0" :course-id="courseId" />
+        <div v-else class="loading-container">
+          <a-spin tip="加载中..." />
+        </div>
+      </a-tab-pane>
       <!-- 课前预习 -->
       <a-tab-pane key="pre" tab="课前预习">
         <question-list
@@ -115,6 +122,7 @@ import { useAuthStore } from "@/stores/auth";
 import dayjs from "dayjs";
 import PostClassExercise from "@/components/studentcourse/PostExercise.vue";
 import StudentVideoRecommend from "@/components/studentcourse/StudentVideoRecommend.vue";
+import CoursePPTViewer from "@/components/studentcourse/CoursePPTView.vue";
 
 // 初始化Markdown解析器
 const md: any = new MarkdownIt({
@@ -146,6 +154,7 @@ export default defineComponent({
     HomeOutlined,
     RightOutlined,
     StudentVideoRecommend,
+    CoursePPTViewer,
   },
   setup() {
     const route = useRoute();
@@ -164,7 +173,7 @@ export default defineComponent({
     const preQuestions = ref<Question[]>([]);
     const postQuestions = ref<Question[]>([]);
     const loading = ref(false);
-    const activeTab = ref("pre");
+    const activeTab = ref("ppt");
     // 加载题目数据
     const loadQuestions = async () => {
       try {

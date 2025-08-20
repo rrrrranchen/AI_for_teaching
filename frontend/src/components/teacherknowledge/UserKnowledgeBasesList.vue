@@ -99,7 +99,12 @@
                 <template #icon><delete-outlined /></template>
                 移除类目
               </a-button>
-              <a-button type="link" size="small" @click="showMap">
+              <a-button
+                type="link"
+                size="small"
+                @click="showMap(item)"
+                :loading="item.showingGraph"
+              >
                 <template #icon><RadarChartOutlined /></template>
                 知识图谱
               </a-button>
@@ -151,7 +156,13 @@
       ref="knowledgeBaseCreateModal"
       @created="fetchKnowledgeBases"
     />
-    <knowledgeMap v-model:visible="showKMap" />
+    <!-- 修改knowledgeMap组件调用 -->
+    <knowledgeMap
+      v-model:visible="showKMap"
+      :kbId="currentKBId"
+      :kbName="currentKBName"
+      @loading="handleGraphLoading"
+    />
   </div>
   <!-- 添加类目模态框 -->
   <a-modal
@@ -211,12 +222,7 @@ import {
   getCategories,
 } from "@/api/knowledgebase";
 import KnowledgeBaseCreateModal from "./KnowledgeBaseCreateModal.vue";
-import knowledgeMap from "@/components/knowledgeMap2.vue";
-
-const showKMap = ref<boolean>(false);
-const showMap = () => {
-  showKMap.value = true;
-};
+import knowledgeMap from "@/components/knowledgeMap.vue";
 
 interface KnowledgeBase {
   id: number;
@@ -235,6 +241,7 @@ interface KnowledgeBase {
     name: string;
   }[];
   updating?: boolean;
+  showingGraph?: boolean;
 }
 
 const loading = ref(false);
@@ -527,6 +534,32 @@ const fetchCategories = async () => {
 // 筛选选项
 const filterOption = (input: string, option: any) => {
   return option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0;
+};
+
+// 新增状态
+const showKMap = ref(false);
+const currentKBId = ref<number | null>(null);
+const graphLoadingMap = ref<Record<number, boolean>>({});
+// 新增状态
+const currentKBName = ref<string>("");
+
+// 修改showMap方法
+const showMap = (kb: KnowledgeBase) => {
+  currentKBId.value = kb.id;
+  currentKBName.value = kb.name;
+  showKMap.value = true;
+  graphLoadingMap.value[kb.id] = true;
+};
+
+// 处理图谱加载状态变化
+const handleGraphLoading = ({
+  kbId,
+  loading,
+}: {
+  kbId: number;
+  loading: boolean;
+}) => {
+  graphLoadingMap.value[kbId] = loading;
 };
 </script>
 
