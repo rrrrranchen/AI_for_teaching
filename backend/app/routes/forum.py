@@ -932,28 +932,23 @@ def get_recommended_designs():
             
             author = User.query.get(design.creator_id)
             
-            # 获取推荐信息中的第一张图片
+            # 获取教学设计对应的课程班封面
             first_image = None
-            recommendation = TeacherRecommend.query.filter_by(
-                teaching_design_id=design.id
-            ).order_by(
-                TeacherRecommend.created_at.desc()
-            ).first()
             
-            if recommendation and recommendation.image_recommendations:
+            # 查询教学设计所属课程的所有课程班
+            if design.course_id:
                 try:
-                    images_data = recommendation.image_recommendations
-                    # 处理字符串类型的JSON
-                    if isinstance(images_data, str):
-                        images_data = json.loads(images_data)
-                    
-                    # 从JSON对象中提取images数组
-                    if isinstance(images_data, dict) and "images" in images_data:
-                        images = images_data["images"]
-                        if isinstance(images, (list, tuple)) and len(images) > 0:
-                            first_image = images[0]
+                    # 更安全的方式：通过课程对象直接获取关联的课程班
+                    course = Course.query.get(design.course_id)
+                    if course and course.courseclasses:
+                        # 获取第一个课程班的封面
+                        first_image = course.courseclasses[0].image_path
+                    else:
+                        # 如果没有关联的课程班，使用默认图片
+                        first_image = 'static/uploads/courseclass/default.jpg'
                 except Exception as e:
-                    logger.warning(f"Failed to parse images for design {design.id}: {str(e)}")
+                    logger.warning(f"获取课程班封面失败 for design {design.id}: {str(e)}")
+                    first_image = 'static/uploads/courseclass/default.jpg'
 
             design_data = {
                 'id': design.id,
@@ -963,12 +958,10 @@ def get_recommended_designs():
                 'author_name': author.username if author else "未知用户",
                 'author_avatar': author.avatar if author else None,
                 'version_content': version_content.get('plan_content', '')[:200] + '...',
-                'recommend_time': design.recommend_time.isoformat() if design.recommend_time else None
+                'recommend_time': design.recommend_time.isoformat() if design.recommend_time else None,
+                'first_image': first_image  # 返回课程班封面
             }
             
-            if first_image:
-                design_data['first_image'] = first_image
-                
             designs_data.append(design_data)
 
         return jsonify(designs_data), 200
