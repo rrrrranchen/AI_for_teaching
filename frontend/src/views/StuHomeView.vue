@@ -21,7 +21,7 @@
 
     <a-row :gutter="24" class="main-content">
       <!-- 左边区域 (2/3宽度) - 可滚动 -->
-      <a-col :span="16">
+      <a-col :span="14">
         <div class="left-section scrollable-content">
           <!-- 轮播图 - 包含功能入口图片 -->
           <div class="carousel-section">
@@ -147,15 +147,15 @@
       </a-col>
 
       <!-- 右边区域 (1/3宽度) -->
-      <a-col :span="8">
-        <div class="right-section">
+      <a-col :span="10">
+        <div class="right-section-up">
           <div class="section-title">
             <h2>我的课程</h2>
             <p>最近参与的课程</p>
           </div>
           <a-list
             item-layout="horizontal"
-            :data-source="courseClasses.slice(0, 5)"
+            :data-source="courseClasses.slice(0, 3)"
             :loading="loading"
             class="my-classes-list"
           >
@@ -186,6 +186,9 @@
             </template>
           </a-list>
         </div>
+        <div style="margin-top: 24px" class="right-section-down">
+          <LearningPathGenerator />
+        </div>
       </a-col>
     </a-row>
   </div>
@@ -208,6 +211,7 @@ import {
   searchPublicCourseclasses,
 } from "@/api/courseclass";
 import MyApplicationsModal from "@/components/MyApplicationsModal.vue";
+import LearningPathGenerator from "@/components/LearningPathGenerator.vue";
 
 export default defineComponent({
   name: "HomeView",
@@ -216,6 +220,7 @@ export default defineComponent({
     BookOutlined,
     SearchOutlined,
     MyApplicationsModal,
+    LearningPathGenerator,
   },
   setup() {
     const authStore = useAuthStore();
@@ -431,12 +436,12 @@ export default defineComponent({
   }
 }
 
-.right-section {
+.right-section-up {
   padding: 24px;
   background-color: #fff;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  height: 800px;
+  height: 340px;
 }
 
 .section-title {
@@ -454,6 +459,9 @@ export default defineComponent({
     color: #8c8c8c;
     margin: 0;
   }
+}
+.right-section-down {
+  height: 560px;
 }
 
 .carousel-section {

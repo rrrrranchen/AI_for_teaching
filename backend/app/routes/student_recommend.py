@@ -365,7 +365,6 @@ from app.config import Config
 @student_recommend_bp.route('/generate_learn', methods=['GET'])
 def generate_learning_route():
     """
-    POST /api/learning/generate
     Body:
         {
           "target": "前端开发"
@@ -377,8 +376,7 @@ def generate_learning_route():
     if not student_id:
         return jsonify(code=401, msg="未登录"), 401
 
-    data = request.get_json(silent=True) or {}
-    target_topic = data.get("target")
+    target_topic = request.args.get("target")
     if not target_topic:
         return jsonify(code=400, msg="target 不能为空"), 400
 
@@ -541,3 +539,39 @@ def search_public_classes():
         "per": per,
         "results": results
     })
+
+# 在 student_recommend.py 中添加以下路由
+@student_recommend_bp.route('/get_user_learning_path', methods=['GET'])
+def get_user_learning_path_route():
+    """
+    获取当前用户已生成的学习路径
+    """
+    # 检查用户是否登录
+    if not is_logged_in():
+        return jsonify({'error': '未登录'}), 401
+
+    student_id = session.get('user_id')
+    user = User.query.get(student_id)
+    
+    if not user:
+        return jsonify({'error': '用户不存在'}), 404
+    
+    # 检查用户是否有学习路径文件
+    if not user.learning_path_file:
+        return jsonify(code=404, msg="尚未生成学习路径", data=None)
+    
+    try:
+        # 读取学习路径文件
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        filepath = os.path.join(project_root, user.learning_path_file)
+        
+        if not os.path.exists(filepath):
+            return jsonify(code=404, msg="学习路径文件不存在", data=None)
+        
+        with open(filepath, 'r', encoding='utf-8') as f:
+            learning_path_data = json.load(f)
+        
+        return jsonify(code=0, msg="success", data=learning_path_data)
+        
+    except Exception as e:
+        return jsonify(code=500, msg=f"读取学习路径失败：{e}", data=None), 500
