@@ -1,5 +1,10 @@
+import json
+import math
+import os
 from typing import Dict, List
-from flask import Blueprint, jsonify, session
+import uuid
+from flask import Blueprint, jsonify, request, session
+from openai import OpenAI
 from app.utils.database import db
 from app.models.courseclass import Courseclass
 from app.models.course import Course
@@ -12,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.models.student_recommend import StudentRecommend
 from app.utils.recommend_to_students import extract_keywords_from_report, generate_final_json
 from app.models.studentanalysisreport import StudentAnalysisReport
+from app.utils.create_cat import EMBED_MODEL
 student_recommend_bp=Blueprint('student_recommend_bp', __name__)
 def is_logged_in():
     return 'user_id' in session
@@ -342,3 +348,196 @@ def get_user_post_class_recommendations_route(course_id):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+
+def _get_student_class_info(student_id: int):
+    """
+    返回 List[Dict] : [{"name":"xx班","description":"xxx"}, ...]
+    """
+    student = User.query.get(student_id)
+    if not student or student.role != 'student':
+        return []
+    # 通过多对多关系直接拿 Courseclass 对象
+    classes = student.student_courseclasses
+    return [{"name": c.name, "description": c.description or ""} for c in classes]
+import sqlalchemy as sa
+from app.config import Config
+@student_recommend_bp.route('/generate_learn', methods=['GET'])
+def generate_learning_route():
+    """
+    POST /api/learning/generate
+    Body:
+        {
+          "target": "前端开发"
+        }
+    需要登录态携带 student_id（可从 token/Session 里取）
+    """
+    # 1. 获取学生 id（示例：从 g.user）
+    student_id = session.get('user_id')  # 根据你鉴权方式调整
+    if not student_id:
+        return jsonify(code=401, msg="未登录"), 401
+
+    data = request.get_json(silent=True) or {}
+    target_topic = data.get("target")
+    if not target_topic:
+        return jsonify(code=400, msg="target 不能为空"), 400
+
+    # 2. 拉取课程班信息
+    class_info = _get_student_class_info(student_id)
+
+    class_text = "\n".join([f"- {c['name']}：{c['description']}" for c in class_info])
+
+    # 3. 组装 DeepSeek prompt
+    system_prompt = (
+        "你是教学规划专家，请根据学生已学过的课程班，为其制定个性化学习路线，"
+        "输出严格 JSON（不要 markdown 代码块）。"
+    )
+    user_prompt = (
+        f"已学过的课程班：\n{class_text}\n\n"
+        f"接下来想学习的内容：{target_topic}\n\n"
+        "请按以下示例格式返回：\n"
+        "{\n"
+        '  "name": "前端学习路线",\n'
+        '  "itemStyle": { "color": "#5470c6" },\n'
+        '  "children": [\n'
+        '    {\n'
+        '      "name": "基础阶段",\n'
+        '      "itemStyle": { "color": "#91cc75" },\n'
+        '      "children": [\n'
+        '        { "name": "HTML 语义化标签" },\n'
+        '        { "name": "CSS 布局与响应式" }\n'
+        '      ]\n'
+        '    }\n'
+        '  ]\n'
+        "}"
+    )
+
+    # 4. 调用 DeepSeek
+    client = OpenAI(
+        api_key=Config.DEEPSEEK_API_KEY,
+        base_url="https://api.deepseek.com/v1"
+    )
+    try:
+        resp = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user",   "content": user_prompt}
+            ],
+            temperature=0.3,
+            max_tokens=2000
+        )
+        route_str = resp.choices[0].message.content.strip()
+        route_json = json.loads(route_str)
+    except Exception as e:
+        return jsonify(code=500, msg=f"生成学习路线失败：{e}"), 500
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # 5. 写文件
+    storage_dir = os.path.join(project_root, 'static', 'learn') 
+    os.makedirs(storage_dir, exist_ok=True)
+    filename = f"{uuid.uuid4().hex}.json"
+    filepath = os.path.join(storage_dir, filename)
+    stpath = os.path.join('static','learn',filename)
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(route_json, f, ensure_ascii=False, indent=2)
+
+    # 6. 更新用户表
+    user = User.query.get(student_id)
+    user.learning_path_file = stpath
+    db.session.commit()
+
+    # 7. 返回
+    return jsonify(code=0, msg="success", data=route_json)
+
+
+def _cosine_sim(a, b):
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = math.sqrt(sum(x * x for x in a))
+    norm_b = math.sqrt(sum(x * x for x in b))
+    return dot / (norm_a * norm_b + 1e-8)
+from dashscope import TextEmbedding   
+from sqlalchemy.orm import joinedload
+@student_recommend_bp.route('/generate_learn/search', methods=['GET'])
+def search_public_classes():
+    kw  = request.args.get("q", "").strip()
+    page = max(int(request.args.get("page", 1)), 1)
+    per  = max(min(int(request.args.get("per", 10)), 50), 1)
+
+    if not kw:
+        return jsonify(code=400, msg="缺少查询关键词 q"), 400
+
+    # 1) 粗粒度 LIKE 过滤
+    like_kw = f"%{kw}%"
+    base_q = (
+        db.session.query(Courseclass)
+        .filter(Courseclass.is_public.is_(True))
+        .options(joinedload(Courseclass.courses))
+        .filter(
+            sa.or_(
+                Courseclass.name.ilike(like_kw),
+                Courseclass.description.ilike(like_kw),
+                Courseclass.courses.any(Course.name.ilike(like_kw)),
+                Courseclass.courses.any(Course.description.ilike(like_kw))
+            )
+        )
+        .distinct()
+    )
+
+    total = base_q.count()
+    candidates = base_q.offset((page - 1) * per).limit(per).all()
+
+    if not candidates:
+        return jsonify(code=0, msg="success", data={"total": 0, "results": []})
+
+    # 2) 用 dashscope 原生 SDK 获取向量
+    kw_resp = TextEmbedding.call(
+        model="text-embedding-v4",
+        input=kw,
+        text_type="query",
+        api_key=os.getenv("DASHSCOPE_API_KEY", "")
+    )
+    kw_vec = kw_resp.output["embeddings"][0]["embedding"]
+
+    # 3) 向量重排
+    scored = []
+    for cls in candidates:
+        full_text = " ".join(
+            [cls.name or "", cls.description or ""] +
+            [c.name or "" for c in cls.courses] +
+            [c.description or "" for c in cls.courses]
+        )
+        cls_resp = TextEmbedding.call(
+            model="text-embedding-v4",
+            input=full_text,
+            text_type="document",
+            api_key=os.getenv("DASHSCOPE_API_KEY", "")
+        )
+        cls_vec = cls_resp.output["embeddings"][0]["embedding"]
+        score = _cosine_sim(kw_vec, cls_vec)
+        scored.append((score, cls))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+
+    # 4) 序列化返回
+    results = [
+        {
+            "id": cls.id,
+            "name": cls.name,
+            "description": cls.description,
+            "image_path": cls.image_path,
+            "invite_code": cls.invite_code,
+            "courses": [
+                {"id": c.id, "name": c.name, "description": c.description}
+                for c in cls.courses
+            ],
+            "score": round(score, 3)
+        }
+        for score, cls in scored
+    ]
+
+    return jsonify(code=0, msg="success", data={
+        "total": total,
+        "page": page,
+        "per": per,
+        "results": results
+    })

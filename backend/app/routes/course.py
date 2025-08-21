@@ -104,6 +104,9 @@ def upload_course_ppt(course_id):
         'msg': 'PPT uploaded successfully',
         'ppt_path': '/' + course.ppt_path
     }), 200
+
+
+
 @course_bp.route('/courses/<int:course_id>/ppt', methods=['GET'])
 def get_course_ppt(course_id):
     """查询指定课程的 PPT 文件路径"""

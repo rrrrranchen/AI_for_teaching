@@ -38,6 +38,7 @@ class User(db.Model):
     student_operation_logs = db.relationship('StudentOperationLog', back_populates='student')
     admin_operation_logs = db.relationship('AdminOperationLog', back_populates='admin')
     categories = db.relationship('Category', back_populates='author')
+    learning_path_file = db.Column(db.String(512), nullable=True)
     def set_password(self, password):
         self.password_hash = generate_password_hash(password, method="pbkdf2:sha256")
 
