@@ -152,7 +152,12 @@
                 >
                   {{ item.base_type === "structural" ? "结构化" : "非结构化" }}
                 </a-tag>
-                <a-button type="link" size="small" @click="showMap">
+                <a-button
+                  type="link"
+                  size="small"
+                  @click="showMap(item)"
+                  :loading="item.showingGraph"
+                >
                   <template #icon><RadarChartOutlined /></template>
                   知识图谱
                 </a-button>
@@ -350,7 +355,13 @@
       </div>
     </div>
   </div>
-  <knowledgeMap v-model:visible="showKMap" />
+  <!-- 修改knowledgeMap组件调用 -->
+  <knowledgeMap
+    v-model:visible="showKMap"
+    :kbId="currentKBId"
+    :kbName="currentKBName"
+    @loading="handleGraphLoading"
+  />
 </template>
 
 <script lang="ts" setup>
@@ -376,9 +387,29 @@ import {
 
 import knowledgeMap from "@/components/knowledgeMap.vue";
 
-const showKMap = ref<boolean>(false);
-const showMap = () => {
+// 新增状态
+const showKMap = ref(false);
+const currentKBId = ref<number | null>(null);
+const currentKBName = ref<string>("");
+const graphLoadingMap = ref<Record<number, boolean>>({});
+
+// 修改showMap方法
+const showMap = (kb: any) => {
+  currentKBId.value = kb.id;
+  currentKBName.value = kb.name;
   showKMap.value = true;
+  graphLoadingMap.value[kb.id] = true;
+};
+
+// 处理图谱加载状态变化
+const handleGraphLoading = ({
+  kbId,
+  loading,
+}: {
+  kbId: number;
+  loading: boolean;
+}) => {
+  graphLoadingMap.value[kbId] = loading;
 };
 
 interface ListParams {
@@ -415,6 +446,24 @@ const migratingId = ref<number | null>(null);
 const publicKnowledgeBases = ref<any[]>([]);
 const searchResults = ref<any[]>([]);
 const deepSearchResults = ref<any[]>([]);
+// 在列表项中添加showingGraph字段
+publicKnowledgeBases.value = publicKnowledgeBases.value.map((kb) => ({
+  ...kb,
+  showingGraph: false,
+}));
+
+searchResults.value = searchResults.value.map((kb) => ({
+  ...kb,
+  showingGraph: false,
+}));
+
+deepSearchResults.value = deepSearchResults.value.map((item) => ({
+  ...item,
+  knowledge_base: {
+    ...item.knowledge_base,
+    showingGraph: false,
+  },
+}));
 
 const listParams = reactive<ListParams>({
   keyword: undefined,

@@ -30,6 +30,10 @@
       <a-tab-pane key="smartpreparation" tab="智能备课">
         <SmartPreparation />
       </a-tab-pane>
+      <!-- 新增PPT标签页 -->
+      <a-tab-pane key="ppt" tab="PPT管理">
+        <CoursePPTManager :course-id="courseId" />
+      </a-tab-pane>
       <!-- 原有标签页保持不变 -->
       <a-tab-pane key="questions" tab="题目管理">
         <!-- 题目列表 -->
@@ -321,6 +325,7 @@ import utc from "dayjs/plugin/utc";
 import SmartPreparation from "@/components/teachercourse/SmartPreparation.vue";
 import Vditor from "vditor";
 import "vditor/dist/index.css";
+import CoursePPTManager from "@/components/teachercourse/CoursePPTManager.vue";
 
 dayjs.extend(utc);
 
@@ -336,6 +341,7 @@ export default defineComponent({
     HomeOutlined,
     RightOutlined,
     SmartPreparation,
+    CoursePPTManager,
   },
   setup() {
     // 在setup函数中添加

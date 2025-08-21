@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>PPTXjs 在线预览 - 全部展示</title>
+
+    <link rel="stylesheet" href="./css/pptxjs.css" />
+    <link rel="stylesheet" href="./css/nv.d3.min.css" />
+
+    <script src="./js/jquery-1.11.3.min.js"></script>
+    <script src="./js/jszip.min.js"></script>
+    <script src="./js/filereader.js"></script>
+    <script src="./js/d3.min.js"></script>
+    <script src="./js/nv.d3.min.js"></script>
+    <script src="./js/pptxjs.js"></script>
+    <script src="./js/divs2slides.js"></script>
+
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        min-height: 700px;
+        background-color: #f5f5f5;
+      }
+      #ppt-container {
+        width: 100%;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="ppt-container"></div>
+
+    <script>
+      // 获取 URL 参数
+      function getQueryParam(name) {
+        const url = new URL(window.location.href);
+        return url.searchParams.get(name);
+      }
+      const fileUrl = getQueryParam("file") || "Sample_12.pptx";
+
+      // 渲染 PPT
+      $("#ppt-container").pptxToHtml({
+        pptxFileUrl: fileUrl,
+        slideMode: false, // 连续显示模式
+        keyBoardShortCut: false,
+        onLoad: function (ppt) {
+          console.log("PPT 加载完成，总页数:", ppt.slides.length);
+        },
+      });
+    </script>
+  </body>
+</html>

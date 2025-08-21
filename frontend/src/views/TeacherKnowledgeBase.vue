@@ -96,7 +96,9 @@ const shareKnowledgebases = ref();
 }
 
 .content {
+  height: 95vh;
   padding: 16px;
+  overflow-y: auto;
   background-color: #f5f7fa;
   min-height: calc(100vh - 48px);
 }

@@ -151,7 +151,13 @@
               <template #icon><delete-outlined /></template>
               移除类目
             </a-button>
-            <a-button type="link" size="small" @click="showMap">
+            <!-- 原有代码保持不变，只修改知识图谱按钮部分 -->
+            <a-button
+              type="link"
+              size="small"
+              @click="showMap(item)"
+              :loading="item.showingGraph"
+            >
               <template #icon><RadarChartOutlined /></template>
               知识图谱
             </a-button>
@@ -243,7 +249,13 @@
       />
     </a-modal>
 
-    <knowledgeMap v-model:visible="showKMap" />
+    <!-- 修改knowledgeMap组件调用 -->
+    <knowledgeMap
+      v-model:visible="showKMap"
+      :kbId="currentKBId"
+      :kbName="currentKBName"
+      @loading="handleGraphLoading"
+    />
   </div>
 </template>
 
@@ -274,11 +286,6 @@ import {
 import AdminKnowledgeBaseCreateModal from "./KnowledgeBaseCreateModal.vue";
 import { type KnowledgeBase } from "@/api/knowledgebase";
 import knowledgeMap from "@/components/knowledgeMap.vue";
-
-const showKMap = ref<boolean>(false);
-const showMap = () => {
-  showKMap.value = true;
-};
 
 interface SearchParams {
   name?: string;
@@ -609,6 +616,31 @@ onUnmounted(() => {
     window.clearInterval(updateInterval.value);
   }
 });
+
+// 新增状态
+const showKMap = ref(false);
+const currentKBId = ref<number | null>(null);
+const currentKBName = ref<string>("");
+const graphLoadingMap = ref<Record<number, boolean>>({});
+
+// 修改showMap方法
+const showMap = (kb: KnowledgeBase) => {
+  currentKBId.value = kb.id;
+  currentKBName.value = kb.name;
+  showKMap.value = true;
+  graphLoadingMap.value[kb.id] = true;
+};
+
+// 处理图谱加载状态变化
+const handleGraphLoading = ({
+  kbId,
+  loading,
+}: {
+  kbId: number;
+  loading: boolean;
+}) => {
+  graphLoadingMap.value[kbId] = loading;
+};
 </script>
 
 <style scoped>

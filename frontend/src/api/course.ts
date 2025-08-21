@@ -141,24 +141,43 @@ export const updateCourseContent = async (
     await api.put(`/courses/${courseId}/content`, data);
   return response.data;
 };
-// // 创建课程参数
-// interface CreateCourseParams {
-//   name: string;
-//   description?: string;
-//   courseclass_id: number;
-// }
-// // 删除课程（仅限老师）
-// export const deleteCourse = async (id: number): Promise<void> => {
-//   await api.delete(`/courses/${id}`);
-// };
-// // 为课程班添加课程
-// export const addCourseToCourseclass = async (
-//   courseclassId: number,
-//   data: CreateCourseParams
-// ): Promise<Course> => {
-//   const response: AxiosResponse<Course> = await api.post(
-//     `/courseclasses/${courseclassId}/add_courses`,
-//     data
-//   );
-//   return response.data;
-// };
+
+// PPT 相关接口
+interface UploadPPTResponse {
+  msg: string;
+  ppt_path: string;
+}
+
+interface GetPPTResponse {
+  ppt_path: string;
+}
+
+// 为指定课程上传 PPT 文件
+export const uploadCoursePPT = async (
+  courseId: number,
+  file: File
+): Promise<UploadPPTResponse> => {
+  const formData = new FormData();
+  formData.append("ppt", file);
+
+  const response: AxiosResponse<UploadPPTResponse> = await api.post(
+    `/courses/${courseId}/ppt`,
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }
+  );
+  return response.data;
+};
+
+// 获取指定课程的 PPT 文件路径
+export const getCoursePPT = async (
+  courseId: number
+): Promise<GetPPTResponse> => {
+  const response: AxiosResponse<GetPPTResponse> = await api.get(
+    `/courses/${courseId}/ppt`
+  );
+  return response.data;
+};
