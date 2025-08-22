@@ -17,7 +17,7 @@
                   <div class="card-cover">
                     <img
                       v-if="design.first_image"
-                      :src="design.first_image"
+                      :src="'http://localhost:5000/' + design.first_image"
                       alt="加载失败"
                       class="author-avatar"
                     />

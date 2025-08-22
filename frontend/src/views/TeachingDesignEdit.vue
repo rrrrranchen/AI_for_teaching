@@ -59,106 +59,47 @@
         <div class="content-container">
           <!-- 左侧教学计划内容 -->
           <div class="plan-editor">
-            <h3>教学设计内容</h3>
-            <div id="vditor" class="vditor-container"></div>
-          </div>
-
-          <div class="analysis-section">
-            <div class="version-control">
-              <a-button
-                type="primary"
-                @click="saveVersion"
-                :loading="saving"
-                block
-              >
-                <template #icon><SaveOutlined /></template>
-                保存修改
-              </a-button>
-              <a-button
-                type="primary"
-                @click="setDefaultVersion"
-                :loading="settingDefault"
-                :disabled="!selectedVersionId"
-              >
-                设为默认
-              </a-button>
-              <a-select
-                v-model:value="selectedVersionId"
-                style="width: 150px"
-                @change="handleVersionChange"
-              >
-                <a-select-option
-                  v-for="version in designVersions"
-                  :key="version.id"
-                  :value="version.id"
+            <div class="head">
+              <h3 style="float: left; margin-top: 4px">教学设计内容</h3>
+              <div class="version-control" style="float: right">
+                <a-button
+                  type="primary"
+                  @click="saveVersion"
+                  :loading="saving"
+                  block
                 >
-                  <span>
-                    版本 {{ version.version }}
-                    <a-tag v-if="version.id === defaultVersionId" color="gold"
-                      >默认</a-tag
-                    >
-                  </span>
-                </a-select-option>
-              </a-select>
-            </div>
-            <!-- 上半部分：课前预习水平分析 -->
-            <div class="analysis-top">
-              <h3>课前预习水平分析</h3>
-              <a-textarea
-                v-model:value="preanalysis"
-                :rows="8"
-                placeholder="请输入分析内容"
-                class="analysis-textarea"
-              />
-            </div>
-
-            <!-- 下半部分：PPT资源 -->
-            <div class="ppt-resources">
-              <h3>教学设计PPT</h3>
-              <a-empty
-                v-if="pptResources.length === 0"
-                description="暂无PPT资源"
-              >
-                <a-button type="primary" @click="gotoPpt">
-                  <template #icon><file-ppt-outlined /></template>
-                  去生成PPT
+                  <template #icon><SaveOutlined /></template>
+                  保存修改
                 </a-button>
-              </a-empty>
-
-              <a-spin :spinning="loadingPPT">
-                <div v-if="pptResources.length > 0" class="ppt-list">
-                  <a-card
-                    v-for="resource in pptResources"
-                    :key="resource.id"
-                    class="ppt-card"
+                <a-button
+                  type="primary"
+                  @click="setDefaultVersion"
+                  :loading="settingDefault"
+                  :disabled="!selectedVersionId"
+                >
+                  设为默认
+                </a-button>
+                <a-select
+                  v-model:value="selectedVersionId"
+                  style="width: 150px"
+                  @change="handleVersionChange"
+                >
+                  <a-select-option
+                    v-for="version in designVersions"
+                    :key="version.id"
+                    :value="version.id"
                   >
-                    <template #actions>
-                      <a-button type="link" @click="downloadPPT(resource)">
-                        下载
-                      </a-button>
-                      <a
-                        target="_blank"
-                        :href="getPPTPreviewUrl(resource)"
-                        class="preview-link"
+                    <span>
+                      版本 {{ version.version }}
+                      <a-tag v-if="version.id === defaultVersionId" color="gold"
+                        >默认</a-tag
                       >
-                        预览
-                      </a>
-                    </template>
-                    <div class="ppt-card-content">
-                      <img
-                        src="@/assets/icons8-ms-powerpoint.svg"
-                        alt="PPT Icon"
-                        class="ppt-icon"
-                      />
-                      <a-card-meta
-                        :title="resource.title"
-                        :description="resource.description"
-                      ></a-card-meta>
-                    </div>
-                  </a-card>
-                </div>
-              </a-spin>
+                    </span>
+                  </a-select-option>
+                </a-select>
+              </div>
             </div>
+            <div id="vditor" class="vditor-container"></div>
           </div>
         </div>
       </a-tab-pane>
@@ -185,7 +126,6 @@ import {
 import { useRoute } from "vue-router";
 import { message } from "ant-design-vue";
 import {
-  FilePptOutlined,
   SaveOutlined,
   ClockCircleOutlined,
   HomeOutlined,
@@ -205,8 +145,6 @@ import {
 } from "@/api/teachingdesign";
 import Vditor from "vditor";
 import "vditor/dist/index.css";
-import { getDesignVersionResources } from "@/api/resource";
-import type { PPTTemplate, MultimediaResource } from "@/api/resource";
 import TeacherRecommendations from "@/components/TeacherRecommendations.vue";
 import MindMapEditor from "@/components/mindmap/MindMapEditor.vue";
 import router from "@/router";
@@ -214,7 +152,6 @@ import router from "@/router";
 export default defineComponent({
   name: "TeachingDesignEdit",
   components: {
-    FilePptOutlined,
     SaveOutlined,
     TeacherRecommendations,
     MindMapEditor,
@@ -265,6 +202,10 @@ export default defineComponent({
             lineNumber: true, // 显示行号// 可选值如：github、github-dark、monokai、base16/dracula 等
           },
         },
+        outline: {
+          enable: true,
+          position: "left",
+        },
         toolbar: [
           "emoji",
           "headings",
@@ -294,21 +235,28 @@ export default defineComponent({
           "|",
           "fullscreen",
           "edit-mode",
+          "outline",
+          "export",
           {
             name: "more",
-            toolbar: [
-              "both",
-              "code-theme",
-              "content-theme",
-              "export",
-              "outline",
-              "preview",
-            ],
+            toolbar: ["both", "code-theme", "content-theme", "preview"],
           },
         ],
         after: () => {
           if (currentVersion.value.plan_content) {
             vditor.value?.setValue(currentVersion.value.plan_content);
+            // 初始化后自动展开大纲
+            setTimeout(() => {
+              const outlineBtn = document.querySelector(
+                '.vditor-toolbar__item[data-type="outline"]'
+              );
+              if (
+                outlineBtn &&
+                !outlineBtn.classList.contains("vditor-menu--current")
+              ) {
+                (outlineBtn as HTMLElement).click();
+              }
+            }, 100);
           }
         },
         input: (value: string) => {
@@ -362,7 +310,6 @@ export default defineComponent({
     // 版本切换
     const handleVersionChange = (versionId: number) => {
       fetchVersionDetail(versionId);
-      fetchPPTResources(versionId);
     };
 
     // 保存当前版本
@@ -406,7 +353,6 @@ export default defineComponent({
         initVditor();
         await fetchDesignDetail(); // 新增
         await fetchDesignVersions();
-        await fetchPPTResources(defaultVersionId.value);
       } catch (err) {
         message.error("初始化失败");
         console.error("初始化错误:", err);
@@ -421,37 +367,6 @@ export default defineComponent({
       }
     });
 
-    // 新增PPT相关状态
-    const pptResources = ref<MultimediaResource[]>([]);
-    const loadingPPT = ref(false);
-
-    // 获取PPT资源
-    const fetchPPTResources = async (versionId: number) => {
-      try {
-        loadingPPT.value = true;
-        pptResources.value = await getDesignVersionResources(versionId);
-      } catch (err) {
-        message.error("获取PPT资源失败");
-      } finally {
-        loadingPPT.value = false;
-      }
-    };
-
-    const gotoPpt = () => {
-      router.push({ path: "/home/smart-preparation" });
-    };
-    // 下载PPT
-    const downloadPPT = (resource: MultimediaResource) => {
-      console.log("下载资源ppt:", resource);
-      window.open("http://localhost:5000/" + resource.storage_path, "_blank");
-    };
-    // 获取PPT预览URL
-    const getPPTPreviewUrl = (resource: MultimediaResource) => {
-      const pptUrl = encodeURIComponent(
-        `http://localhost:5000/${resource.storage_path}`
-      );
-      return `http://view.officeapps.live.com/op/view.aspx?src=${pptUrl}`;
-    };
     // 新增状态
     const settingDefault = ref(false);
 
@@ -535,13 +450,6 @@ export default defineComponent({
       fetchDesignVersions,
       handleVersionChange,
       saveVersion,
-
-      //ppt
-      pptResources,
-      loadingPPT,
-      gotoPpt,
-      downloadPPT,
-      getPPTPreviewUrl,
       settingDefault,
       defaultVersionId,
       setDefaultVersion,
@@ -654,9 +562,6 @@ export default defineComponent({
 }
 
 .content-container {
-  flex: 1;
-  display: grid;
-  grid-template-columns: 3fr 1fr;
   gap: 24px;
   height: 90vh;
 }
@@ -670,12 +575,6 @@ export default defineComponent({
   background-color: #e2f4ff;
 }
 
-.analysis-section {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  height: 100%;
-}
 .version-control {
   display: flex;
   align-items: center;
@@ -692,14 +591,6 @@ export default defineComponent({
   max-height: 80vh;
 }
 
-.analysis-textarea {
-  flex: 1;
-  margin-top: 5px;
-  margin-bottom: 5px;
-  height: 35vh;
-  resize: none;
-}
-
 .footer {
   margin-top: 24px;
   text-align: right;
@@ -709,91 +600,8 @@ export default defineComponent({
 
 h3 {
   margin: 0 0 12px 0;
-  font-size: 16px;
+  font-size: 18px;
   color: rgba(0, 0, 0, 0.85);
-}
-
-/* ppt */
-
-.analysis-top {
-  flex: 1;
-}
-
-.ppt-resources {
-  flex: 1;
-  min-height: 300px;
-}
-
-.ppt-list {
-  display: grid;
-  gap: 16px;
-}
-
-.ppt-card {
-  transition: box-shadow 0.3s;
-}
-
-.ppt-card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-/* PPT卡片内容样式 */
-.ppt-card-content {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-/* PPT图标样式 */
-.ppt-icon {
-  width: 80px;
-  height: 80px;
-  flex-shrink: 0;
-}
-
-/* 卡片元信息样式调整 */
-:deep(.ppt-card .ant-card-meta) {
-  flex: 1;
-}
-
-:deep(.ppt-card .ant-card-meta-title) {
-  margin-bottom: 4px;
-}
-
-:deep(.ppt-card .ant-card-meta-description) {
-  color: rgba(0, 0, 0, 0.45);
-  font-size: 12px;
-}
-
-/* 修改模态框样式 */
-:deep(.ant-modal) {
-  max-width: 800px;
-}
-
-:deep(.ant-modal-body) {
-  max-height: 60vh;
-  overflow-y: auto;
-  padding: 16px;
-}
-
-/* 固定模态框样式 */
-:deep(.fixed-modal) {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  margin: 0;
-}
-
-:deep(.fixed-modal .ant-modal-content) {
-  display: flex;
-  flex-direction: column;
-  max-height: 80vh;
-}
-
-:deep(.fixed-modal .ant-modal-body) {
-  flex: 1;
-  overflow: hidden;
 }
 
 /* 新增样式 */

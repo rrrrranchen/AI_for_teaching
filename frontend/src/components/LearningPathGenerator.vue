@@ -45,10 +45,6 @@
             <template #icon><reload-outlined /></template>
             重新生成
           </a-button>
-          <a-button type="link" @click="resetForm">
-            <template #icon><arrow-left-outlined /></template>
-            返回
-          </a-button>
         </div>
       </div>
 
