@@ -1,0 +1,68 @@
+{
+    "env": {
+        "desc": "",
+        "roles": {
+            "Teacher": {
+                "name": "Teacher",
+                "profile": "Teacher",
+                "goal": "",
+                "constraints": "",
+                "desc": "",
+                "is_human": false,
+                "role_id": "",
+                "states": [
+                    "0. ReadReport"
+                ],
+                "actions": [
+                    {
+                        "name": "ReadReport",
+                        "i_context": "",
+                        "prefix": "You are a Teacher, named Teacher, your goal is . ",
+                        "desc": "",
+                        "llm_name_or_type": null,
+                        "__module_class_name": "__main__.ReadReport"
+                    }
+                ],
+                "rc": {
+                    "memory": {
+                        "storage": [],
+                        "index": {
+                            "metagpt.actions.add_requirement.UserRequirement": []
+                        },
+                        "ignore_id": false
+                    },
+                    "working_memory": {
+                        "storage": [],
+                        "index": {},
+                        "ignore_id": false
+                    },
+                    "state": 0,
+                    "watch": [
+                        "metagpt.actions.add_requirement.UserRequirement"
+                    ],
+                    "react_mode": "react",
+                    "max_react_loop": 1
+                },
+                "addresses": [
+                    "Teacher",
+                    "__main__.Teacher"
+                ],
+                "planner": {
+                    "plan": {
+                        "goal": "",
+                        "context": "",
+                        "tasks": [],
+                        "task_map": {},
+                        "current_task_id": ""
+                    },
+                    "working_memory": {
+                        "storage": [],
+                        "index": {},
+                        "ignore_id": false
+                    },
+                    "auto_run": false
+                },
+                "recovered": false,
+                "latest_observed_msg": {
+                    "id": "adad34a30c614137bf429faa0ef27887",
+                    "content": 

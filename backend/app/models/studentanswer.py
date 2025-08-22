@@ -14,7 +14,7 @@ class StudentAnswer(db.Model):
     answered_at = db.Column(db.DateTime, default=datetime.utcnow)
     modified_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     modified_at = db.Column(db.DateTime, nullable=True, default=datetime.utcnow)
-    
+    analysis = db.Column(db.Text, nullable=True)
 
     def __repr__(self):
         return f'<StudentAnswer {self.id}>'

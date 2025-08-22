@@ -4,6 +4,7 @@ import os
 from typing import Dict, List
 import uuid
 from flask import Blueprint, jsonify, request, session
+import jieba
 from openai import OpenAI
 from app.utils.database import db
 from app.models.courseclass import Courseclass
@@ -461,27 +462,40 @@ from dashscope import TextEmbedding
 from sqlalchemy.orm import joinedload
 @student_recommend_bp.route('/generate_learn/search', methods=['GET'])
 def search_public_classes():
-    kw  = request.args.get("q", "").strip()
+    kw = request.args.get("q", "").strip()
     page = max(int(request.args.get("page", 1)), 1)
-    per  = max(min(int(request.args.get("per", 10)), 50), 1)
+    per = max(min(int(request.args.get("per", 10)), 50), 1)
 
     if not kw:
         return jsonify(code=400, msg="缺少查询关键词 q"), 400
 
-    # 1) 粗粒度 LIKE 过滤
-    like_kw = f"%{kw}%"
+    # 1) 更灵活的模糊搜索 - 拆分关键词为多个部分
+    keywords = [w for w in jieba.lcut(kw) if len(w) >= 2]
+    conditions = []
+    
+    # 为每个关键词部分创建模糊匹配条件
+    for keyword in keywords:
+        if not keyword:
+            continue
+            
+        like_kw = f"%{keyword}%"
+        conditions.extend([
+            Courseclass.name.ilike(like_kw),
+            Courseclass.description.ilike(like_kw),
+            Courseclass.courses.any(Course.name.ilike(like_kw)),
+            Courseclass.courses.any(Course.description.ilike(like_kw))
+        ])
+    
+    # 如果没有有效关键词，返回空结果
+    if not conditions:
+        return jsonify(code=0, msg="success", data={"total": 0, "results": []})
+    
+    # 使用OR连接所有条件，实现部分匹配
     base_q = (
         db.session.query(Courseclass)
         .filter(Courseclass.is_public.is_(True))
         .options(joinedload(Courseclass.courses))
-        .filter(
-            sa.or_(
-                Courseclass.name.ilike(like_kw),
-                Courseclass.description.ilike(like_kw),
-                Courseclass.courses.any(Course.name.ilike(like_kw)),
-                Courseclass.courses.any(Course.description.ilike(like_kw))
-            )
-        )
+        .filter(sa.or_(*conditions))
         .distinct()
     )
 

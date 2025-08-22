@@ -1,4 +1,6 @@
 from datetime import datetime
+import os
+import uuid
 from venv import logger
 from flask import Blueprint, render_template, request, jsonify, session
 from typing import List, Dict
@@ -19,6 +21,7 @@ from app.routes.teaching_design import get_question_type_name, is_teacher_of_cou
 from app.services.analysis_report import generate_study_report, generate_study_report_overall
 from app.models.studentanalysisreport import StudentAnalysisReport
 from app.models.classanalysisreport import ClassAnalysisReport
+from app.utils.eva import approve_report_deepseek, generate_markdown_report, save_markdown_report
 
 student_answer_bp=Blueprint('studentanswer',__name__)
 def is_teacher_of_course(course_id):
@@ -1083,4 +1086,91 @@ def update_student_in_course_answerreport(student_id, course_id):
         return jsonify({"error": str(e)}), 500
     
 
+from werkzeug.utils import secure_filename
+@student_answer_bp.route('/practice/upload', methods=['POST'])
+def upload_practice_answer():
+    """
+    POST /practice/upload
+    form-data:
+        question_id   int    必传
+        courseclass_id int    必传
+        file          file   必传 .docx
+    """
+    if not is_logged_in():
+        return jsonify({'error': '未登录'}), 401
 
+    student = get_current_user()
+    if student.role != 'student':
+        return jsonify({'error': '仅学生可上传'}), 403
+
+    question_id   = request.form.get('question_id', type=int)
+    courseclass_id= request.form.get('courseclass_id', type=int)
+    file          = request.files.get('file')
+
+    if not all([question_id, courseclass_id, file]):
+        return jsonify({'error': '缺少参数或文件'}), 400
+
+    # 验证题目 & 班级
+    q = Question.query.get_or_404(question_id)
+    # 如果需要，可再检测学生是否属于该班级：略
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    UPLOAD_FOLDER = os.path.join(project_root, 'static','practice')
+    # 保存文件
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    ext      = os.path.splitext(file.filename)[1].lower()
+    unique_fn= f"{uuid.uuid4().hex}{ext}"
+    save_path= os.path.join(UPLOAD_FOLDER, secure_filename(unique_fn))
+    rpath = os.path.join('static','practice',secure_filename(unique_fn))
+    file.save(save_path)
+
+    # AI 评审
+    ai_result = approve_report_deepseek(save_path)
+    score     = int(ai_result.get('score', 0))
+    md_report = generate_markdown_report(ai_result, save_path)
+    mpath = save_markdown_report(md_report,save_path)
+    # 写库
+    ans = StudentAnswer(
+        student_id    = student.id,
+        question_id   = question_id,
+        course_id     = q.course_id,
+        class_id      = courseclass_id,
+        answer        = rpath,
+        correct_percentage = score,
+        analysis = mpath
+    )
+    db.session.add(ans)
+    db.session.commit()
+
+    return jsonify({
+        "answer_id": ans.id
+    }), 201
+
+
+@student_answer_bp.route('/practice/answer/<int:answer_id>/analysis', methods=['GET'])
+def get_practice_analysis(answer_id: int):
+    """
+    GET /practice/answer/<answer_id>/analysis
+    返回学生作答的 AI 分析报告
+    """
+    if not is_logged_in():
+        return jsonify({'error': '未登录'}), 401
+
+    student = get_current_user()
+    if student.role != 'student':
+        return jsonify({'error': '仅学生可查看'}), 403
+
+    # 查询作答记录
+    ans = StudentAnswer.query.filter_by(id=answer_id, student_id=student.id).first_or_404()
+    analysis_path = ans.analysis          # 保存时写入的 analysis 字段
+    if not analysis_path or not os.path.isfile(analysis_path):
+        return jsonify({'error': '分析报告不存在'}), 404
+
+    with open(analysis_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+
+    return jsonify({
+        'answer_id': ans.id,
+        'question_id': ans.question_id,
+        'score': ans.correct_percentage,
+        'markdown': content
+    }), 200
