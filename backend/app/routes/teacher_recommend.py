@@ -6,6 +6,7 @@ from app.models.teaching_design import TeachingDesign
 from app.utils.recommend_to_teachers import generate_final_markdown, generate_final_json, recommend_pictures
 from app.models.user import User
 from app.services.log_service import LogService
+from app.utils.generate_picture import generate_teaching_images_from_content
 
 teacher_recommend_bp=Blueprint('teacher_recommend_bp', __name__)
 def is_logged_in():
@@ -30,48 +31,57 @@ def before_request():
     
 @teacher_recommend_bp.route('/generate_recommendation/<int:teaching_design_id>', methods=['POST'])
 def generate_recommendation(teaching_design_id):
-    """生成推荐教师列表"""
+    """
+    POST /generate_recommendation/<teaching_design_id>
+    JSON Body:
+        ratio (str, optional): 图片长宽比，支持 1:1|16:9|9:16|3:4|4:3，默认 1:1
+    """
     current_user = get_current_user()
     if not current_user:
         return jsonify({'error': '用户不存在'}), 404
 
-    user_id = current_user.id
+    # 获取并校验 ratio
+    if request.is_json:
+        ratio = request.json.get('ratio', '1:1')
+    else:
+        ratio = '1:1'
+    if ratio not in {'1:1', '16:9', '9:16', '3:4', '4:3'}:
+        return jsonify({'error': 'ratio 参数无效'}), 400
 
-    if not teaching_design_id or not user_id:
-        return jsonify({"error": "缺少必要的参数"}), 400
-
-    # 查询指定的教学设计
-    teaching_design = TeachingDesign.query.get(teaching_design_id)
-    if not teaching_design:
-        return jsonify({"error": "未找到对应的教学设计"}), 404
-
-    # 检查权限：只有创建者或管理员可以生成推荐
+    # 教学设计存在性 & 权限检查
+    teaching_design = TeachingDesign.query.get_or_404(teaching_design_id)
     if teaching_design.creator_id != current_user.id and current_user.role != 'admin':
-        return jsonify({"error": "无权生成推荐"}), 403
+        return jsonify({'error': '无权生成推荐'}), 403
 
     try:
-        # 调用 AI 函数处理教学设计的 input 字段内容
+        # 1. 生成视频推荐 JSON
         ai_video_result = generate_final_json(teaching_design.input)
-        # ai_image_result = "{\n    \"images\": [\n        \"https://images.unsplash.com/photo-1527689368864-3a821dbccc34?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3MzQwOTR8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NDQ0NjA4NDZ8&ixlib=rb-4.0.3&q=80&w=1080\",\n        \"https://images.unsplash.com/photo-1499752228123-488eb1d280dd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3MzQwOTR8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NDQ0NjA4NDZ8&ixlib=rb-4.0.3&q=80&w=1080\",\n        \"https://images.unsplash.com/45/QDSMoAMTYaZoXpcwBjsL__DSC0104-1.jpg?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3MzQwOTR8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NDQ0NjA4NDZ8&ixlib=rb-4.0.3&q=80&w=1080\",\n        \"https://images.unsplash.com/photo-1476733419970-c703149c016b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3MzQwOTR8MHwxfHJhbmRvbXx8fHx8fHx8fDE3NDQ0NjA4NDZ8&ixlib=rb-4.0.3&q=80&w=1080\"\n    ]\n}"
-        #recommend_pictures(teaching_design.input)
 
-        # 创建 TeacherRecommend 记录并存储结果
+        # 2. 生成图片并拿到相对路径列表（已按 ratio 生成）
+        image_rel_paths = generate_teaching_images_from_content(
+            content=teaching_design.input,
+            words_per_group=3,
+            images_per_group=1,
+            ratio=ratio
+        )
+
+        # 3. 写库
         teacher_recommend = TeacherRecommend(
-            user_id=user_id,
+            user_id=current_user.id,
             teaching_design_id=teaching_design_id,
             video_recommendations=ai_video_result,
-            # image_recommendations=ai_image_result
+            image_recommendations=image_rel_paths
         )
         db.session.add(teacher_recommend)
         db.session.commit()
 
         return jsonify({
             "message": "推荐内容生成成功",
-            "recommendation_id": teacher_recommend.id
+            "recommendation_id": teacher_recommend.id,
+            "image_count": len(image_rel_paths)
         }), 201
 
     except Exception as e:
-        # 如果发生错误，回滚数据库会话并返回错误信息
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
     
@@ -101,7 +111,7 @@ def get_recommendation_by_design(teaching_design_id):
         # 构建响应数据
         recommendation_data = {
             "video_recommendations": teacher_recommend.video_recommendations,
-            # "image_recommendations": teacher_recommend.image_recommendations
+            "image_recommendations": teacher_recommend.image_recommendations
         }
 
         return jsonify({"data": recommendation_data}), 200
