@@ -388,7 +388,11 @@ def generate_learning_route():
     # 3. 组装 DeepSeek prompt
     system_prompt = (
         "你是教学规划专家，请根据学生已学过的课程班，为其制定个性化学习路线，"
-        "输出严格 JSON（不要 markdown 代码块）。"
+        "要求：\n"
+        "1. 学习路线层级不超过3层（根节点→阶段→具体知识课程）\n"
+        "2. 每个阶段下的知识课程控制在3-5个\n"
+        "3. 总节点数不超过15个\n"
+        "4. 输出严格 JSON（不要 markdown 代码块）"
     )
     user_prompt = (
         f"已学过的课程班：\n{class_text}\n\n"
