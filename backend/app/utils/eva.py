@@ -8,12 +8,12 @@ from langchain.chains import LLMChain, SequentialChain
 import docx2txt
 from datetime import datetime
 
-def approve_report_deepseek(file_path: str) -> Dict[str, str]:
+def approve_report_deepseek(file_path: str, question_content: str = "") -> Dict[str, str]:
     """
     基于 DeepSeek 的实验报告自动审批（支持 PDF / DOCX / DOC）
-    包含评分和实践可行性评估
+    包含评分、实践可行性评估，并支持额外传入题目内容辅助判断
     """
-    # 首先检查文件是否存在
+    # ---------- 1. 文件读取 ----------
     if not os.path.exists(file_path):
         return {
             "score": "0",
@@ -21,25 +21,19 @@ def approve_report_deepseek(file_path: str) -> Dict[str, str]:
             "feasibility": "无法评估",
             "approval": "审批失败，请检查文件路径是否正确。"
         }
-    
+
     ext = os.path.splitext(file_path)[1].lower()
-    
     try:
         if ext == ".pdf":
-            # 使用 PyPDFLoader 处理 PDF
             loader = PyPDFLoader(file_path)
             docs = loader.load()
             report_text = "\n".join([d.page_content for d in docs])
-            
         elif ext in {".docx", ".doc"}:
-            # 直接使用 docx2txt 处理 Word 文档
             report_text = docx2txt.process(file_path)
             if not report_text.strip():
                 raise RuntimeError("文件内容为空")
-                
         else:
             raise ValueError("只支持 .pdf / .docx / .doc 文件")
-            
     except Exception as e:
         return {
             "score": "0",
@@ -48,7 +42,7 @@ def approve_report_deepseek(file_path: str) -> Dict[str, str]:
             "approval": "审批失败，请检查文件格式或完整性。"
         }
 
-    # 初始化 DeepSeek LLM
+    # ---------- 2. LLM 初始化 ----------
     llm = ChatOpenAI(
         model="deepseek-chat",
         openai_api_key="sk-ca9d2a314fda4f8983f61e292a858d17",
@@ -56,15 +50,18 @@ def approve_report_deepseek(file_path: str) -> Dict[str, str]:
         temperature=0
     )
 
-    # 定义评分和合规性检查提示模板
+    # ---------- 3. Prompt 模板 ----------
     scoring_prompt = PromptTemplate.from_template("""
-请对以下实验报告进行综合评分（0-100分）并检查合规性：
+请对以下实验报告进行综合评分（0-100分）并检查合规性。
+题目要求：
+{question}
 
 评分标准：
 1. 内容完整性（30分）：是否包含实验名称、目的、方法、结果、结论等基本要素
 2. 数据支持（25分）：是否有充分的数据或证据支持实验结果
 3. 逻辑性（25分）：是否有逻辑错误或不一致之处
 4. 格式规范性（20分）：是否符合实验报告的基本格式要求
+5. 题目契合度（10分）：是否准确回应了题目要求
 
 合规性检查：
 - 检查是否存在严重问题或缺失关键要素
@@ -80,14 +77,17 @@ def approve_report_deepseek(file_path: str) -> Dict[str, str]:
     "content_completeness": "内容完整性评分和评语",
     "data_support": "数据支持评分和评语",
     "logicality": "逻辑性评分和评语",
-    "format_standardization": "格式规范性评分和评语"
+    "format_standardization": "格式规范性评分和评语",
+    "question_relevance": "题目契合度评分和评语"
   }}
 }}
 """)
 
-    # 实践可行性评估提示模板
     feasibility_prompt = PromptTemplate.from_template("""
-请评估以下实验报告的实践可行性：
+请评估以下实验报告的实践可行性。
+
+题目要求：
+{question}
 
 实验报告内容：
 {report}
@@ -100,6 +100,7 @@ def approve_report_deepseek(file_path: str) -> Dict[str, str]:
 2. 结果的可验证性
 3. 实际应用价值
 4. 技术实现的难易程度
+5. 是否满足题目要求
 
 请按以下格式输出：
 可行性评估：高/中/低
@@ -110,7 +111,6 @@ def approve_report_deepseek(file_path: str) -> Dict[str, str]:
 ...
 """)
 
-    # 最终审批意见提示模板
     approval_prompt = PromptTemplate.from_template("""
 基于以下评分结果和可行性评估，给出最终审批意见：
 
@@ -127,32 +127,32 @@ def approve_report_deepseek(file_path: str) -> Dict[str, str]:
 - 推荐等级（优秀/良好/合格/不合格）
 """)
 
-    # 创建处理链
+    # ---------- 4. Chain ----------
     chain = SequentialChain(
         chains=[
             LLMChain(llm=llm, prompt=scoring_prompt, output_key="scoring"),
             LLMChain(llm=llm, prompt=feasibility_prompt, output_key="feasibility"),
             LLMChain(llm=llm, prompt=approval_prompt, output_key="approval")
         ],
-        input_variables=["report"],
+        input_variables=["report", "question"],
         output_variables=["scoring", "feasibility", "approval"]
     )
 
     try:
-        result = chain.invoke({"report": report_text})
-        
-        # 解析评分结果
+        result = chain.invoke({"report": report_text, "question": question_content or "无额外题目要求"})
+        # 解析评分 JSON
         try:
             scoring_data = json.loads(result["scoring"])
-            result["score"] = scoring_data.get("score", "N/A")
-            result["compliance"] = scoring_data.get("compliance", "N/A")
-            result["scoring_details"] = scoring_data.get("scoring_details", {})
-        except:
+            result.update({
+                "score": scoring_data.get("score", "N/A"),
+                "compliance": scoring_data.get("compliance", "N/A"),
+                "scoring_details": scoring_data.get("scoring_details", {})
+            })
+        except Exception:
             result["score"] = "解析失败"
             result["compliance"] = result["scoring"]
-            
         return result
-        
+
     except Exception as e:
         return {
             "score": "0",

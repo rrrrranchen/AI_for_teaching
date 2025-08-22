@@ -1112,6 +1112,7 @@ def upload_practice_answer():
 
     # 验证题目 & 班级
     q = Question.query.get_or_404(question_id)
+    question_content = q.content
     # 如果需要，可再检测学生是否属于该班级：略
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     UPLOAD_FOLDER = os.path.join(project_root, 'static','practice')
@@ -1124,7 +1125,7 @@ def upload_practice_answer():
     file.save(save_path)
 
     # AI 评审
-    ai_result = approve_report_deepseek(save_path)
+    ai_result = approve_report_deepseek(save_path,question_content)
     score     = int(ai_result.get('score', 0))
     md_report = generate_markdown_report(ai_result, save_path)
     mpath = save_markdown_report(md_report,save_path)
