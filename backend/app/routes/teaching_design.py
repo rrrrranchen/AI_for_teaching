@@ -293,6 +293,9 @@ async def create_teaching_design():
             similarity_threshold=0.7,
             chunk_cnt=5
         )
+        with open(plan_content, 'r', encoding='utf-8') as f:
+            plan_content = f.read()
+
         logger.info("教学方案生成成功")
 
         # 8. 创建数据库记录

@@ -298,76 +298,158 @@ def get_default_question(course_content: str) -> Dict:
 
 
 
-# 生成结构化教案（按六大模块分段）
+from datetime import datetime
+import os
+import json
+from typing import Dict, List, Optional, Any
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import JsonOutputParser
+from langchain.chains import SequentialChain, LLMChain
+from dotenv import load_dotenv
+from langchain_core.prompts import PromptTemplate
+
+# --------------------------------------------------
+# 1. 读环境变量
+# --------------------------------------------------
+load_dotenv()
+
+# --------------------------------------------------
+# 2. 初始化 DeepSeek
+# --------------------------------------------------
+llm = ChatOpenAI(
+    model="deepseek-chat",
+    openai_api_base="https://api.deepseek.com/v1",
+    openai_api_key="sk-ca9d2a314fda4f8983f61e292a858d17",
+    temperature=0.7,
+    max_tokens=32768
+)
+
+# --------------------------------------------------
+# 3. 定义工作流中的各个步骤（去除大纲生成）
+# --------------------------------------------------
+
+# 步骤1: 设计Mermaid知识结构图
+def create_mermaid_chain():
+    """创建Mermaid图表设计链"""
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", """你是知识可视化专家，请根据以下信息设计Mermaid知识结构图：
+- 课程内容: {course_content}
+- 学生反馈: {student_feedback}
+- 知识库参考资料: {model_context}
+
+请设计2-3个Mermaid图表，用于辅助教学内容的完善与设计，包括：
+1. 知识体系结构图
+2. 关键概念关系图
+3. 教学过程流程图
+
+返回格式: {{"mermaid_code1": "完整的mermaid代码", "mermaid_code2": "完整的mermaid代码"}}"""),
+    ])
+    
+    parser = JsonOutputParser()
+    return LLMChain(llm=llm, prompt=prompt, output_parser=parser, output_key="mermaid_diagram")
+
+# 步骤2: 直接生成完整教案内容
+def create_content_chain():
+    """创建教学内容填充链"""
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", """你是教学内容设计专家，请根据以下信息直接生成完整的教案内容：
+- 课程内容: {course_content}
+- 学生反馈: {student_feedback}
+- 知识库参考资料: {model_context}
+- Mermaid图表: {mermaid_diagram}
+
+请按照以下六个模块生成完整的教案内容，并选择合适的Mermaid图表插入到"教学内容"部分：
+
+### 1. 教学目标
+- 列出3-5个可衡量的学习目标
+
+### 2. 教学重难点
+- 结合学生反馈说明重点与难点及突破策略
+
+### 3. 教学内容
+- 使用知识库资料补充知识点逻辑关系
+- 插入Mermaid结构图展示核心概念
+
+### 4. 教学时间安排（90分钟）
+- 合理分配导入、讲授、互动、小结时间
+
+### 5. 教学过程
+- 按"导入-讲授-互动-小结"设计
+- 包含针对学生薄弱点的练习活动
+- 说明方法、师生行为、时间、工具、预期成果
+
+### 6. 课后作业
+- 基础题和拓展题各2-3道
+
+请使用Markdown格式输出，字数控制在2000-3000字，直接输出完整教学设计内容。"""),
+    ])
+    
+    return LLMChain(llm=llm, prompt=prompt, output_key="lesson_plan")
+
+# --------------------------------------------------
+# 5. 主函数：生成结构化教案（简化版）
+# --------------------------------------------------
 def generate_lesson_plans(course_content, student_feedback, db_names, similarity_threshold, chunk_cnt):
     """
     根据课程内容、学生反馈和知识库检索结果，生成教学方案
-    :param course_content: 课程内容
-    :param student_feedback: 学生反馈
-    :param db_names: 知识库名称列表
-    :param similarity_threshold: 检索相似度阈值
-    :param chunk_cnt: 检索片段数量
-    :param data_type_filter: 数据类型过滤条件
-    :return: 教案内容（Markdown格式）
     """
     # 从知识库检索相关内容
     model_context, display_chunks, source_dict = _retrieve_chunks_from_multiple_dbs(
-        query=course_content, db_names=db_names, similarity_threshold=similarity_threshold, chunk_cnt=chunk_cnt
+        query=course_content, db_names=db_names, 
+        similarity_threshold=similarity_threshold, chunk_cnt=chunk_cnt
     )
+    
     print("检索内容：")
     print(model_context)
-    response = client.chat.completions.create(
-        model="deepseek-reasoner",
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "你是教学设计专家，请根据以下三部分信息生成教案：\n"
-                    "1. 教师提供的课程内容\n"
-                    "2. 学生答题反馈\n"
-                    "3. 从知识库检索到的相关教学参考资料\n\n"
-                    "请严格按照以下六个模块生成教案，并满足要求：\n"
-                    "### 1. 教学目标\n"
-                    "- 列出3-5个可衡量的学习目标，参考知识库中的课程标准。\n\n"
-                    "### 2. 教学重难点\n"
-                    "- 结合学生反馈和知识库内容，说明重点与难点及突破策略。\n\n"
-                    "### 3. 教学内容\n"
-                    "- 使用知识库中的资料补充知识点逻辑关系，并用 Mermaid 生成结构图。\n\n"
-                    "### 4. 教学时间安排\n"
-                    "- 45分钟课时分配，需包含知识库推荐的互动时间比例。\n\n"
-                    "### 5. 教学过程\n"
-                    "- 按“导入-讲授-互动-小结”设计，互动环节必须包含：\n"
-                    "  a) 知识库推荐的活动（如小组讨论/角色扮演）\n"
-                    "  b) 针对学生反馈的薄弱点设计练习\n"
-                    "- 每个环节需说明：方法、师生行为、时间、工具、预期成果。\n\n"
-                    "### 6. 课后作业\n"
-                    "- 基础题（覆盖知识库核心内容）\n"
-                    "- 拓展题（结合检索到的拓展资料）\n\n"
-                    "### 其他要求\n"
-                    "- 使用 Markdown 格式，字数不少于3000字\n"
-                    "- 关键教学策略需标注来源（如：\"根据[知识库]建议...\"）"
-                )
-            },
-            {
-                "role": "user",
-                "content": (
-                    f"### 课程原始内容\n{course_content}\n\n"
-                    f"### 学生反馈\n{student_feedback}\n\n"
-                    f"### 知识库参考资料\n{model_context}\n\n"
-                    "请生成教案，确保整合上述所有信息。"
-                )
-            }
-        ],
-        temperature=1.0,
-        max_tokens=32768,  
-        top_p=0.9,
-        frequency_penalty=0.2,
-        presence_penalty=0.1,
-        stream=False
-    )
-
-    return  response.choices[0].message.content
     
+    # 创建工作流链（只有两个步骤）
+    mermaid_chain = create_mermaid_chain()
+    content_chain = create_content_chain()
+    
+    # 先执行Mermaid图表生成
+    mermaid_result = mermaid_chain.run({
+        "course_content": course_content,
+        "student_feedback": student_feedback,
+        "model_context": model_context
+    })
+    
+    # 修复：检查 mermaid_result 的类型
+    if isinstance(mermaid_result, dict):
+        # 如果已经是字典，直接使用
+        mermaid_data = mermaid_result
+    elif isinstance(mermaid_result, str):
+        try:
+            # 如果是字符串，尝试解析为JSON
+            mermaid_data = json.loads(mermaid_result)
+        except json.JSONDecodeError:
+            # 如果解析失败，使用默认的Mermaid代码
+            mermaid_data = {"mermaid_code1": "graph TD\nA[课程内容]\nB[核心概念]\nA-->B"}
+    else:
+        # 其他类型，使用默认值
+        mermaid_data = {"mermaid_code1": "graph TD\nA[课程内容]\nB[核心概念]\nA-->B"}
+    
+    # 执行内容生成
+    lesson_plan = content_chain.run({
+        "course_content": course_content,
+        "student_feedback": student_feedback,
+        "model_context": model_context,
+        "mermaid_diagram": json.dumps(mermaid_data, ensure_ascii=False)
+    })
+    
+    # 保存文件
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    save_dir = os.path.join(project_root, 'static', 'teachingplan')
+    os.makedirs(save_dir, exist_ok=True)
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    file_path = os.path.join(save_dir, f"lesson_plan_{timestamp}.md")
+    
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(lesson_plan)
+    
+    print(f"教案已保存至: {file_path}")
+    return file_path
 
 
 

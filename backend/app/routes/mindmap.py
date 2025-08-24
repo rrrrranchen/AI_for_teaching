@@ -332,7 +332,7 @@ def get_ai_analysis(knowledge_point_id):
         if not ai_analysis:
             return jsonify({'error': 'No AI analysis available for this knowledge point'}), 404
 
-        # 解析 AI 分析报告（假设存储的是 JSON 字符串）
+
         try:
             analysis_report = json.loads(ai_analysis)
         except json.JSONDecodeError:

@@ -15,6 +15,7 @@ from app.models.teaching_design import TeachingDesign
 from app.models.teachingdesignversion import TeachingDesignVersion
 from app.models.MindMapNode import MindMapNode
 from app.utils.ai_chat import _retrieve_chunks_from_multiple_dbs, _retrieve_chunks_from_multiple_dbs_for_questions
+from app.utils.generate_practice import generate_experiment_with_json
 question_bp=Blueprint('question',__name__)
 
 def is_logged_in():
@@ -409,8 +410,8 @@ def generate_post_class_questions_for_version(design_id, version_id):
             return jsonify(code=403, message="无操作权限"), 403
 
         # 4. 获取教学设计版本的内容
-        version_content = json.loads(version.content) if version.content else {}
-        lesson_plan_content = version_content.get('plan_content', '')
+        version_content = version.content
+        lesson_plan_content = version_content
 
         # 5. 获取思维导图数据
         mind_map = json.loads(design.mindmap) if design.mindmap else {}
@@ -441,6 +442,62 @@ def generate_post_class_questions_for_version(design_id, version_id):
         db.session.rollback()
         logger.error(f"生成课后习题失败: {str(e)}")
         return jsonify(code=500, message="服务器内部错误"), 500
+    
+
+@question_bp.route('/design/<int:design_id>/version/<int:version_id>/generate_practice', methods=['POST'])
+def generate_practice(design_id, version_id):
+    """
+    根据单个教学设计版本生成实践题
+    """
+    try:
+        # 1. 基础验证
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify(code=401, message="请先登录"), 401
+
+        # 2. 查询教学设计和版本
+        design = TeachingDesign.query.get(design_id)
+        if not design:
+            return jsonify(code=404, message="教学设计不存在"), 404
+
+        version = TeachingDesignVersion.query.get(version_id)
+        if not version or version.design_id != design.id:
+            return jsonify(code=404, message="教学设计版本不存在"), 404
+
+        # 3. 权限验证（教师只能生成自己创建的版本的课后习题）
+        if current_user.role == 'teacher' and version.author_id != current_user.id:
+            return jsonify(code=403, message="无操作权限"), 403
+
+        # 4. 获取教学设计版本的内容
+        version_content = version.content
+        lesson_plan_content = version_content
+
+        # 6. 调用 AI 接口生成课后习题
+        result = generate_experiment_with_json(teaching_content=lesson_plan_content)
+
+
+        new_question = Question(
+                course_id=design.course_id,
+                type='practice',
+                content=result['experiment'],
+                correct_answer=result['correct_answer'],
+                timing='post_class',
+                is_public=False,
+                difficulty = 3
+            )
+        db.session.add(new_question)
+
+        db.session.commit()
+
+        # 8. 返回响应
+        return jsonify(code=200, message="实践题生成成功", data=result), 200
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"生成课后习题失败: {str(e)}")
+        return jsonify(code=500, message="服务器内部错误"), 500
+    
+
 def validate_question_specs(specs: List[Dict]) -> List[Tuple[str, int, Optional[int]]]:
     """
     验证并转换前端传来的题目规格

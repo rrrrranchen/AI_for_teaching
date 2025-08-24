@@ -1134,7 +1134,7 @@ def upload_practice_answer():
         student_id    = student.id,
         question_id   = question_id,
         course_id     = q.course_id,
-        class_id      = courseclass_id,
+        class_id      = courseclass_id, 
         answer        = rpath,
         correct_percentage = score,
         analysis = mpath
