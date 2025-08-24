@@ -208,19 +208,42 @@ async def generate_teaching_plans_async(course_content, student_feedback,db_name
     
     return generate_lesson_plans(course_content=course_content, student_feedback=student_feedback,db_names=db_names,similarity_threshold=similarity_threshold,chunk_cnt=chunk_cnt)
 
-async def save_teaching_design_version_async(new_design, plan_content):
-    """异步保存单个教学设计版本"""
-    version = TeachingDesignVersion(
-        design_id=new_design.id,
-        version='1',  # 固定为版本1
-        content=plan_content,
-        recommendation_score=5,  # 默认推荐指数为5（最高）
-        level='优秀',  # 默认等级为优秀
-        author_id=new_design.creator_id
-    )
-    db.session.add(version)
-    await asyncio.to_thread(db.session.commit)
-    return version
+async def save_teaching_design_version_async(design, content, version_number=None):
+    """
+    异步保存教学设计版本
+    """
+    try:
+        # 如果没有提供版本号，自动计算
+        if version_number is None:
+            # 查询当前设计的最大版本号
+            max_version = TeachingDesignVersion.query.filter_by(
+                design_id=design.id
+            ).order_by(TeachingDesignVersion.version.desc()).first()
+            
+            if max_version:
+                version_number = str(int(max_version.version) + 1)
+            else:
+                version_number = "1"
+        
+        new_version = TeachingDesignVersion(
+            design_id=design.id,
+            version=version_number,  # 使用指定的版本号
+            content=content,
+            author_id=design.creator_id,
+            level="优秀",  # 可以根据内容质量动态评估
+            recommendation_score=5  # 默认推荐分数
+        )
+        
+        db.session.add(new_version)
+        await asyncio.to_thread(db.session.commit)
+        
+        logger.info(f"教学设计版本保存成功: design_id={design.id}, version={version_number}")
+        return new_version
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"保存教学设计版本失败: {str(e)}")
+        raise
 
 async def set_current_version_async(new_design, versions):
     """异步设置当前版本"""
@@ -293,44 +316,109 @@ async def create_teaching_design():
             similarity_threshold=0.7,
             chunk_cnt=5
         )
+        
+        # 读取生成的教学设计内容
         with open(plan_content, 'r', encoding='utf-8') as f:
-            plan_content = f.read()
+            plan_content_text = f.read()
 
         logger.info("教学方案生成成功")
 
-        # 8. 创建数据库记录
-        new_design = TeachingDesign(
-            course_id=data['course_id'],
-            creator_id=current_user.id,
-            title=data.get('title', f"{course.name}教学设计"),
-            input=generation_input  # 记录使用的原始输入
-        )
-        db.session.add(new_design)
-        db.session.flush()
+        # 8. 检查是否已有教学设计
+        existing_design = TeachingDesign.query.filter_by(
+            course_id=data['course_id'], 
+            creator_id=current_user.id
+        ).first()
 
-        # 9. 保存版本
-        version = await save_teaching_design_version_async(new_design, plan_content)
-        logger.info(f"创建教学设计版本: version_id={version.id}")
-        
-        # 10. 设置当前版本
-        new_design.current_version_id = version.id
-        db.session.commit()
-        logger.info(f"教学设计创建成功: design_id={new_design.id}")
+        if existing_design:
+            # 已有教学设计，创建新版本
+            logger.info(f"检测到已有教学设计，创建新版本: design_id={existing_design.id}")
+            
+            # 计算新版本号
+            latest_version = TeachingDesignVersion.query.filter_by(
+                design_id=existing_design.id
+            ).order_by(TeachingDesignVersion.version.desc()).first()
+            
+            if latest_version:
+                # 如果已有版本，版本号+1
+                new_version_number = str(int(latest_version.version) + 1)
+            else:
+                # 如果没有版本记录，从1开始
+                new_version_number = "1"
+            
+            logger.info(f"新版本号: {new_version_number}")
+            
+            # 更新现有教学设计的元数据
+            existing_design.title = data.get('title', f"{course.name}教学设计")
+            existing_design.updated_at = datetime.utcnow()
+            
+            # 创建新版本（使用新的版本号）
+            version = await save_teaching_design_version_async(
+                existing_design, 
+                plan_content_text,
+                version_number=new_version_number  # 传递新的版本号
+            )
+            logger.info(f"创建教学设计新版本: version_id={version.id}, version={new_version_number}")
+            
+            # 设置当前版本
+            existing_design.current_version_id = version.id
+            db.session.commit()
+            
+            logger.info(f"教学设计版本更新成功: design_id={existing_design.id}, version_id={version.id}")
 
-        # 11. 返回响应
-        return jsonify({
-            "code": 200,
-            "data": {
-                "design_id": new_design.id,
-                "version_id": version.id,
-                "title": new_design.title,
-                "course_name": course.name,
-                "objectives_used": course.objectives[:200] + "..." if len(course.objectives) > 200 else course.objectives,
-                "content_used": course.content[:200] + "..." if len(course.content) > 200 else course.content,
-                "courseclass": courseclass.name,
-                "knowledge_bases_used": [kb.name for kb in knowledge_bases]
-            }
-        })
+            return jsonify({
+                "code": 200,
+                "message": "教学设计版本更新成功",
+                "data": {
+                    "design_id": existing_design.id,
+                    "version_id": version.id,
+                    "title": existing_design.title,
+                    "course_name": course.name,
+                    "version_number": new_version_number,
+                    "total_versions": TeachingDesignVersion.query.filter_by(
+                        design_id=existing_design.id
+                    ).count(),
+                    "objectives_used": course.objectives[:200] + "..." if len(course.objectives) > 200 else course.objectives,
+                    "content_used": course.content[:200] + "..." if len(course.content) > 200 else course.content,
+                    "courseclass": courseclass.name,
+                    "knowledge_bases_used": [kb.name for kb in knowledge_bases]
+                }
+            })
+        else:
+            # 创建新的教学设计
+            new_design = TeachingDesign(
+                course_id=data['course_id'],
+                creator_id=current_user.id,
+                title=data.get('title', f"{course.name}教学设计"),
+                input=generation_input  # 记录使用的原始输入
+            )
+            db.session.add(new_design)
+            db.session.flush()
+
+            # 保存版本（第一个版本，版本号为"1"）
+            version = await save_teaching_design_version_async(new_design, plan_content_text, version_number="1")
+            logger.info(f"创建教学设计版本: version_id={version.id}")
+            
+            # 设置当前版本
+            new_design.current_version_id = version.id
+            db.session.commit()
+            logger.info(f"教学设计创建成功: design_id={new_design.id}")
+
+            return jsonify({
+                "code": 200,
+                "message": "教学设计创建成功",
+                "data": {
+                    "design_id": new_design.id,
+                    "version_id": version.id,
+                    "title": new_design.title,
+                    "course_name": course.name,
+                    "version_number": "1",
+                    "total_versions": 1,
+                    "objectives_used": course.objectives[:200] + "..." if len(course.objectives) > 200 else course.objectives,
+                    "content_used": course.content[:200] + "..." if len(course.content) > 200 else course.content,
+                    "courseclass": courseclass.name,
+                    "knowledge_bases_used": [kb.name for kb in knowledge_bases]
+                }
+            })
 
     except Exception as e:
         db.session.rollback()
