@@ -564,7 +564,7 @@ class 课堂模拟教师(Role):
                 instruct_content=activity_plan
             )
             
-            # 收集学生响应（等待1秒模拟响应时间）
+
             await asyncio.sleep(1)
             
             # 分析响应并生成报告

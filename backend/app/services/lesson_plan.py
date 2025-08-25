@@ -379,7 +379,7 @@ def create_mermaid_chain():
 3. 教学过程流程图
 4. 饼图
 5. 时序图
-
+其中必须包含知识图谱
 返回格式: {{"mermaid_code1": "完整的mermaid代码", "mermaid_code2": "完整的mermaid代码"}}"""),
     ])
     
@@ -397,7 +397,7 @@ def create_content_chain():
 - 教学大纲: {lesson_outline}
 - Mermaid图表: {mermaid_diagram}
 
-请基于提供的教学大纲和Mermaid图表，扩展生成完整的教案内容，并选择合适的3个以上Mermaid图表插入到"教学内容"部分。
+请基于提供的教学大纲和Mermaid图表，扩展生成完整的教案内容，并选择合适的3个以上Mermaid图表插入到"教学内容"部分，同时结尾必须包含生成的知识图谱。
 
 请使用Markdown格式输出，字数控制在2000-3000字，直接输出完整教学设计内容，不要输出其他内容（类似于"好的，这是为您生成的教学设计"这样的话不允许出现。"""),
     ])
