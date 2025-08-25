@@ -326,10 +326,44 @@ llm = ChatOpenAI(
 )
 
 # --------------------------------------------------
-# 3. 定义工作流中的各个步骤（去除大纲生成）
+# 3. 定义工作流中的各个步骤（调整顺序）
 # --------------------------------------------------
 
-# 步骤1: 设计Mermaid知识结构图
+# 步骤1: 生成教学大纲
+def create_outline_chain():
+    """创建教学大纲生成链"""
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", """你是教学内容设计专家，请根据以下信息生成教学大纲：
+- 课程内容: {course_content}
+- 学生反馈: {student_feedback}
+- 知识库参考资料: {model_context}
+
+请按照以下六个模块生成教学大纲：
+
+### 1. 教学目标
+- 列出3-5个可衡量的学习目标
+
+### 2. 教学重难点
+- 结合学生反馈说明重点与难点及突破策略
+
+### 3. 教学内容
+- 使用知识库资料补充知识点逻辑关系
+- 需要插入Mermaid结构图展示核心概念
+
+### 4. 教学时间安排（90分钟）
+- 合理分配导入、讲授、互动、小结时间
+
+### 5. 教学过程
+- 按"导入-讲授-互动-小结"设计
+- 包含针对学生薄弱点的练习活动
+- 说明方法、师生行为、时间、工具、预期成果
+
+请输出简洁的教学大纲，只包含主要标题和要点，不需要详细展开。"""),
+    ])
+    
+    return LLMChain(llm=llm, prompt=prompt, output_key="lesson_outline")
+
+# 步骤2: 根据大纲设计Mermaid知识结构图
 def create_mermaid_chain():
     """创建Mermaid图表设计链"""
     prompt = ChatPromptTemplate.from_messages([
@@ -337,8 +371,9 @@ def create_mermaid_chain():
 - 课程内容: {course_content}
 - 学生反馈: {student_feedback}
 - 知识库参考资料: {model_context}
+- 教学大纲: {lesson_outline}
 
-请设计3个以上相对简略的Mermaid图表，用于辅助教学内容的完善与设计，包括但不限于：
+请基于教学大纲设计3个以上相对简略的Mermaid图表，用于辅助教学内容的完善与设计，包括但不限于：
 1. 知识图谱（用于课程结尾的知识总结）
 2. 思维导图
 3. 教学过程流程图
@@ -351,47 +386,25 @@ def create_mermaid_chain():
     parser = JsonOutputParser()
     return LLMChain(llm=llm, prompt=prompt, output_parser=parser, output_key="mermaid_diagram")
 
-# 步骤2: 直接生成完整教案内容
+# 步骤3: 根据大纲和图表生成详细教案内容
 def create_content_chain():
     """创建教学内容填充链"""
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """你是教学内容设计专家，请根据以下信息直接生成完整的教案内容：
+        ("system", """你是教学内容设计专家，请根据以下信息生成详细的教案内容：
 - 课程内容: {course_content}
 - 学生反馈: {student_feedback}
 - 知识库参考资料: {model_context}
+- 教学大纲: {lesson_outline}
 - Mermaid图表: {mermaid_diagram}
 
-请按照以下六个模块生成完整的教案内容，并选择合适的3个以上Mermaid图表插入到"教学内容"部分：
+请基于提供的教学大纲和Mermaid图表，扩展生成完整的教案内容，并选择合适的3个以上Mermaid图表插入到"教学内容"部分。
 
-### 1. 教学目标
-- 列出3-5个可衡量的学习目标
-
-### 2. 教学重难点
-- 结合学生反馈说明重点与难点及突破策略
-
-### 3. 教学内容
-- 使用知识库资料补充知识点逻辑关系
-- 插入Mermaid结构图展示核心概念
-
-### 4. 教学时间安排（90分钟）
-- 合理分配导入、讲授、互动、小结时间
-
-### 5. 教学过程
-- 按"导入-讲授-互动-小结"设计
-- 包含针对学生薄弱点的练习活动
-- 说明方法、师生行为、时间、工具、预期成果
-
-### 6. 课后作业
-- 基础题和拓展题各2-3道
-
-请使用Markdown格式输出，字数控制在2000-3000字，直接输出完整教学设计内容，不要输出其他内容（类似于“好的，这是为您生成的教学设计”这样的话不允许出现。"""),
+请使用Markdown格式输出，字数控制在2000-3000字，直接输出完整教学设计内容，不要输出其他内容（类似于"好的，这是为您生成的教学设计"这样的话不允许出现。"""),
     ])
     
     return LLMChain(llm=llm, prompt=prompt, output_key="lesson_plan")
 
-# --------------------------------------------------
-# 5. 主函数：生成结构化教案（简化版）
-# --------------------------------------------------
+
 def generate_lesson_plans(course_content, student_feedback, db_names, similarity_threshold, chunk_cnt):
     """
     根据课程内容、学生反馈和知识库检索结果，生成教学方案
@@ -405,15 +418,24 @@ def generate_lesson_plans(course_content, student_feedback, db_names, similarity
     print("检索内容：")
     print(model_context)
     
-    # 创建工作流链（只有两个步骤）
+    # 创建工作流链（调整顺序）
+    outline_chain = create_outline_chain()
     mermaid_chain = create_mermaid_chain()
     content_chain = create_content_chain()
     
-    # 先执行Mermaid图表生成
-    mermaid_result = mermaid_chain.run({
+    # 先执行大纲生成
+    lesson_outline = outline_chain.run({
         "course_content": course_content,
         "student_feedback": student_feedback,
         "model_context": model_context
+    })
+    
+    # 基于大纲执行Mermaid图表生成
+    mermaid_result = mermaid_chain.run({
+        "course_content": course_content,
+        "student_feedback": student_feedback,
+        "model_context": model_context,
+        "lesson_outline": lesson_outline
     })
     
     # 修复：检查 mermaid_result 的类型
@@ -436,6 +458,7 @@ def generate_lesson_plans(course_content, student_feedback, db_names, similarity
         "course_content": course_content,
         "student_feedback": student_feedback,
         "model_context": model_context,
+        "lesson_outline": lesson_outline,
         "mermaid_diagram": json.dumps(mermaid_data, ensure_ascii=False)
     })
     
@@ -451,7 +474,7 @@ def generate_lesson_plans(course_content, student_feedback, db_names, similarity
         f.write(lesson_plan)
     
     print(f"教案已保存至: {file_path}")
-    return file_path
+    return file_path, lesson_outline, mermaid_data  # 返回文件路径、大纲和图表数据
 
 
 
