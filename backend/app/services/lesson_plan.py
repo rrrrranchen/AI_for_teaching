@@ -338,11 +338,12 @@ def create_mermaid_chain():
 - 学生反馈: {student_feedback}
 - 知识库参考资料: {model_context}
 
-请设计3个以上相对简略的Mermaid图表，用于辅助教学内容的完善与设计，包括：
-1. 知识图谱
+请设计3个以上相对简略的Mermaid图表，用于辅助教学内容的完善与设计，包括但不限于：
+1. 知识图谱（用于课程结尾的知识总结）
 2. 思维导图
 3. 教学过程流程图
-4. 饼图等
+4. 饼图
+5. 时序图
 
 返回格式: {{"mermaid_code1": "完整的mermaid代码", "mermaid_code2": "完整的mermaid代码"}}"""),
     ])
