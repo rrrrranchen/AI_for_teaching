@@ -62,7 +62,7 @@ system_prompt = (
 )
 prompt = ChatPromptTemplate.from_messages([
     ("system", system_prompt),
-    ("human", "{text}")
+    ("human", system_prompt+"{text}")
 ])
 # --------------------------------------------------
 # 4. 组装链
