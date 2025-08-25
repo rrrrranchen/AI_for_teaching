@@ -704,7 +704,7 @@ def get_teaching_design(design_id):
             return jsonify(code=404, message="教学设计不存在"), 404
 
         # 3. 权限验证（教师只能查询自己创建的教学设计，管理员可以查询所有）
-        if current_user.role == 'teacher' and design.creator_id != current_user.id:
+        if not design.is_public and current_user.role != 'admin' and design.creator_id != current_user.id:
             return jsonify(code=403, message="无操作权限"), 403
 
         # 4. 构造返回数据
