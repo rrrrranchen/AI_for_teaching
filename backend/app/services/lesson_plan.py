@@ -338,7 +338,7 @@ def create_mermaid_chain():
 - 学生反馈: {student_feedback}
 - 知识库参考资料: {model_context}
 
-请设计2-3个Mermaid图表，用于辅助教学内容的完善与设计，包括：
+请设计3个以上Mermaid图表，用于辅助教学内容的完善与设计，包括：
 1. 知识体系结构图
 2. 关键概念关系图
 3. 教学过程流程图
@@ -359,7 +359,7 @@ def create_content_chain():
 - 知识库参考资料: {model_context}
 - Mermaid图表: {mermaid_diagram}
 
-请按照以下六个模块生成完整的教案内容，并选择合适的Mermaid图表插入到"教学内容"部分：
+请按照以下六个模块生成完整的教案内容，并选择合适的3个以上Mermaid图表插入到"教学内容"部分：
 
 ### 1. 教学目标
 - 列出3-5个可衡量的学习目标
@@ -382,7 +382,7 @@ def create_content_chain():
 ### 6. 课后作业
 - 基础题和拓展题各2-3道
 
-请使用Markdown格式输出，字数控制在2000-3000字，直接输出完整教学设计内容。"""),
+请使用Markdown格式输出，字数控制在2000-3000字，直接输出完整教学设计内容，不要输出其他内容（类似于“好的，这是为您生成的教学设计”这样的话不允许出现。"""),
     ])
     
     return LLMChain(llm=llm, prompt=prompt, output_key="lesson_plan")
