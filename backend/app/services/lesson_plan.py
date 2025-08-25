@@ -474,7 +474,7 @@ def generate_lesson_plans(course_content, student_feedback, db_names, similarity
         f.write(lesson_plan)
     
     print(f"教案已保存至: {file_path}")
-    return file_path, lesson_outline, mermaid_data  # 返回文件路径、大纲和图表数据
+    return file_path
 
 
 
