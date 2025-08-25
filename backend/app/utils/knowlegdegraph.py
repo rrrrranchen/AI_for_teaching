@@ -23,7 +23,7 @@ llm = ChatOpenAI(
     model="deepseek-chat",
     openai_api_base="https://api.deepseek.com/v1",
     openai_api_key="sk-ca9d2a314fda4f8983f61e292a858d17",
-    temperature=0.0,
+    temperature=0.5,
 )
 
 # --------------------------------------------------
@@ -34,11 +34,12 @@ system_prompt = (
     "输出约束：\n"
     "1. 仅返回合法 JSON，禁止解释。\n"
     "2. nodes id 与 name 保持一致。\n"
-    "3. nodes总数 ≤ 36 个。\n"
+    "3. nodes总数少于36 个。\n"
     "4. 相同类目节点在数组中连续排列。\n"
     "5. 用中文描述，专业英文术语保留英文。\n"
     "6. 颜色用十六进制，鲜明区分主题。\n"
-    "7. 最终categories数组长度必须小于5"
+    "7. 最终categories的数量必须小于5"
+    "8. 节点的category必须出现在categories出现的category"
     "{{\n"
     "  \"nodes\": [\n"
     "    {{\n"
