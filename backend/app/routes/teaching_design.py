@@ -522,10 +522,18 @@ def get_teaching_design_version(version_id):
         version = TeachingDesignVersion.query.get(version_id)
         if not version:
             return jsonify(code=404, message="教学设计版本不存在"), 404
-        design =TeachingDesign.query.get(version.design_id)
-        # 3. 权限验证（教师只能查看自己创建的版本）
-        if not design.is_public and current_user.role == 'teacher' and version.author_id != current_user.id:
+        
+        # 3. 查询对应的教学设计
+        design = TeachingDesign.query.get(version.design_id)
+        if not design:
+            return jsonify(code=404, message="教学设计不存在"), 404
+        
+        # 4. 权限验证
+        # 如果教学设计不是公开的，且当前用户是教师，且不是创建者，则无权限
+        if not design.is_public and current_user.role != 'admin' and design.creator_id != current_user.id:
             return jsonify(code=403, message="无访问权限"), 403
+        
+        # 5. 构建版本数据
         version_data = {
             "id": version.id,
             "design_id": version.design_id,
@@ -535,7 +543,8 @@ def get_teaching_design_version(version_id):
             "level": version.level,
             "created_at": version.created_at.isoformat() if version.created_at else None,
             "updated_at": version.updated_at.isoformat() if version.updated_at else None,
-            "author_id": version.author_id
+            "author_id": version.author_id,
+            "is_public": design.is_public  # 添加是否公开信息
         }
 
         return jsonify(code=200, message="查询成功", data=version_data), 200

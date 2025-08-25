@@ -500,7 +500,8 @@ def search_public_classes():
     )
 
     total = base_q.count()
-    candidates = base_q.offset((page - 1) * per).limit(per).all()
+    # 限制获取最多3个候选结果
+    candidates = base_q.offset((page - 1) * per).limit(min(per, 3)).all()
 
     if not candidates:
         return jsonify(code=0, msg="success", data={"total": 0, "results": []})
@@ -534,7 +535,7 @@ def search_public_classes():
 
     scored.sort(key=lambda x: x[0], reverse=True)
 
-    # 4) 序列化返回
+    # 4) 序列化返回，最多返回3个结果
     results = [
         {
             "id": cls.id,
@@ -548,13 +549,13 @@ def search_public_classes():
             ],
             "score": round(score, 3)
         }
-        for score, cls in scored
+        for score, cls in scored[:3]  # 确保最多返回3个结果
     ]
 
     return jsonify(code=0, msg="success", data={
-        "total": total,
+        "total": min(total, 3),  # 总数为实际匹配数，但最多显示3
         "page": page,
-        "per": per,
+        "per": min(per, 3),     # 每页数量最多为3
         "results": results
     })
 
